@@ -1,0 +1,2190 @@
+@import "tailwindcss";
+:root {
+  /* BRAND */
+  --color-brand: #1f2a44;
+  --color-accent: #4fa3a5;
+
+  /* TEXT */
+  --text-primary: #1f2a44;
+  --text-secondary: #5e6a85;
+  --text-muted: #8a94a8;
+  --text-inverse: #ffffff;
+
+  /* BACKGROUNDS */
+  --bg-page: #f7f9fb;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f2f5;
+  --bg-soft: #f8fbfb;
+
+  /* BORDERS */
+  --border-default: #e1e6ef;
+  --border-hover: #4fa3a5;
+  --border-disabled: #eef1f6;
+
+  /* DIVIDERS */
+  --divider-primary: #e6ebf2;
+  --divider-subtle: #f0f2f5;
+
+  /* STATUS */
+  --color-success: #2fae8f;
+  --color-warning: #f5a623;
+  --color-error: #e5533d;
+  --color-info: #4fa3a5;
+
+  /* RADIUS */
+  --radius-card: 14px;
+  --radius-button: 12px;
+  --radius-input: 12px;
+  --radius-image: 14px;
+  --radius-chip: 999px;
+
+  /* SPACING */
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --space-2xl: 24px;
+
+  /* SHADOWS */
+  --shadow-card: 0 8px 24px rgba(31, 42, 68, 0.06);
+  --shadow-card-hover: 0 12px 30px rgba(31, 42, 68, 0.1);
+  --shadow-soft: 0 4px 14px rgba(31, 42, 68, 0.05);
+
+  /* GRID */
+  --listing-grid-gap: 16px;
+
+  /* CARD */
+  --card-padding: 16px;
+  --listing-card-inner-gap: 8px;
+
+  /* BUTTON */
+  --button-height: 46px;
+  /* header height used for sticky offsets on mobile */
+  --site-header-height: 64px;
+  --site-subheader-height: 48px;
+
+  /* IMAGE */
+  --listing-image-ratio: 1 / 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Utility: visually hide an element but keep it accessible to screen readers */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text-primary);
+  background: var(--bg-page);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.text-destructive {
+  color: var(--color-error);
+}
+
+/* --- Layout --- */
+.page-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px 24px 32px;
+}
+
+.page-section {
+  margin-top: 24px;
+}
+
+.section-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.section-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+/* --- Header --- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  /* full-bleed white header across the viewport */
+  background: var(--bg-card);
+  border-bottom: none;
+}
+
+.mobile-subheader {
+  position: static;
+  top: auto;
+  z-index: 45;
+  background: var(--bg-card);
+  border-bottom: none;
+  display: block;
+}
+@media (min-width: 768px) {
+  .mobile-subheader {
+    display: none;
+  }
+}
+
+.mobile-subheader__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 6px;
+}
+
+.mobile-subheader__link {
+  flex: 1;
+  text-align: center;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-default);
+  transition: background 0.2s ease, border 0.2s ease, color 0.2s ease;
+}
+
+.mobile-subheader__link.is-active {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--color-brand);
+}
+
+.mobile-subheader__link:hover,
+.mobile-subheader__link:focus-visible {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--color-brand);
+}
+
+
+.site-header__inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Boxed header: make the centered page-shell the visible header box (white background)
+   so header content aligns with the rest of the page blocks. Override the global
+   .page-shell padding so the header doesn't get the large bottom padding used by pages. */
+.site-header .page-shell {
+  /* keep the centered container for alignment, but let the header itself provide
+     the full-bleed white background; reduce vertical padding for a compact header */
+  margin: 0 auto;
+  padding: 0 16px; /* remove top padding that adds a visible wrapper */
+  background: transparent;
+}
+
+@media (max-width: 639px) {
+  .site-header .page-shell {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (min-width: 768px) {
+  .site-header .page-shell {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.site-header .page-shell .site-header__inner {
+  background: transparent;
+}
+
+/* Minimal header class mappings for Header component */
+.site-header__logo .section-title {
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--color-brand);
+  margin: 0;
+}
+
+/* Logo image styling: keep height ~28-32px, preserve aspect ratio, and ensure it aligns with nav
+   Keep rules minimal to avoid changing header layout or spacing. */
+.site-header__logo .section-title {
+  display: inline-flex; /* allow the img to align vertically with nav */
+  align-items: center;
+  gap: 12px; /* preserve spacing between logo and nav if text ever returns */
+}
+
+.site-header__logo .logo-img {
+  /* Smaller logo image that stays within the existing header height.
+     Do NOT change header sizing or use overflow/transform tricks. */
+  height: 32px; /* desktop/medium: reduced */
+  width: auto; /* preserve aspect ratio */
+  display: block;
+  flex-shrink: 0;
+  transform: none;
+}
+
+.mobile-menu__logo .logo-img {
+  height: 32px;
+  width: auto;
+}
+
+.site-header__logo {
+  flex-shrink: 0;
+}
+
+.site-header__logo a {
+  cursor: pointer; /* make the logo clearly clickable */
+}
+
+/* Medium screens: keep the logo balanced */
+@media (max-width: 960px) {
+  .site-header__logo .logo-img {
+    /* Keep full size on medium screens as well */
+    height: 32px;
+  }
+}
+
+/* Small screens: increase logo size to be more prominent but still within
+   header control height so the header block doesn't grow. */
+@media (max-width: 520px) {
+  .site-header__logo .logo-img {
+    /* Small screens: match desktop logo size */
+    height: 32px;
+  }
+}
+
+.site-header__search {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.site-header__search-form {
+  width: 680px;
+  max-width: 100%;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1 1 360px;
+  min-width: 140px;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  box-shadow: 0 6px 20px rgba(31, 42, 68, 0.04);
+  transition: 0.18s ease;
+}
+
+.search-input:focus,
+.search-input:focus-visible {
+  outline: none;
+  border-color: var(--border-hover);
+  box-shadow: 0 8px 22px rgba(79, 163, 165, 0.12);
+}
+
+.search-submit {
+  height: 46px;
+  padding: 0 16px;
+  border-radius: var(--radius-button);
+}
+
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Mobile toggle button (hidden on desktop, visible on small screens) */
+.site-header__mobile-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+/* Mobile-only icon group (hidden on desktop) */
+.site-header__mobile-icons {
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Clickable icon wrapper: 44x44 tap target, centered icon */
+.mobile-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+/* Mobile menu (full-screen overlay) styles */
+.mobile-menu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1000; /* ensure mobile menu always sits above all page elements */
+  display: flex;
+}
+
+.mobile-menu__inner {
+  width: 100%;
+  max-width: 100%;
+  background: var(--bg-card);
+  height: 100vh;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.mobile-menu__inner--fullscreen {
+  box-shadow: none;
+}
+
+.mobile-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--divider-primary);
+}
+
+.mobile-menu__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-menu__close {
+  background: transparent;
+  border: none;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mobile-menu__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.mobile-menu__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-menu__section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.mobile-menu__section-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-menu__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: #ffffff;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mobile-menu__link.is-active {
+  border-color: var(--border-default);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.mobile-menu__link--accent {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.mobile-menu__link--danger {
+  border-color: rgba(229, 83, 61, 0.3);
+  color: var(--color-error);
+}
+
+/* Mobile quick search sheet */
+.mobile-search-sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-search-sheet.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-search-sheet__panel {
+  width: 100%;
+  max-width: 720px;
+  background: var(--bg-card);
+  border-radius: 24px 24px 0 0;
+  padding: 18px 16px 22px;
+  box-shadow: var(--shadow-card);
+  transform: translateY(24px);
+  transition: transform 0.25s ease;
+}
+
+.mobile-search-sheet.is-open .mobile-search-sheet__panel {
+  transform: translateY(0);
+}
+
+.mobile-search-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mobile-search-sheet__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.mobile-search-sheet__subtitle {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.mobile-search-sheet__close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: var(--bg-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.mobile-search-sheet__tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mobile-search-sheet__tab {
+  padding: 10px 12px;
+  height: 40px;
+  border-radius: 9999px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.mobile-search-sheet__tab.is-active {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--color-brand);
+}
+
+.mobile-search-sheet__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .mobile-search-sheet {
+    display: none;
+  }
+}
+
+
+.site-header__nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: 6px;
+}
+
+@media (max-width: 960px) {
+  .site-header__search-form {
+    width: 520px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-header__nav {
+    display: none;
+  }
+  /* hide desktop actions and show mobile toggle */
+  .site-header__actions {
+    display: none;
+  }
+  .site-header__mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* show the mobile icon group on small screens */
+  .site-header__mobile-icons {
+    display: flex;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-header__search {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .page-shell,
+  .container {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .site-header .page-shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .card,
+  .box,
+  .card--padded,
+  .form-card {
+    padding: 12px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+  .page-shell,
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .site-header .page-shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .card,
+  .box,
+  .card--padded,
+  .form-card {
+    padding: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .page-shell,
+  .container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .site-header .page-shell {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .card,
+  .box,
+  .card--padded,
+  .form-card {
+    padding: 20px;
+  }
+}
+
+/* Header: centered search and actions */
+.site-header__left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.site-header__center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.header-logo {
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--color-brand);
+}
+
+.header-search {
+  width: 680px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1 1 320px;
+  min-width: 160px;
+}
+
+.search-select {
+  width: 220px;
+  max-width: 40%;
+}
+
+.search-btn {
+  height: 46px;
+  padding: 0 18px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.site-header__left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.site-nav__link {
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: 0.2s ease;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.site-nav__link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.site-nav__link.is-active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* --- Hero --- */
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.hero-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbfb 100%);
+  border: 1px solid var(--border-default);
+  border-radius: 22px;
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+}
+
+/* Hero tabs (minimal SaaS-like styling) */
+.hero-tabs {
+  display: flex;
+  gap: 10px; /* spacing between tabs */
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.hero-tab {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hero-tab {
+  padding: 10px 12px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.hero-tab:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--color-brand);
+}
+
+.hero-tab.is-active {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--color-brand);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.hero-card--accent {
+  background: linear-gradient(135deg, var(--color-brand) 0%, #24365e 100%);
+  color: var(--text-inverse);
+  border: none;
+}
+
+.hero-title {
+  margin: 0 0 12px;
+  font-size: 42px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+
+/* Search-specific adjustments: remove nested card visuals and reduce padding */
+.hero-card .hero-search-row {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+/* Make inputs, selects and the search button fill their grid cell */
+.hero-card .hero-search-row .input,
+.hero-card .hero-search-row .select,
+.hero-card .hero-search-row .btn {
+  width: 100%;
+  height: 46px;
+}
+
+/* If the button is wrapped in an element that uses inline styles (eg. margin-left:auto),
+   override it so grid placement is consistent. Using !important only here to override
+   inline marginLeft from the React inline style in the markup. */
+/* Removed wrapper override; button now sits directly in the grid so no special override is required. */
+
+.hero-card.hero-card--search {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-soft);
+  padding: 20px;
+}
+
+/* --- Listing layout & sidebar --- */
+.listing-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--listing-grid-gap);
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .listing-layout {
+    grid-template-columns: 300px 1fr; /* sidebar ~300px, content flexible */
+  }
+}
+
+.listing-layout__sidebar {
+  width: 100%;
+}
+
+.listing-layout__content {
+  width: 100%;
+}
+
+/* Filters sidebar specific styles */
+.filters-sidebar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filters-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters-sidebar__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.app-close-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.app-close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Mobile drawer: keep hover effects subtle and clean */
+.filters-sidebar--drawer .filters-sidebar__category-row:hover,
+.filters-sidebar--drawer .filters-sidebar__checkbox-row:hover {
+  background: var(--bg-hover);
+  border-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Ensure the sidebar and its inner card always use the full sidebar width
+   (prevents the card from rendering narrower than the sidebar container) */
+.filters-sidebar {
+  width: 100%;
+  box-sizing: border-box; /* include padding in width calculation */
+}
+
+/* If a .card exists inside the sidebar, make sure it stretches full width */
+.filters-sidebar .card {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Also handle the common pattern where the sidebar element itself also has the .card class */
+.filters-sidebar.card {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.filters-sidebar__clear {
+  background: transparent;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.filters-sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filters-sidebar__label {
+  /* larger section/header labels for better hierarchy */
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.filters-sidebar__hint {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.filters-sidebar__category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 40px; /* target ~40px row height */
+}
+
+/* Reduce vertical spacing specifically between a divider and the following category list
+   so the first category row sits closer to the divider (target ~12px total). */
+.filters-sidebar__divider + .filters-sidebar__section .filters-sidebar__category-list {
+  margin-top: 4px; /* override the default 8px to achieve ~12px combined spacing */
+}
+
+.filters-sidebar__category-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px; /* target ~40px row height */
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.filters-sidebar__category-row:hover {
+  background: var(--bg-hover);
+}
+
+.filters-sidebar__category-row.is-active {
+  background: rgba(79,163,165,0.08);
+  box-shadow: 0 1px 0 rgba(79,163,165,0.06) inset;
+  border-left: 4px solid rgba(79,163,165,0.25);
+}
+
+.filters-sidebar__category-icon {
+  width: 20px; /* slightly larger readable icon */
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Use brand accent green for category icons to match "Create listing" green */
+  color: var(--color-accent);
+}
+
+.filters-sidebar__category-count {
+  font-size: 12px;
+  /* de-emphasize counts: lighter color and medium weight */
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.filters-sidebar__field-grid {
+  display: grid;
+  /* stack controls vertically and make them full width
+     (County / Area, Price min/max, etc. will take full row) */
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+/* Dedicated vertical wrapper for Location controls (county + area) */
+.filters-sidebar__location {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filters-sidebar__checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* place checkbox first, then text */
+  gap: 12px;
+  padding: 10px; /* larger hit area */
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.filters-sidebar__checkbox-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  flex: 0 0 22px;
+}
+
+.filters-sidebar__checkbox-row span {
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+/* use the same neutral hover used by header nav links (background + text color) */
+.filters-sidebar__checkbox-row:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.filters-sidebar__checkbox-row:hover span {
+  color: var(--text-primary);
+}
+
+/* Custom checkbox styling for filters (strict selector targeting the real inputs
+   used in ListingFiltersSidebar). This removes native appearance and provides
+   a consistent look across Chrome and Safari. */
+.filters-sidebar__checkbox-row input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  /* use the same border color as inputs for visual consistency */
+  border: 1px solid #d1d5db;
+  background: #fff; /* white background when unchecked */
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.filters-sidebar__checkbox-row input[type="checkbox"]:focus {
+  outline: none;
+  /* Use a subtle neutral focus ring (very light gray) instead of green */
+  box-shadow: none;
+}
+
+.filters-sidebar__checkbox-row input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  /* stronger stroked white checkmark SVG for high contrast and visibility */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 7 L9 18 L4 13' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px; /* slightly larger checkmark for stronger visibility */
+  /* ensure no outer glow or green focus ring remains on checked state */
+  box-shadow: none;
+}
+
+/* Ensure the label text sits with the checkbox and spacing stays intact */
+.filters-sidebar__checkbox-row input[type="checkbox"] + span {
+  line-height: 18px;
+}
+
+.filters-sidebar__divider {
+  height: 1px;
+  background: var(--divider-primary);
+  margin: 8px 0;
+}
+
+.hero-text {
+  margin: 0 0 20px;
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 58ch;
+}
+
+.hero-card--accent .hero-text {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* --- Buttons --- */
+.btn {
+  height: var(--button-height);
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+}
+
+.btn:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 163, 165, 0.22);
+  border-color: var(--border-hover);
+}
+
+.btn--primary {
+  /* Use brand accent (green) for primary actions such as Search */
+  background: var(--color-accent);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn--primary:disabled {
+  opacity: 0.9;
+  color: var(--text-inverse);
+}
+
+.btn--primary:hover {
+  /* slightly darker green for hover */
+  background: #3f8b89;
+  transform: translateY(-1px);
+}
+
+/* Use brand accent (green) for the hero search primary button to match branding */
+/* Hero-search specific accent color override (scoped to hero only).
+   This ensures the hero search primary button uses the provided
+   color without changing the global --color-accent variable. */
+.hero-card .hero-search-row .btn--primary {
+  background: var(--color-accent) !important;
+  color: var(--text-inverse) !important;
+  box-shadow: var(--shadow-soft);
+  border-color: transparent !important;
+}
+
+.hero-card .hero-search-row .btn--primary:hover {
+  background: #3f8b89 !important; /* slightly darker for hover */
+  transform: translateY(-1px);
+}
+
+/* Extra defensive rule: if a wrapper (overlay/modal) sets colors, ensure the search button
+   remains the brand accent and white text. */
+.hero-card .hero-search-row .btn--primary,
+.hero-card .hero-search-row .btn--primary * {
+  background-color: var(--color-accent) !important;
+  color: var(--text-inverse) !important;
+}
+
+.btn--accent {
+  background: var(--color-accent);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn--accent:hover {
+  background: #418d8f;
+  transform: translateY(-1px);
+}
+
+.btn--ghost {
+  background: #fff;
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.btn--ghost:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+/* --- Form controls --- */
+.input,
+.textarea,
+.select {
+  width: 100%;
+  border: 1px solid var(--border-default);
+  background: #fff;
+  color: var(--text-primary);
+  border-radius: var(--radius-input);
+  transition: 0.2s ease;
+  font-size: 14px;
+}
+
+/* Hero search (vertical) — make the Search button more prominent */
+.hero-card form .btn--primary {
+  /* Use the provided hero-only accent color here. */
+  width: 100%;
+  height: 52px; /* taller button for prominence */
+  font-weight: 600;
+  border-radius: 12px; /* modern rounded pill */
+  transition: background 0.2s ease, transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: var(--text-inverse);
+}
+
+.hero-card form .btn--primary:hover:not(:disabled) {
+  background: #3f8b89; /* slightly darker */
+  transform: translateY(-1px);
+}
+
+.hero-card form .btn--primary:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+
+/* Spinner inside buttons */
+.hero-card form .btn--primary .spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.input,
+.select {
+  height: 40px;
+  padding: 0 12px;
+}
+
+/* Modern custom select appearance: remove native arrow and add a custom caret */
+.select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 44px; /* space for the custom caret */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%231f2a44' d='M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.23 8.29a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+/* Ensure the select shows placeholder-like first option when value is empty */
+.select option[value=""] {
+  color: var(--text-muted);
+}
+
+.textarea {
+  min-height: 120px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.input:hover,
+.textarea:hover,
+.select:hover {
+  border-color: #c7d0df;
+}
+
+/* Sort dropdown: smaller caret, same colors/background, no pill shape */
+.listing-sort-select {
+  width: auto;
+  min-width: 140px;
+  height: 34px;
+  padding: 6px 30px 6px 10px;
+  border-radius: 10px;
+  background-size: 14px;
+  background-position: right 10px center;
+  border: none;
+  background-color: #f3f4f6;
+  color: var(--text-primary);
+}
+
+.listing-sort-select:focus,
+.listing-sort-select:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: none;
+}
+
+.listing-sort-select:hover {
+  background-color: #e5e7eb;
+}
+
+/* Grid/List chip styling to match sort chip */
+.listing-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+.listing-view-toggle__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background-color: #f3f4f6;
+  color: var(--text-primary);
+  border: none;
+  opacity: 0.6;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.listing-view-toggle__button:hover {
+  background-color: #e5e7eb;
+  opacity: 0.85;
+}
+
+.listing-view-toggle__button.is-active {
+  background-color: #e5e7eb;
+  opacity: 1;
+}
+
+/* --- Cards --- */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card--padded {
+  padding: var(--card-padding);
+}
+
+.stat-card {
+  padding: 18px;
+  border-radius: 18px;
+}
+
+.stat-card__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0 0 6px;
+}
+
+.stat-card__value {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* --- Listings --- */
+.listings-grid {
+  display: grid;
+  gap: var(--listing-grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.listing-card {
+  display: block;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  transition: 0.18s ease;
+}
+
+.listing-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.listing-card__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.listing-card__desc {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.listing-card__price {
+  margin: 0 0 8px;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.listing-card__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* --- Badges --- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: var(--radius-chip);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--border-default);
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.badge--spotlight {
+  border-color: rgba(79, 163, 165, 0.25);
+  background: rgba(79, 163, 165, 0.1);
+  color: #2a6d70;
+}
+
+/* --- Quick links / category cards --- */
+.quick-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-card {
+  display: block;
+  padding: 20px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  transition: 0.18s ease;
+}
+
+.quick-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+.quick-card__title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.quick-card__text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  /* On mobile, show the search card first (move second hero-card above the first)
+     and make its search row sticky at the top under the header. */
+  .hero {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hero-card {
+    order: 0;
+  }
+
+  /* the second card in markup is the search card; move it to the top */
+  .hero-card:nth-child(2) {
+    order: -1;
+  }
+
+  /* make the search row within the search card sticky under the header
+     keep the row itself transparent so only the individual controls (inputs/selects/button)
+     show as white boxes — this prevents a surrounding white rounded frame around the button */
+  .hero-card:nth-child(2) .hero-search-row {
+    position: sticky;
+    top: var(--site-header-height);
+    z-index: 40; /* keep below the mobile menu (1000) and header (50) */
+    background: transparent;
+    padding: 8px 0 12px 0;
+    margin-top: 0;
+    box-shadow: none;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 0;
+  }
+
+  /* ensure the individual controls remain white and keep a subtle radius */
+  .hero-card:nth-child(2) .hero-search-row .input,
+  .hero-card:nth-child(2) .hero-search-row .select,
+  .hero-card:nth-child(2) .hero-search-row .btn {
+    background: #fff;
+    border-radius: 10px;
+  }
+
+  .quick-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-title {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 880px) {
+  .header-search {
+    width: 100%;
+    max-width: 520px;
+    padding: 6px 0;
+  }
+
+  .site-header__center {
+    justify-content: flex-start;
+  }
+
+  .search-select {
+    display: none;
+  }
+
+  .site-header__inner {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-search {
+    display: none; /* hide complex search on very small screens */
+  }
+
+  .site-nav {
+    display: none; /* hide center nav on small devices to keep header compact */
+  }
+}
+/* --- Listing layout --- */
+.listing-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.listing-layout__sidebar {
+  min-width: 0;
+}
+
+.listing-layout__content {
+  min-width: 0;
+}
+
+/* --- Filters sidebar --- */
+.filters-sidebar {
+  position: sticky;
+  top: calc(var(--site-header-height) + 16px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  /* slightly stronger shadow for better contrast against the page background */
+  box-shadow: var(--shadow-card-hover);
+  /* a touch tighter padding for a denser, premium feel */
+  padding: 16px;
+}
+
+/* Filters drawer (mobile sheet) — remove extra card wrapper */
+.filters-sidebar--drawer {
+  position: static;
+  top: auto;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 12px 16px 16px;
+}
+
+.filters-drawer {
+  border-right: 0 !important;
+  border-left: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.filters-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* tighten header spacing slightly */
+  margin-bottom: 12px;
+}
+
+.filters-sidebar__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.filters-sidebar__clear {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.filters-sidebar__clear:hover {
+  color: var(--text-primary);
+}
+
+.filters-sidebar__section {
+  /* Removed large vertical padding to keep spacing controlled by explicit dividers.
+     Padding was creating a large gap between the divider and the first category row.
+     Keep padding minimal so divider + category-list margin produce a compact gap. */
+  padding: 0;
+  /* Divider is rendered explicitly using .filters-sidebar__divider; avoid border-top here */
+}
+
+.filters-sidebar__section:first-of-type {
+  padding-top: 0;
+}
+
+.filters-sidebar__section-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.filters-sidebar__section-hint {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* --- Category list --- */
+.filters-sidebar__category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* tightened spacing */
+  margin-top: 4px; /* ensure consistent small top gap under divider */
+}
+
+.filters-sidebar__category-row {
+  width: 100%;
+  min-height: 40px; /* slightly tighter */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px; /* reduced padding for denser layout */
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: 0.12s ease;
+  text-align: left;
+}
+
+.filters-sidebar__category-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.filters-sidebar__category-row.is-active {
+  background: rgba(79, 163, 165, 0.1);
+  border-color: rgba(79, 163, 165, 0.35);
+}
+
+.filters-sidebar__category-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  /* Use brand accent green for category icons */
+  color: var(--color-accent);
+}
+
+.filters-sidebar__category-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.filters-sidebar__category-count {
+  flex: 0 0 auto;
+  font-size: 14px;
+  /* keep size but reduce contrast and weight so label remains primary */
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+/* --- Fields --- */
+.filters-sidebar__field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filters-sidebar__field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.filters-sidebar .input,
+.filters-sidebar .select {
+  height: 48px;
+  border-radius: 14px;
+  border-color: var(--border-default);
+  background: #fff;
+  box-shadow: none;
+}
+
+.filters-sidebar .input:focus,
+.filters-sidebar .input:focus-visible,
+.filters-sidebar .select:focus,
+.filters-sidebar .select:focus-visible {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 3px rgba(79, 163, 165, 0.16);
+}
+
+/* --- Checkbox rows --- */
+.filters-sidebar__checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filters-sidebar__category-row {
+  width: 100%;
+  min-height: 40px; /* slightly tighter */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px; /* reduced padding for denser layout */
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  /* smoother, slightly faster interaction */
+  transition: background 120ms ease, transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  text-align: left;
+}
+
+.filters-sidebar__category-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Mobile drawer: prevent hover lift/jump */
+.filters-sidebar--drawer .filters-sidebar__category-row,
+.filters-sidebar--drawer .filters-sidebar__checkbox-row {
+  transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.filters-sidebar--drawer .filters-sidebar__category-row:hover,
+.filters-sidebar--drawer .filters-sidebar__checkbox-row:hover {
+  background: var(--bg-hover);
+  border-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+.filters-sidebar__category-row.is-active {
+  background: rgba(79, 163, 165, 0.08);
+  border-color: rgba(79, 163, 165, 0.28);
+  box-shadow: 0 2px 8px rgba(79,163,165,0.04);
+  border-left: 4px solid rgba(79,163,165,0.18);
+}
+.filters-sidebar__rating-star {
+  color: #d89b1d;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* --- Optional small helper/action rows --- */
+.filters-sidebar__subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters-sidebar__muted {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 1024px) {
+  .listing-layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .listing-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filters-sidebar {
+    position: static;
+    top: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .filters-sidebar {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .filters-sidebar__title {
+    font-size: 24px;
+  }
+
+  .filters-sidebar__field-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+/* --- Global fallback styles for plain form elements --- */
+/* This prevents raw browser-default old-looking inputs if Copilot renders bare HTML controls */
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+textarea,
+select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  background: var(--bg-card);
+  color: var(--text-primary);
+
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-input);
+
+  font-size: 14px;
+  line-height: 1.4;
+  font-family: inherit;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select {
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+textarea {
+  min-height: 140px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder,
+select {
+  color: var(--text-muted);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover,
+textarea:hover,
+select:hover {
+  border-color: #c7d0df;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+textarea:focus,
+select:focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 3px rgba(79, 163, 165, 0.16);
+}
+
+/* ============================================================
+   LABELS — FIX: margin-bottom 6px + line-height 1.2
+   Iepriekš margin: 0 un line-height: 1 lika label tekstu
+   pārāk tuvu input/select/dropdown. SaaS standarts ir 6–8px.
+   ============================================================ */
+label {
+  display: block;
+  margin: 0 0 6px;       /* ← LABOJUMS: 6px apakšā (bija margin: 0) */
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;      /* ← LABOJUMS: nedaudz vairāk nekā 1, lai teksts elpo */
+  color: var(--text-primary);
+}
+
+/* Form layout helpers for SaaS-style spacing */
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #eee;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.form-card--nested {
+  background: #f9fafb;
+  border: 1px solid #f1f5f9;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-card--nested .field-input,
+.form-card--nested .field-select,
+.form-card--nested .field-textarea {
+  background: #ffffff;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.business-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.business-toggle-row input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.business-toggle-row input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.business-toggle-row input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 7 L9 18 L4 13' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  box-shadow: none;
+}
+
+.business-toggle-row span {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.form-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.field-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 6px;
+}
+
+.field-input,
+.field-select {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.field-textarea {
+  min-height: 120px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Default fieldset cleanup */
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Buttons fallback */
+button {
+  font: inherit;
+}
+
+button:not(.unstyled-button) {
+  min-height: 46px;
+  border-radius: var(--radius-button);
+}
+
+/* File input fallback: hide ugly browser default where possible */
+input[type="file"] {
+  font: inherit;
+  color: var(--text-secondary);
+}
+
+/* Optional: make plain submit buttons less ugly if Copilot forgets classes */
+button[type="submit"],
+input[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  background: var(--color-accent);
+  color: var(--text-inverse);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+button[type="submit"]:hover,
+input[type="submit"]:hover {
+  background: #418d8f;
+  transform: translateY(-1px);
+}
