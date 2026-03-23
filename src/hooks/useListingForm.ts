@@ -229,9 +229,11 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			return;
 		}
 
-		const authUser = auth.currentUser;
-		console.log("AUTH USER:", authUser);
-		console.log("AUTH UID:", authUser?.uid);
+				const authUser = auth.currentUser;
+				if (process.env.NODE_ENV === "development") {
+					console.log("AUTH USER:", authUser);
+					console.log("AUTH UID:", authUser?.uid);
+				}
 
 		if (!authUser) {
 			setStatusMessage("Please sign in before submitting a listing.");
@@ -250,62 +252,72 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				authUser.uid
 			);
 
-			console.log("SUBMIT SNAPSHOT", {
-				title: formSnapshot.title,
-				description: formSnapshot.description,
-				type,
-				category: getCategoryForType(type, formSnapshot),
-				county: formSnapshot.county,
-				area: formSnapshot.area,
-				price:
-					type === "service"
-						? formSnapshot.serviceRate
-						: type === "request"
-							? formSnapshot.requestBudget
-							: formSnapshot.marketplacePrice,
-				sellerType: formSnapshot.listAsBusiness ? "business" : "private",
-				photoCount: photos.length,
-				photoNames,
-				previewUrls,
-				payload: listingPayload,
-			});
+						if (process.env.NODE_ENV === "development") {
+							console.log("SUBMIT SNAPSHOT", {
+								title: formSnapshot.title,
+								description: formSnapshot.description,
+								type,
+								category: getCategoryForType(type, formSnapshot),
+								county: formSnapshot.county,
+								area: formSnapshot.area,
+								price:
+									type === "service"
+										? formSnapshot.serviceRate
+										: type === "request"
+										? formSnapshot.requestBudget
+										: formSnapshot.marketplacePrice,
+								sellerType: formSnapshot.listAsBusiness ? "business" : "private",
+								photoCount: photos.length,
+								photoNames,
+								previewUrls,
+								payload: listingPayload,
+							});
+						}
 
-			console.log("LISTING SUBMIT DEBUG", {
-				title: formSnapshot.title,
-				description: formSnapshot.description,
-				type,
-				category: listingPayload.category,
-				county: listingPayload.county,
-				area: listingPayload.area,
-				price: listingPayload.price,
-				sellerType: listingPayload.sellerType,
-				photoCount: photos.length,
-				photoNames,
-				previewUrls,
-				payload: listingPayload,
-			});
+						if (process.env.NODE_ENV === "development") {
+							console.log("LISTING SUBMIT DEBUG", {
+								title: formSnapshot.title,
+								description: formSnapshot.description,
+								type,
+								category: listingPayload.category,
+								county: listingPayload.county,
+								area: listingPayload.area,
+								price: listingPayload.price,
+								sellerType: listingPayload.sellerType,
+								photoCount: photos.length,
+								photoNames,
+								previewUrls,
+								payload: listingPayload,
+							});
+						}
 
-			console.log("DATA USER ID:", listingPayload.userId);
-			console.log("LISTING PAYLOAD:", listingPayload);
+						if (process.env.NODE_ENV === "development") {
+							console.log("DATA USER ID:", listingPayload.userId);
+							console.log("LISTING PAYLOAD:", listingPayload);
+						}
 			const listingId = await createListing({
 				...listingPayload,
 				photoCount: photos.length,
 				coverImage: null,
 			});
-			console.log("LISTING CREATED:", listingId);
-			console.log("LISTING DOC ID FOR UPLOAD:", listingId);
+						if (process.env.NODE_ENV === "development") {
+							console.log("LISTING CREATED:", listingId);
+							console.log("LISTING DOC ID FOR UPLOAD:", listingId);
+						}
 
 			await Promise.all(
 				photos.map((photo) => {
 					const draftFileName = `${listingId}__${photo.id}`;
 					const uploadPath = `draft/${user.uid}/${draftFileName}`;
-					console.log("LISTING IMAGE UPLOAD", {
-						listingId,
-						fileName: photo.file.name,
-						previewUrl: photo.previewUrl,
-						localFile: photo.file,
-						uploadPath,
-					});
+										if (process.env.NODE_ENV === "development") {
+											console.log("LISTING IMAGE UPLOAD", {
+												listingId,
+												fileName: photo.file.name,
+												previewUrl: photo.previewUrl,
+												localFile: photo.file,
+												uploadPath,
+											});
+										}
 					return uploadImage(photo.file, {
 						userId: user.uid,
 						listingId,

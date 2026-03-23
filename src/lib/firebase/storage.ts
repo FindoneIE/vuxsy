@@ -39,16 +39,18 @@ export const uploadImage = async (file: File, options: UploadImageOptions) => {
       ? getAvatarPath(userId, resolvedImageId)
       : getDraftImagePath(userId, draftFileName);
   const authUid = auth.currentUser?.uid;
-  console.log("UPLOAD PATH:", storagePath);
-  console.log("UPLOAD METADATA:", {
-    authUid,
-    userId,
-    listingId,
-    imageId,
-    resolvedImageId,
-    uploadType,
-    storagePath,
-  });
+  if (process.env.NODE_ENV === "development") {
+    console.log("UPLOAD PATH:", storagePath);
+    console.log("UPLOAD METADATA:", {
+      authUid,
+      userId,
+      listingId,
+      imageId,
+      resolvedImageId,
+      uploadType,
+      storagePath,
+    });
+  }
   const storageRef = ref(storage, storagePath);
 
   // TODO: Replace original uploads with optimized WebP outputs (600/1600) once

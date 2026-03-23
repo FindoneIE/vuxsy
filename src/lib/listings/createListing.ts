@@ -11,7 +11,9 @@ export async function createListing(data: CreateListingInput) {
   const coverImage =
     data.coverImage ?? (data.images && data.images.length > 0 ? data.images[0] : null);
   const collectionName = "listings";
-  console.log("CREATE LISTING:", { collection: collectionName, payload: data });
+  if (process.env.NODE_ENV === "development") {
+    console.log("CREATE LISTING:", { collection: collectionName, payload: data });
+  }
 
   try {
     const docRef = await addDoc(collection(db, collectionName), {
@@ -23,10 +25,12 @@ export async function createListing(data: CreateListingInput) {
       updatedAt: serverTimestamp(),
     });
 
-    console.log("CREATE LISTING SUCCESS:", {
-      collection: collectionName,
-      id: docRef.id,
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("CREATE LISTING SUCCESS:", {
+        collection: collectionName,
+        id: docRef.id,
+      });
+    }
     return docRef.id;
   } catch (error) {
     console.error("CREATE LISTING FAILED:", {

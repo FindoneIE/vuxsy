@@ -60,17 +60,6 @@ export async function getListings({
   const cleanCounty = cleanString(county);
   const cleanArea = cleanString(area);
 
-  console.log("GET LISTINGS QUERY:", {
-    collection: "listings",
-    status: "active",
-    type,
-    category: cleanCategory,
-    county: cleanCounty,
-    area: cleanArea,
-    pageSize: safePageSize,
-    hasCursor: Boolean(cursor),
-  });
-
   let ref: FirebaseFirestore.Query = adminDb
     .collection("listings")
     .where("status", "==", "active");
@@ -98,10 +87,6 @@ export async function getListings({
   }
 
   const snapshot = await ref.get();
-
-  console.log("GET LISTINGS RESULT:", {
-    count: snapshot.docs.length,
-  });
 
   const items: ListingRecord[] = snapshot.docs.map((doc) => ({
     id: doc.id,

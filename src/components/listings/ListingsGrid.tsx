@@ -11,7 +11,9 @@ export default function ListingsGrid({ items, className }: Props) {
     return <div className="text-muted-foreground">No listings found.</div>;
   }
 
-  console.log("LISTINGS GRID RENDER:", { count: items.length });
+  if (process.env.NODE_ENV === "development") {
+    console.log("LISTINGS GRID RENDER:", { count: items.length });
+  }
 
   return (
   <div className={className ?? "grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"}>

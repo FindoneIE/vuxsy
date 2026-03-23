@@ -53,7 +53,9 @@ export default function ClientListings({ mode = "services", filters, mobileFilte
     let mounted = true;
   const qs = paramsKey;
 
-    console.log("CLIENT LISTINGS FETCH:", { mode, query: qs });
+    if (process.env.NODE_ENV === "development") {
+      console.log("CLIENT LISTINGS FETCH:", { mode, query: qs });
+    }
 
     const id = window.setTimeout(async () => {
       try {
@@ -85,7 +87,9 @@ export default function ClientListings({ mode = "services", filters, mobileFilte
         }
 
   if (!mounted) return;
-  console.log("CLIENT LISTINGS RESULT:", { count: data.items?.length ?? 0 });
+  if (process.env.NODE_ENV === "development") {
+    console.log("CLIENT LISTINGS RESULT:", { count: data.items?.length ?? 0 });
+  }
   setItems(data.items ?? []);
       } catch {
         // network or other error - swallow to avoid console SyntaxError spam
