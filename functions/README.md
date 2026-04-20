@@ -1,6 +1,6 @@
 # Findone Cloud Functions
 
-This folder hosts Firebase Cloud Functions for background jobs such as image optimization.
+This folder is no longer used for backend jobs.
 
 ## Quick start
 

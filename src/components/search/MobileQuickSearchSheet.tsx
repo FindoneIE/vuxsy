@@ -1,17 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { XIcon } from "lucide-react";
+import { XIcon } from "@/components/ui/Icon";
 import CountySelect from "@/components/location/CountySelect";
 import AreaSelect from "@/components/location/AreaSelect";
-import { CATEGORIES } from "@/components/filters/categories";
-import { useQuickSearch, QuickSearchTab } from "@/hooks/useQuickSearch";
-
-const TABS: { label: string; value: QuickSearchTab }[] = [
-  { label: "Services", value: "/services" },
-  { label: "Requests", value: "/requests" },
-  { label: "Marketplace", value: "/marketplace" },
-];
+import { CATEGORIES_BY_MODE } from "@/components/filters/categories";
+import { useQuickSearch } from "@/hooks/useQuickSearch";
 
 type MobileQuickSearchSheetProps = {
   open: boolean;
@@ -34,7 +28,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
     listingCount,
     hasCategorySelection,
     onSearch,
-  } = useQuickSearch();
+  } = useQuickSearch({ syncWithHeroTabs: false });
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -72,6 +66,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
       : activeTab === "/marketplace"
       ? "marketplace"
       : "services";
+  const categories = CATEGORIES_BY_MODE[tabLabel];
 
   return (
     <div className="mobile-search-sheet is-open" role="dialog" aria-modal="true" onClick={onClose}>
@@ -80,33 +75,45 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mobile-search-sheet__header">
-          <div>
-            <p className="mobile-search-sheet__title">Quick search</p>
-            <p className="mobile-search-sheet__subtitle">Find listings fast</p>
-          </div>
+          <div />
           <button
             className="mobile-search-sheet__close"
             type="button"
             aria-label="Close search"
             onClick={onClose}
           >
-            <XIcon size={20} strokeWidth={2} />
+            <XIcon size={28} />
           </button>
         </div>
 
-        <div className="mobile-search-sheet__tabs" role="tablist" aria-label="Search mode">
-          {TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.value}
-              className={`mobile-search-sheet__tab${activeTab === tab.value ? " is-active" : ""}`}
-              onClick={() => selectTab(tab.value)}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Quick browse buttons: mirror desktop — heading + 3 shortcuts */}
+        <div style={{ width: "100%", textAlign: "left", marginBottom: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>What are you looking for?</div>
+        </div>
+        <div className="mobile-search-sheet__tabs" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className={`mobile-search-sheet__tab ${activeTab === "/services" ? "is-active" : ""}`}
+            onClick={() => selectTab("/services")}
+          >
+            Find a services
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-search-sheet__tab ${activeTab === "/requests" ? "is-active" : ""}`}
+            onClick={() => selectTab("/requests")}
+          >
+            Find a request
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-search-sheet__tab ${activeTab === "/marketplace" ? "is-active" : ""}`}
+            onClick={() => selectTab("/marketplace")}
+          >
+            Find a marketplace
+          </button>
         </div>
 
         <form
@@ -120,7 +127,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
             ref={inputRef}
             className="input"
             name="q"
-            placeholder="Search keywords, e.g. plumber, lawn care"
+            placeholder={`Search ${tabLabel}, e.g. plumber, lawn care`}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -132,7 +139,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
             onChange={(e) => setCategory(e.target.value)}
           >
             <option value="">All categories</option>
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
               </option>

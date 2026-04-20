@@ -1,5 +1,6 @@
 import type React from "react";
-import { getListings, type ListingType } from "@/lib/listings/getListings";
+import { getListings } from "@/lib/listings/getListings";
+import type { ListingType } from "@/types/listing";
 import ListingsGrid from "@/components/listings/ListingsGrid";
 import EmptyState from "@/components/listings/EmptyState";
 
@@ -19,7 +20,6 @@ export default async function ListingsPage({
 
   try {
     result = await getListings({
-      type,
       pageSize: 20,
     });
   } catch (error) {

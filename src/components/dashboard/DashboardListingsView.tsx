@@ -2,15 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
 import EmptyState from "@/components/listings/EmptyState";
 import UserListingCard from "@/components/listings/UserListingCard";
+import UserListingActions from "@/components/listings/UserListingActions";
+import UserListingSecondaryActions from "@/components/listings/UserListingSecondaryActions";
 import { type ListingStatus } from "@/components/listings/ListingStatusBadge";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import { deleteListing } from "@/lib/listings/deleteListing";
 import { getUserListings } from "@/lib/listings/getUserListings";
-import { updateListing } from "@/lib/listings/updateListing";
+import { updateListingStatus } from "@/lib/listings/updateListingStatus";
+import { promoteListing } from "@/lib/listings/promoteListing";
+import { canPromoteListing } from "@/lib/listings/promoteCooldown";
 import type { ListingType } from "@/types/listing";
 
 type Props = {
@@ -21,13 +25,14 @@ type Props = {
 type DashboardListing = {
   id: string;
   title?: string | null;
-  type?: ListingType;
-  category?: string | null;
+  category_id?: string | null;
+  city?: string | null;
+  coverImage?: string | null;
   status?: ListingStatus | null;
-  views?: number | null;
-  images?: string[];
-  createdAt?: unknown;
-  updatedAt?: unknown;
+  listing_type?: ListingType | null;
+  created_at?: string | number | Date | null;
+  updated_at?: string | number | Date | null;
+  last_promoted_at?: string | number | Date | null;
 };
 
 export default function DashboardListingsView({ title, type }: Props) {
@@ -38,7 +43,7 @@ export default function DashboardListingsView({ title, type }: Props) {
   const [error, setError] = React.useState<string | null>(null);
 
   const loadListings = React.useCallback(async () => {
-    if (!user?.uid) {
+    if (!user?.id) {
       setItems([]);
       setLoading(false);
       return;
@@ -47,7 +52,7 @@ export default function DashboardListingsView({ title, type }: Props) {
     setError(null);
 
     try {
-      const listings = await getUserListings({ userId: user.uid, type });
+  const listings = await getUserListings({ userId: user.id, listingType: type });
       setItems(listings as DashboardListing[]);
     } catch (err) {
       console.error("Failed to load user listings:", err);
@@ -55,7 +60,7 @@ export default function DashboardListingsView({ title, type }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, type]);
+  }, [type, user?.id]);
 
   React.useEffect(() => {
     loadListings();
@@ -66,26 +71,84 @@ export default function DashboardListingsView({ title, type }: Props) {
   };
 
   const handleToggleStatus = async (id: string, nextStatus: ListingStatus) => {
-    await updateListing(id, { status: nextStatus });
+    const { error: updateError } = await updateListingStatus(id, nextStatus);
+    if (updateError) {
+      console.warn("Listing update failed", {
+        id,
+        status: nextStatus,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      setError(updateError.message || "Could not update listing status.");
+      return;
+    }
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, status: nextStatus } : item))
     );
   };
 
   const handleBump = async (id: string) => {
-    await updateListing(id, { bump: true });
+    const target = items.find((item) => item.id === id);
+    if (
+      target &&
+      !canPromoteListing({
+        createdAt: target.created_at ?? null,
+        lastPromotedAt: target.last_promoted_at ?? null,
+      })
+    ) {
+      setError("This listing was recently boosted. Try again later.");
+      return;
+    }
+    const { error: updateError } = await promoteListing(id);
+    if (updateError) {
+      console.warn("Listing bump failed", {
+        id,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      setError(updateError.message || "Could not bump listing.");
+      return;
+    }
     await loadListings();
   };
 
   const handleMarkSold = async (id: string) => {
-    await updateListing(id, { status: "sold" });
+    const { error: updateError } = await updateListingStatus(id, "sold");
+    if (updateError) {
+      console.warn("Listing update failed", {
+        id,
+        status: "sold",
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      setError(updateError.message || "Could not mark listing as sold.");
+      return;
+    }
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, status: "sold" } : item))
     );
   };
 
   const handleArchive = async (id: string) => {
-    await updateListing(id, { status: "archived" });
+    const { error: updateError } = await updateListingStatus(id, "archived");
+    if (updateError) {
+      console.warn("Listing update failed", {
+        id,
+        status: "archived",
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      setError(updateError.message || "Could not archive listing.");
+      return;
+    }
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, status: "archived" } : item))
     );
@@ -97,11 +160,12 @@ export default function DashboardListingsView({ title, type }: Props) {
   };
 
   const handleView = (item: DashboardListing) => {
+    const resolvedType = (type ?? item.listing_type ?? "service") as ListingType;
     router.push(
       getListingHref({
         id: item.id,
-        type: item.type ?? "service",
-        category: item.category ?? undefined,
+        type: resolvedType,
+        category: item.category_id ?? undefined,
       })
     );
   };
@@ -113,7 +177,7 @@ export default function DashboardListingsView({ title, type }: Props) {
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
           <p className="text-sm text-slate-500">Manage your listings and status.</p>
@@ -153,20 +217,35 @@ export default function DashboardListingsView({ title, type }: Props) {
               key={item.id}
               id={item.id}
               title={item.title ?? "Untitled listing"}
-              type={item.type ?? "service"}
-              category={item.category}
+              type={(type ?? item.listing_type ?? "service") as ListingType}
+              location={item.city ?? null}
               status={(item.status as ListingStatus) ?? "draft"}
-              views={item.views ?? 0}
-              coverImage={item.images?.[0]}
-              createdAt={item.createdAt as Date | string | number | null}
-              updatedAt={item.updatedAt as Date | string | number | null}
-              onEdit={handleEdit}
-              onToggleStatus={handleToggleStatus}
-              onBump={handleBump}
-              onView={() => handleView(item)}
-              onMarkSold={handleMarkSold}
-              onArchive={handleArchive}
-              onDelete={handleDelete}
+              views={0}
+              coverImage={item.coverImage ?? null}
+              createdAt={item.created_at as Date | string | number | null}
+              updatedAt={item.updated_at as Date | string | number | null}
+              actions={
+                <UserListingActions
+                  id={item.id}
+                  status={(item.status as ListingStatus) ?? "draft"}
+                  createdAt={item.created_at ?? null}
+                  lastPromotedAt={item.last_promoted_at ?? null}
+                  onEdit={handleEdit}
+                  onToggleStatus={handleToggleStatus}
+                  onBump={handleBump}
+                />
+              }
+              secondaryActions={
+                <UserListingSecondaryActions
+                  id={item.id}
+                  type={(type ?? item.listing_type ?? "service") as ListingType}
+                  status={(item.status as ListingStatus) ?? "draft"}
+                  onView={() => handleView(item)}
+                  onMarkSold={handleMarkSold}
+                  onArchive={handleArchive}
+                  onDelete={handleDelete}
+                />
+              }
             />
           ))}
         </div>

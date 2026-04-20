@@ -38,8 +38,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-  await signInWithGoogle();
-  router.replace(safeRedirect);
+  await signInWithGoogle(safeRedirect);
     } catch {
       setError("Google sign-in failed. Please try again.");
     } finally {
@@ -53,7 +52,7 @@ export default function LoginPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">Sign in</h1>
           <p className="text-sm text-slate-500">
-            Welcome back to Findqne. Please enter your details.
+            Welcome back to Vuxsy. Please enter your details.
           </p>
         </div>
 

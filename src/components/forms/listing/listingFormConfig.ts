@@ -1,4 +1,4 @@
-import type { ListingType } from "@/types/listing";
+import type { Listing, ListingType } from "@/types/listing";
 import type { PhotoDraft } from "@/components/forms/listing/PhotoUploadField";
 
 export type ListingFormValues = {
@@ -12,9 +12,15 @@ export type ListingFormValues = {
   vatNumber: string;
   website: string;
   registrationNumber: string;
-  contactName: string;
+  displayName: string;
   contactEmail: string;
   contactPhone: string;
+  contactPhoneCountry: "+353" | "+44";
+  allowMessages: boolean;
+  allowEmail: boolean;
+  allowPhone: boolean;
+  showEmailPublicly: boolean;
+  showPhonePublicly: boolean;
   servicePhotos: PhotoDraft[];
   requestPhotos: PhotoDraft[];
   marketplacePhotos: PhotoDraft[];
@@ -30,10 +36,14 @@ export type ListingFormValues = {
   requestNeededBy: string;
   requestUrgency: string;
   marketplaceCategory: string;
-  marketplaceCondition: string;
   marketplaceQuantity: string;
   marketplacePrice: string;
-  marketplaceDelivery: string;
+  marketplaceCondition: string;
+  category_id: string | null;
+  city: string | null;
+  price: number | null;
+  status: Listing["status"] | null;
+  listing_type: ListingType | null;
 };
 
 export type ListingFormErrors = Partial<Record<keyof ListingFormValues | "form", string>>;
@@ -53,9 +63,15 @@ export const defaultListingFormValues: ListingFormValues = {
   vatNumber: "",
   website: "",
   registrationNumber: "",
-  contactName: "",
+  displayName: "",
   contactEmail: "",
   contactPhone: "",
+  contactPhoneCountry: "+353",
+  allowMessages: true,
+  allowEmail: false,
+  allowPhone: false,
+  showEmailPublicly: false,
+  showPhonePublicly: false,
   servicePhotos: [],
   requestPhotos: [],
   marketplacePhotos: [],
@@ -71,10 +87,14 @@ export const defaultListingFormValues: ListingFormValues = {
   requestNeededBy: "",
   requestUrgency: "",
   marketplaceCategory: "",
-  marketplaceCondition: "",
   marketplaceQuantity: "",
   marketplacePrice: "",
-  marketplaceDelivery: "",
+  marketplaceCondition: "",
+  category_id: null,
+  city: null,
+  price: null,
+  status: null,
+  listing_type: null,
 };
 
 export const requiredFieldsByType: Record<ListingType, Array<keyof ListingFormValues>> = {
@@ -85,7 +105,6 @@ export const requiredFieldsByType: Record<ListingType, Array<keyof ListingFormVa
     "description",
     "county",
     "marketplaceCategory",
-    "marketplaceCondition",
     "marketplacePrice",
   ],
 };

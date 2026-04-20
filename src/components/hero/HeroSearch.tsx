@@ -3,7 +3,7 @@
 import * as React from "react";
 import CountySelect from "@/components/location/CountySelect";
 import AreaSelect from "@/components/location/AreaSelect";
-import { CATEGORIES } from "@/components/filters/categories";
+import { CATEGORIES_BY_MODE } from "@/components/filters/categories";
 import { useQuickSearch } from "@/hooks/useQuickSearch";
 
 export default function HeroSearch() {
@@ -17,20 +17,70 @@ export default function HeroSearch() {
     area,
     setArea,
     activeTab,
+    selectTab,
     isLoading,
     listingCount,
     hasCategorySelection,
     onSearch,
-  } = useQuickSearch();
+  } = useQuickSearch({ syncWithHeroTabs: false });
+
+  const tabLabel =
+    activeTab === "/requests"
+      ? "requests"
+      : activeTab === "/marketplace"
+      ? "marketplace"
+      : "services";
+  const categories = CATEGORIES_BY_MODE[tabLabel];
 
   return (
     <form onSubmit={onSearch} style={{ marginTop: 18 }}>
       {/* Stacked vertical layout to match original hero card design */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Quick browse buttons: reintroduce Services / Requests / Marketplace shortcuts */}
+        <div style={{ width: "100%", textAlign: "left" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>What are you looking for?</div>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "center",
+            width: "100%",
+            maxWidth: 640,
+            alignSelf: "center",
+          }}
+        >
+          <button
+            type="button"
+            className={`hero-tab ${activeTab === "/services" ? "is-active" : ""}`}
+            style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
+            onClick={() => selectTab("/services")}
+          >
+            Find a services
+          </button>
+
+          <button
+            type="button"
+            className={`hero-tab ${activeTab === "/requests" ? "is-active" : ""}`}
+            style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
+            onClick={() => selectTab("/requests")}
+          >
+            Find a request
+          </button>
+
+          <button
+            type="button"
+            className={`hero-tab ${activeTab === "/marketplace" ? "is-active" : ""}`}
+            style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
+            onClick={() => selectTab("/marketplace")}
+          >
+            Find a marketplace
+          </button>
+        </div>
         <input
           className="input"
           name="q"
-          placeholder="Search keywords, e.g. plumber, lawn care"
+          placeholder={`Search ${tabLabel}, e.g. plumber, lawn care`}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -42,7 +92,7 @@ export default function HeroSearch() {
           onChange={(e) => setCategory(e.target.value)}
         >
           <option value="">All categories</option>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -76,15 +126,11 @@ export default function HeroSearch() {
         >
           <span className="btn__content">
             {isLoading && <span className="spinner" aria-hidden />}
-            {
-              // Button label follows the active tab and shows count only after filters.
-              (() => {
-                const tab = activeTab === "/requests" ? "requests" : activeTab === "/marketplace" ? "marketplace" : "services";
-                if (!hasCategorySelection || listingCount == null) return `Search ${tab}`;
-                if (listingCount === 0) return `Search ${tab}`;
-                return `Search ${listingCount} ${tab}`;
-              })()
-            }
+            {(() => {
+              if (!hasCategorySelection || listingCount == null) return `Search ${tabLabel}`;
+              if (listingCount === 0) return `Search ${tabLabel}`;
+              return `Search ${listingCount} ${tabLabel}`;
+            })()}
           </span>
         </button>
       </div>

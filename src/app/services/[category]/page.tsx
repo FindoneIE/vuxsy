@@ -1,10 +1,16 @@
 import { getListings } from "@/lib/listings/getListings";
 import ListingCard from "@/components/listings/ListingCard";
 
-export default async function ServicesPage() {
+export default async function ServicesPage({
+  params,
+}: {
+  params: Promise<{ category: string }>;
+}) {
+  const { category } = await params;
   const result = await getListings({
-    type: "service",
+    categoryId: category,
     pageSize: 20,
+    listingType: "service",
   });
 
   return (

@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import type { ListingType } from "@/types/listing";
+import type { Listing, ListingInsert, ListingType } from "@/types/listing";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { auth } from "@/lib/firebase";
-import { uploadImage } from "@/lib/firebase/storage";
+import { uploadImage } from "@/lib/supabase/storage";
 import { createListing } from "@/lib/listings/createListing";
+import { getListingHref } from "@/lib/listings/getListingHref";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
 	defaultListingFormValues,
 	requiredFieldsByType,
@@ -61,16 +63,61 @@ const toNumberOrNull = (value: string) => {
 	return Number.isFinite(next) ? next : null;
 };
 
+const MIN_PHONE_LENGTH = 7;
+const MAX_PHONE_LENGTH = 11;
+
+const normalizeContactPhone = (value: string, country: "+353" | "+44") => {
+	let digits = value.replace(/\D/g, "");
+	if (!digits) return null;
+	if (digits.startsWith("0")) {
+		digits = digits.slice(1);
+	}
+
+	if (country === "+353" && digits.length !== 9) {
+		throw new Error("Invalid IE phone");
+	}
+
+	if (country === "+44" && digits.length !== 10) {
+		throw new Error("Invalid UK phone");
+	}
+
+	return `${country}${digits}`;
+};
+
+const parseContactPhone = (value?: string | null) => {
+	const trimmed = value?.trim() ?? "";
+	if (trimmed.startsWith("+353")) {
+		return { country: "+353" as const, local: trimmed.slice(4) };
+	}
+	if (trimmed.startsWith("+44")) {
+		return { country: "+44" as const, local: trimmed.slice(3) };
+	}
+	return { country: "+353" as const, local: "" };
+};
+
+const isValidLocalPhone = (value: string, country: "+353" | "+44") => {
+	if (!value.trim()) return true;
+	let digits = value.replace(/\D/g, "");
+	if (digits.startsWith("0")) {
+		digits = digits.slice(1);
+	}
+	if (country === "+353") return digits.length === 9;
+	if (country === "+44") return digits.length === 10;
+	return digits.length >= MIN_PHONE_LENGTH && digits.length <= MAX_PHONE_LENGTH;
+};
+
 const buildListingPayload = (
-	type: ListingType,
-	values: ListingFormValues,
-	imageUrls: string[],
-	userId: string
-) => {
+    type: ListingType,
+    values: ListingFormValues,
+    imageUrls: string[],
+    seller: Listing["seller"]
+): ListingInsert => {
 	const { servicePhotos, requestPhotos, marketplacePhotos, ...rest } = values;
 	void servicePhotos;
 	void requestPhotos;
 	void marketplacePhotos;
+
+	const categoryId = getCategoryForType(type, values);
 
 	const price =
 		type === "service"
@@ -79,29 +126,67 @@ const buildListingPayload = (
 				? toNumberOrNull(rest.requestBudget)
 				: toNumberOrNull(rest.marketplacePrice);
 
+	const youtubeUrl =
+		type === "service"
+			? rest.serviceYoutubeUrl
+			: type === "request"
+				? rest.requestYoutubeUrl
+				: rest.marketplaceYoutubeUrl;
+
 	const sellerType = rest.listAsBusiness ? "business" : "private";
+	const contactEmail = rest.contactEmail?.trim() || null;
+	const contactPhone = normalizeContactPhone(
+		rest.contactPhone ?? "",
+		rest.contactPhoneCountry
+	);
+	const allowMessages = rest.allowMessages ?? true;
+	const allowEmail = rest.allowEmail ?? false;
+	const allowPhone = rest.allowPhone ?? false;
+	const showEmailPublicly = rest.showEmailPublicly ?? false;
+	const showPhonePublicly = rest.showPhonePublicly ?? false;
 
 	return {
 		title: rest.title,
 		description: rest.description || null,
-		type,
-		category: getCategoryForType(type, values),
+		category_id: categoryId || null,
 		county: rest.county || null,
 		area: rest.area || null,
 		price,
+		youtubeUrl: youtubeUrl || null,
 		currency: null,
 		sellerType,
+		listing_type: type,
 		images: imageUrls,
 		images1600: [],
 		coverImage: imageUrls[0] ?? null,
 		photoCount: imageUrls.length,
-		userId,
-		status: "active" as const,
+		seller,
+		contact_email: contactEmail,
+		contact_phone: contactPhone,
+		allow_messages: allowMessages,
+		allow_email: allowEmail,
+		allow_phone: allowPhone,
+		show_email_publicly: showEmailPublicly,
+		show_phone_publicly: showPhonePublicly,
 	};
 };
 
+const revokePhotoPreviews = (
+	photos: ListingFormValues["servicePhotos"]
+) => {
+	photos.forEach((photo) => {
+		if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+	});
+};
+
+
 export const useListingForm = (type: ListingType): UseListingFormReturn => {
-	const { user } = useAuth();
+	const { user, profile } = useAuth();
+	const router = useRouter();
+	const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
+	const didPrefillContact = React.useRef(false);
+	const didPrefillLocation = React.useRef(false);
+	const didPrefillBusiness = React.useRef(false);
 	const [formValues, setFormValues] = React.useState<ListingFormValues>(
 		defaultListingFormValues
 	);
@@ -115,11 +200,146 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		setIsPreview(false);
 		setStatusMessage(null);
 		setIsSubmitting(false);
-		setFormValues(defaultListingFormValues);
+		didPrefillContact.current = false;
+		didPrefillLocation.current = false;
+		didPrefillBusiness.current = false;
+		setFormValues((prev) => {
+			revokePhotoPreviews(prev.servicePhotos);
+			revokePhotoPreviews(prev.requestPhotos);
+			revokePhotoPreviews(prev.marketplacePhotos);
+			return defaultListingFormValues;
+		});
 	}, [type]);
 
+	React.useEffect(() => {
+		const nextDisplayName = profile?.displayName ?? "";
+		const nextEmail = profile?.email ?? user?.email ?? "";
+		const nextPhone = parseContactPhone(profile?.phone);
+		if (didPrefillContact.current) return;
+		if (!nextDisplayName && !nextEmail && !nextPhone.local) return;
+		setFormValues((prev) => ({
+			...prev,
+			displayName: prev.displayName.trim() ? prev.displayName : nextDisplayName,
+			contactEmail: prev.contactEmail.trim() ? prev.contactEmail : nextEmail,
+			contactPhone: prev.contactPhone.trim() ? prev.contactPhone : nextPhone.local,
+			contactPhoneCountry: prev.contactPhone.trim()
+				? prev.contactPhoneCountry
+				: nextPhone.country,
+		}));
+		didPrefillContact.current = true;
+	}, [profile?.displayName, profile?.email, profile?.phone, user?.email, type]);
+
+	React.useEffect(() => {
+		if (!user?.id) return;
+		let mounted = true;
+		if (didPrefillLocation.current) return;
+		didPrefillLocation.current = true;
+
+		const loadLocation = async () => {
+			const { data, error } = await supabase
+				.from("profiles")
+				.select("county, area")
+				.eq("id", user.id)
+				.maybeSingle();
+
+			if (!mounted || error) return;
+
+			setFormValues((prev) => ({
+				...prev,
+				county: prev.county.trim() ? prev.county : data?.county ?? "",
+				area: prev.area.trim() ? prev.area : data?.area ?? "",
+			}));
+		};
+
+		loadLocation();
+
+		return () => {
+			mounted = false;
+		};
+	}, [supabase, user?.id]);
+
+	React.useEffect(() => {
+		if (!user?.id) return;
+		let mounted = true;
+		if (didPrefillBusiness.current) return;
+		didPrefillBusiness.current = true;
+
+		const loadBusinessDefaults = async () => {
+			const { data, error } = await supabase
+				.from("profiles")
+				.select(
+					"is_business_seller, company_name, business_address, vat_number, website, company_registration_number"
+				)
+				.eq("id", user.id)
+				.maybeSingle();
+
+			if (!mounted || error) return;
+			if (!data?.is_business_seller) return;
+
+			setFormValues((prev) => ({
+				...prev,
+				listAsBusiness: prev.listAsBusiness || Boolean(data?.is_business_seller),
+				companyName: prev.companyName.trim() ? prev.companyName : data?.company_name ?? "",
+				businessAddress: prev.businessAddress.trim()
+					? prev.businessAddress
+					: data?.business_address ?? "",
+				vatNumber: prev.vatNumber.trim() ? prev.vatNumber : data?.vat_number ?? "",
+				website: prev.website.trim() ? prev.website : data?.website ?? "",
+				registrationNumber: prev.registrationNumber.trim()
+					? prev.registrationNumber
+					: data?.company_registration_number ?? "",
+			}));
+		};
+
+		loadBusinessDefaults();
+
+		return () => {
+			mounted = false;
+		};
+	}, [supabase, user?.id]);
+
 	const handleChange: ListingFormChangeHandler = (field, value) => {
-		setFormValues((prev) => ({ ...prev, [field]: value }));
+		setFormValues((prev) => {
+			if (field === "county") {
+				const nextCounty = String(value ?? "");
+				return {
+					...prev,
+					county: nextCounty,
+					area: nextCounty === prev.county ? prev.area : "",
+				};
+			}
+			if (field === "servicePhotos") {
+				revokePhotoPreviews(prev.requestPhotos);
+				revokePhotoPreviews(prev.marketplacePhotos);
+				return {
+					...prev,
+					servicePhotos: value as ListingFormValues["servicePhotos"],
+					requestPhotos: [],
+					marketplacePhotos: [],
+				};
+			}
+			if (field === "requestPhotos") {
+				revokePhotoPreviews(prev.servicePhotos);
+				revokePhotoPreviews(prev.marketplacePhotos);
+				return {
+					...prev,
+					requestPhotos: value as ListingFormValues["requestPhotos"],
+					servicePhotos: [],
+					marketplacePhotos: [],
+				};
+			}
+			if (field === "marketplacePhotos") {
+				revokePhotoPreviews(prev.servicePhotos);
+				revokePhotoPreviews(prev.requestPhotos);
+				return {
+					...prev,
+					marketplacePhotos: value as ListingFormValues["marketplacePhotos"],
+					servicePhotos: [],
+					requestPhotos: [],
+				};
+			}
+			return { ...prev, [field]: value };
+		});
 	};
 
 	const handleBusinessToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,6 +394,14 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			nextErrors.contactEmail = "Enter a valid email.";
 		}
 
+		if (!isValidLocalPhone(values.contactPhone, values.contactPhoneCountry)) {
+			nextErrors.contactPhone = "Enter a valid phone number.";
+		}
+
+		if (!values.displayName.trim()) {
+			nextErrors.displayName = "This field is required.";
+		}
+
 		if (values.requestBudget && Number.isNaN(Number(values.requestBudget))) {
 			nextErrors.requestBudget = "Use a numeric amount.";
 		}
@@ -204,7 +432,6 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		}
 
 		setIsPreview(true);
-		setStatusMessage("Preview mode is on.");
 	};
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -229,27 +456,51 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			return;
 		}
 
-				const authUser = auth.currentUser;
-				if (process.env.NODE_ENV === "development") {
-					console.log("AUTH USER:", authUser);
-					console.log("AUTH UID:", authUser?.uid);
-				}
-
-		if (!authUser) {
-			setStatusMessage("Please sign in before submitting a listing.");
-			setIsSubmitting(false);
-			return;
+		const authUser = user;
+		if (process.env.NODE_ENV === "development") {
+			console.log("AUTH USER:", authUser);
+			console.log("AUTH UID:", authUser?.id);
 		}
 
 		try {
 			const photos = getPhotosForType(type, formSnapshot);
+			if (photos.length === 0) {
+				setStatusMessage("Please upload at least one photo before submitting.");
+				setIsSubmitting(false);
+				return;
+			}
 			const photoNames = photos.map((photo) => photo.fileName ?? photo.file.name);
 			const previewUrls = photos.map((photo) => photo.previewUrl);
+			const metadata = authUser.user_metadata as Record<string, unknown> | undefined;
+			const displayName = profile?.displayName?.trim() || formSnapshot.displayName?.trim() || "";
+			const createdAt = authUser.created_at ? new Date(authUser.created_at).toISOString() : null;
+			const googlePhotoUrl =
+				profile?.googlePhotoUrl ||
+				(metadata?.avatar_url as string | undefined) ||
+				(metadata?.picture as string | undefined) ||
+				null;
+			const selectedCategoryId = getCategoryForType(type, formSnapshot);
+
+			if (!displayName) {
+				setErrors((prev) => ({ ...prev, displayName: "This field is required." }));
+				setIsSubmitting(false);
+				return;
+			}
+
 			const listingPayload = buildListingPayload(
 				type,
 				formSnapshot,
 				[],
-				authUser.uid
+				{
+					displayName,
+					type: formSnapshot.listAsBusiness ? "business" : "private",
+					createdAt,
+					avatarUrl: profile?.avatarUrl ?? null,
+					googlePhotoUrl,
+					ratingAverage: null,
+					reviewCount: null,
+					savedByCurrentUser: false,
+				}
 			);
 
 						if (process.env.NODE_ENV === "development") {
@@ -257,7 +508,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 								title: formSnapshot.title,
 								description: formSnapshot.description,
 								type,
-								category: getCategoryForType(type, formSnapshot),
+								categoryId: selectedCategoryId,
 								county: formSnapshot.county,
 								area: formSnapshot.area,
 								price:
@@ -279,7 +530,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 								title: formSnapshot.title,
 								description: formSnapshot.description,
 								type,
-								category: listingPayload.category,
+								categoryId: selectedCategoryId,
 								county: listingPayload.county,
 								area: listingPayload.area,
 								price: listingPayload.price,
@@ -292,39 +543,33 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 						}
 
 						if (process.env.NODE_ENV === "development") {
-							console.log("DATA USER ID:", listingPayload.userId);
+							console.log("DATA USER ID:", authUser.id);
 							console.log("LISTING PAYLOAD:", listingPayload);
 						}
+			if (process.env.NODE_ENV === "development") {
+				console.log("LISTING DB PAYLOAD:", listingPayload);
+			}
 			const listingId = await createListing({
 				...listingPayload,
-				photoCount: photos.length,
+				images: [],
+				images1600: [],
 				coverImage: null,
+				photoCount: 0,
 			});
+
+			await Promise.all(
+				photos.map((photo) =>
+					uploadImage(photo.file, {
+						userId: authUser.id,
+						listingId,
+						kind: "listing",
+					})
+				)
+			);
 						if (process.env.NODE_ENV === "development") {
 							console.log("LISTING CREATED:", listingId);
 							console.log("LISTING DOC ID FOR UPLOAD:", listingId);
 						}
-
-			await Promise.all(
-				photos.map((photo) => {
-					const draftFileName = `${listingId}__${photo.id}`;
-					const uploadPath = `draft/${user.uid}/${draftFileName}`;
-										if (process.env.NODE_ENV === "development") {
-											console.log("LISTING IMAGE UPLOAD", {
-												listingId,
-												fileName: photo.file.name,
-												previewUrl: photo.previewUrl,
-												localFile: photo.file,
-												uploadPath,
-											});
-										}
-					return uploadImage(photo.file, {
-						userId: user.uid,
-						listingId,
-						imageId: photo.id,
-					});
-				})
-			);
 
 			formSnapshot.servicePhotos.forEach((photo) => {
 				if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
@@ -339,8 +584,14 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			setFormValues(defaultListingFormValues);
 			setErrors({});
 			setIsPreview(false);
-			setStatusMessage("Listing submitted successfully. Images are processing now.");
-			setIsSubmitting(false);
+			setStatusMessage("Listing submitted successfully.");
+
+			const href = getListingHref({
+				id: listingId,
+				type,
+				category: selectedCategoryId ?? undefined,
+			});
+			router.push(href);
 		} catch (error) {
 			console.error("Listing submission failed:", error);
 			setIsSubmitting(false);

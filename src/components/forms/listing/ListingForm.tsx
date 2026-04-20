@@ -6,7 +6,7 @@ import LocationFields from "@/components/location/LocationFields";
 import PhotoUploadField from "@/components/forms/listing/PhotoUploadField";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@/components/ui/Icon";
 import ServiceFormFields from "@/components/forms/listing/ServiceFormFields";
 import RequestFormFields from "@/components/forms/listing/RequestFormFields";
 import MarketplaceFormFields from "@/components/forms/listing/MarketplaceFormFields";
@@ -56,7 +56,12 @@ export default function ListingForm({ type, title }: Props) {
     { label: "Description", value: formValues.description },
     { label: "County", value: formValues.county },
     { label: "Area", value: formValues.area },
-    { label: "Contact", value: [formValues.contactName, formValues.contactEmail, formValues.contactPhone].filter(Boolean).join(" · ") },
+    {
+      label: "Contact",
+      value: [formValues.displayName, formValues.contactEmail, formValues.contactPhone]
+        .filter(Boolean)
+        .join(" · "),
+    },
   ];
 
   if (formValues.listAsBusiness) {
@@ -73,8 +78,7 @@ export default function ListingForm({ type, title }: Props) {
     previewDetails.push(
       { label: "Service category", value: formValues.serviceCategory },
       { label: "Pricing", value: formValues.servicePricing },
-      { label: "Rate", value: formValues.serviceRate },
-      { label: "Availability", value: formValues.serviceAvailability }
+      { label: "Rate", value: formValues.serviceRate }
     );
   }
 
@@ -90,10 +94,8 @@ export default function ListingForm({ type, title }: Props) {
   if (type === "marketplace") {
     previewDetails.push(
       { label: "Marketplace category", value: formValues.marketplaceCategory },
-      { label: "Condition", value: formValues.marketplaceCondition },
       { label: "Quantity", value: formValues.marketplaceQuantity },
-      { label: "Price", value: formValues.marketplacePrice },
-      { label: "Delivery", value: formValues.marketplaceDelivery }
+      { label: "Price", value: formValues.marketplacePrice }
     );
   }
 
@@ -237,6 +239,9 @@ export default function ListingForm({ type, title }: Props) {
               onCountyChange={(value) => handleChange("county", value)}
               onAreaChange={(value) => handleChange("area", value)}
             />
+            <p className="text-xs text-slate-500">
+              Pre-filled from your profile. Change it if this listing is located elsewhere.
+            </p>
             {errors.county && <p className="text-xs text-destructive">{errors.county}</p>}
           </div>
         </section>
@@ -364,16 +369,23 @@ export default function ListingForm({ type, title }: Props) {
           )}
 
           <div className="field-block">
-            <label htmlFor="contact-name" className="field-label">
-              Contact name
+            <label htmlFor="contact-display-name" className="field-label">
+              Your name *
             </label>
             <input
-              id="contact-name"
+              id="contact-display-name"
               className="input field-input"
-              value={formValues.contactName}
-              onChange={(event) => handleChange("contactName", event.target.value)}
-              placeholder="Who should we display on the listing"
+              value={formValues.displayName}
+              onChange={(event) => handleChange("displayName", event.target.value)}
+              placeholder="Your public name"
+              required
             />
+            <p className="text-xs text-slate-500">
+              Shown publicly on this listing and saved to your profile.
+            </p>
+            {errors.displayName && (
+              <p className="text-xs text-destructive">{errors.displayName}</p>
+            )}
           </div>
 
           <div className="field-block">
@@ -388,6 +400,9 @@ export default function ListingForm({ type, title }: Props) {
               onChange={(event) => handleChange("contactEmail", event.target.value)}
               placeholder="name@email.com"
             />
+            <p className="text-xs text-slate-500">
+              Pre-filled from your account. You can edit this for this listing.
+            </p>
             {errors.contactEmail && (
               <p className="text-xs text-destructive">{errors.contactEmail}</p>
             )}
@@ -397,13 +412,77 @@ export default function ListingForm({ type, title }: Props) {
             <label htmlFor="contact-phone" className="field-label">
               Contact phone
             </label>
-            <input
-              id="contact-phone"
-              className="input field-input"
-              value={formValues.contactPhone}
-              onChange={(event) => handleChange("contactPhone", event.target.value)}
-              placeholder="+353 000000000"
-            />
+            <div className="flex gap-2">
+              <select
+                className="select field-select w-28"
+                value={formValues.contactPhoneCountry}
+                onChange={(event) =>
+                  handleChange("contactPhoneCountry", event.target.value)
+                }
+              >
+                <option value="+353">Ireland (+353)</option>
+                <option value="+44">United Kingdom (+44)</option>
+              </select>
+              <input
+                id="contact-phone"
+                className="input field-input"
+                value={formValues.contactPhone}
+                onChange={(event) => handleChange("contactPhone", event.target.value)}
+                placeholder="e.g. 0868672333"
+              />
+            </div>
+            <p className="text-xs text-slate-500">
+              Pre-filled from your account. You can edit this for this listing.
+            </p>
+            {errors.contactPhone && (
+              <p className="text-xs text-destructive">{errors.contactPhone}</p>
+            )}
+          </div>
+
+          <div className="field-block">
+            <label className="field-label">Contact preferences</label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="business-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={formValues.allowMessages}
+                  onChange={(event) => handleChange("allowMessages", event.target.checked)}
+                />
+                <span>Allow messages</span>
+              </label>
+              <label className="business-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={formValues.allowEmail}
+                  onChange={(event) => handleChange("allowEmail", event.target.checked)}
+                />
+                <span>Allow email</span>
+              </label>
+              <label className="business-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={formValues.allowPhone}
+                  onChange={(event) => handleChange("allowPhone", event.target.checked)}
+                />
+                <span>Allow phone</span>
+              </label>
+              <label className="business-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={formValues.showEmailPublicly}
+                  onChange={(event) => handleChange("showEmailPublicly", event.target.checked)}
+                />
+                <span>Show email publicly</span>
+              </label>
+              <label className="business-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={formValues.showPhonePublicly}
+                  onChange={(event) => handleChange("showPhonePublicly", event.target.checked)}
+                />
+                <span>Show phone publicly</span>
+              </label>
+            </div>
           </div>
         </section>
 

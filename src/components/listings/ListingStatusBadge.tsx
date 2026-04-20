@@ -17,23 +17,23 @@ type StatusConfig = {
 const STATUS_CONFIG: Record<ListingStatus, StatusConfig> = {
   active: {
     label: "Active",
-    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    className: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   },
   draft: {
     label: "Draft",
-    className: "bg-slate-100 text-slate-700 border border-slate-200",
+    className: "bg-slate-100 text-slate-600 border border-slate-200",
   },
   paused: {
     label: "Paused",
-    className: "bg-amber-50 text-amber-700 border border-amber-200",
+    className: "bg-amber-50 text-amber-700 border border-amber-100",
   },
   sold: {
     label: "Sold",
-    className: "bg-blue-50 text-blue-700 border border-blue-200",
+    className: "bg-blue-50 text-blue-700 border border-blue-100",
   },
   expired: {
     label: "Expired",
-    className: "bg-orange-50 text-orange-700 border border-orange-200",
+    className: "bg-orange-50 text-orange-700 border border-orange-100",
   },
   archived: {
     label: "Archived",
@@ -52,7 +52,7 @@ export default function ListingStatusBadge({ status, className }: Props) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide",
         config.className,
         className
       )}

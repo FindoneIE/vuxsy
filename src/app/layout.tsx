@@ -1,8 +1,6 @@
 import "./globals.css";
-import Header from "@/components/layout/Header";
-import MobileSubheader from "@/components/layout/MobileSubheader";
 import { AuthProvider } from "@/components/auth/AuthProvider";
-import PageContainer from "@/components/layout/PageContainer";
+import AppShell from "@/components/layout/AppShell";
 
 export default function RootLayout({
   children,
@@ -13,9 +11,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AuthProvider>
-          <Header />
-          <MobileSubheader />
-          <PageContainer as="main">{children}</PageContainer>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

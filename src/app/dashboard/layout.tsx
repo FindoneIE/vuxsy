@@ -3,37 +3,51 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Bookmark,
+  Building2,
+  ClipboardList,
+  CreditCard,
+  FileQuestion,
+  LogOut,
+  Megaphone,
+  MessageCircle,
+  Settings,
+  Store,
+  Wrench,
+} from "@/components/ui/Icon";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
+import UserAvatar from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/utils";
 
 const navSections = [
   {
     label: "Listings",
     items: [
-      { label: "All listings", href: "/dashboard/listings" },
-      { label: "Services", href: "/dashboard/services" },
-      { label: "Requests", href: "/dashboard/requests" },
-      { label: "Marketplace", href: "/dashboard/marketplace" },
+      { label: "All listings", href: "/dashboard/listings", icon: ClipboardList },
+      { label: "Services", href: "/dashboard/services", icon: Wrench },
+      { label: "Requests", href: "/dashboard/requests", icon: FileQuestion },
+      { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
     ],
   },
   {
     label: "Communication",
-    items: [{ label: "Messages", href: "/dashboard/messages" }],
+    items: [{ label: "Messages", href: "/dashboard/messages", icon: MessageCircle }],
   },
   {
     label: "User",
     items: [
-      { label: "Saved", href: "/dashboard/saved" },
-      { label: "Settings", href: "/dashboard/settings" },
+      { label: "Saved", href: "/dashboard/saved", icon: Bookmark },
+      { label: "Settings", href: "/dashboard/settings", icon: Settings },
     ],
   },
   {
     label: "Account",
     items: [
-      { label: "Billing", href: "/dashboard/billing" },
-      { label: "Promotions", href: "/dashboard/promotions" },
-      { label: "Business profile", href: "/dashboard/business-profile" },
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Promotions", href: "/dashboard/promotions", icon: Megaphone },
+      { label: "Business profile", href: "/dashboard/business-profile", icon: Building2 },
     ],
   },
 ];
@@ -44,7 +58,12 @@ type Props = {
 
 export default function DashboardLayout({ children }: Props) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const metadata = user?.user_metadata as Record<string, unknown> | undefined;
+  const resolvedGooglePhotoUrl =
+    profile?.googlePhotoUrl ?? (metadata?.avatar_url as string | undefined) ?? null;
+  const resolvedDisplayName = profile?.displayName ?? user?.email ?? null;
+  const resolvedEmail = profile?.email ?? user?.email ?? null;
   const isListingsSection =
     pathname === "/dashboard/listings" ||
     pathname === "/dashboard/services" ||
@@ -57,14 +76,36 @@ export default function DashboardLayout({ children }: Props) {
   <div className="pt-4 pb-6">
           <div className="flex flex-col gap-4 md:flex-row md:gap-6">
           <aside className="hidden w-60 shrink-0 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm md:block">
-            <div className="mb-5">
-              <Link
-                href="/dashboard"
-                className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
-              >
-                Dashboard
-              </Link>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{user?.email ?? ""}</p>
+            <div className="mb-5 flex items-center gap-3">
+              <UserAvatar
+                avatarUrl={profile?.avatarUrl ?? null}
+                googlePhotoUrl={resolvedGooglePhotoUrl}
+                displayName={resolvedDisplayName}
+                email={resolvedEmail}
+                size={40}
+              />
+              <div className="min-w-0 flex-1">
+                <Link
+                  href="/dashboard"
+                  className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
+                >
+                  Dashboard
+                </Link>
+                {resolvedDisplayName ? (
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                    {resolvedDisplayName}
+                  </p>
+                ) : null}
+                <p
+                  className={
+                    resolvedDisplayName
+                      ? "mt-1 truncate text-xs font-medium text-slate-500"
+                      : "mt-1 truncate text-sm font-semibold text-slate-900"
+                  }
+                >
+                  {resolvedEmail ?? ""}
+                </p>
+              </div>
             </div>
 
             <nav className="space-y-4">
@@ -84,13 +125,22 @@ export default function DashboardLayout({ children }: Props) {
                           key={item.href}
                           href={item.href}
                           className={cn(
-                            "rounded-xl border-l-2 border-transparent px-3 py-2 text-sm font-medium transition",
-                            isActive
-                              ? "border-(--color-accent) bg-white text-slate-900 shadow-sm"
-                              : "text-slate-700 hover:border-(--color-accent) hover:bg-(--bg-hover) hover:text-slate-900"
+                            "filters-sidebar__category-row text-gray-800 hover:bg-gray-50 transition-colors duration-150",
+                            isActive && "is-active bg-primary/10 text-primary ring-1 ring-primary/15"
                           )}
                         >
-                          {item.label}
+                          {item.icon ? (
+                            <span className="filters-sidebar__category-icon">
+                              <item.icon
+                                className={cn(
+                                  "w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-gray-800",
+                                  isActive && "text-primary"
+                                )}
+                                aria-hidden
+                              />
+                            </span>
+                          ) : null}
+                          <span className="filters-sidebar__category-label">{item.label}</span>
                         </Link>
                       );
                     })}
@@ -101,9 +151,15 @@ export default function DashboardLayout({ children }: Props) {
             <div className="mt-4 border-t border-slate-200 pt-3">
               <button
                 type="button"
-                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                className="filters-sidebar__category-row text-gray-800 hover:bg-gray-50 transition-colors duration-150"
               >
-                Log out
+                <span className="filters-sidebar__category-icon">
+                  <LogOut
+                    className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-gray-800"
+                    aria-hidden
+                  />
+                </span>
+                <span className="filters-sidebar__category-label">Log out</span>
               </button>
             </div>
           </aside>

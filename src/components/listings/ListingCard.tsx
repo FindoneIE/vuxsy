@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import { cn } from "@/lib/utils";
-import type { Listing } from "@/types/listing";
+import { formatListingLocation } from "@/components/listings/formatters";
 
 const formatDate = (value: unknown) => {
   if (!value) return null;
@@ -16,10 +16,9 @@ const formatDate = (value: unknown) => {
 
 export type ListingCardItem = {
   id: string;
-  type?: Listing["type"];
   title?: string | null;
   description?: string | null;
-  category?: string | null;
+  category_id?: string | null;
   county?: string | null;
   city?: string | null;
   area?: string | null;
@@ -30,7 +29,8 @@ export type ListingCardItem = {
   images1600?: string[];
   photoCount?: number;
   sellerType?: string | null;
-  createdAt?: unknown;
+  listing_type?: "service" | "request" | "marketplace" | string | null;
+  created_at?: unknown;
 };
 
 type Props = {
@@ -45,15 +45,22 @@ export default function ListingCard({ listing, className }: Props) {
     listing.images1600?.[0] ??
     null;
 
+  const listingType =
+    (listing.listing_type as "service" | "request" | "marketplace" | undefined) ??
+    "service";
   const href = getListingHref({
     id: listing.id,
-    type: listing.type ?? "service",
-    category: listing.category ?? undefined,
+    type: listingType,
+    category: listing.category_id ?? undefined,
   });
 
   const title = listing.title ?? "Untitled listing";
-  const locationLabel = listing.county ?? listing.city ?? "";
-  const dateLabel = formatDate(listing.createdAt);
+  const locationLabel = formatListingLocation([
+    listing.area ?? null,
+    listing.county ?? null,
+    listing.city ?? null,
+  ]);
+  const dateLabel = formatDate(listing.created_at);
   const sellerLabel = listing.sellerType ? listing.sellerType : null;
 
   return (
@@ -70,12 +77,6 @@ export default function ListingCard({ listing, className }: Props) {
               fill
               sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
               className="object-cover object-center transition-transform duration-200 group-hover:scale-105"
-              onError={() => {
-                console.error("LISTING CARD IMAGE ERROR:", {
-                  id: listing.id,
-                  src: imageSrc,
-                });
-              }}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
@@ -115,10 +116,11 @@ export default function ListingCard({ listing, className }: Props) {
               <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:text-base">
                 {title}
               </h3>
-              <p className="mt-0.5 text-sm text-(--text-primary) opacity-70">
-                {locationLabel}
-                {listing.area ? ` • ${listing.area}` : ""}
-              </p>
+              {locationLabel ? (
+                <p className="mt-0.5 text-sm text-(--text-primary) opacity-70">
+                  {locationLabel}
+                </p>
+              ) : null}
               {sellerLabel ? (
                 <p className="mt-1 text-xs text-(--text-primary) opacity-60">
                   {sellerLabel}

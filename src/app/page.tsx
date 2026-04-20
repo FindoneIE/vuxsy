@@ -1,6 +1,5 @@
 import Link from "next/link";
 import HeroSearch from "@/components/hero/HeroSearch";
-import HeroTabs from "@/components/hero/HeroTabs";
 
 export default function HomePage() {
   return (
@@ -31,11 +30,6 @@ export default function HomePage() {
           </div>
 
           <div className="hero-card">
-            <div>
-              {/* Hero tabs: client component shows active state based on pathname */}
-              <HeroTabs />
-            </div>
-
             <div style={{ marginTop: 18 }}>
               <HeroSearch />
             </div>

@@ -1,11 +1,8 @@
 import "server-only";
-import { adminDb } from "@/lib/firebase/firebaseAdmin";
-
-export type ListingType = "service" | "request" | "marketplace";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ActiveListingCountParams = {
-	type: ListingType;
-	category?: string;
+	categoryId?: string;
 	county?: string;
 	area?: string;
 };
@@ -15,33 +12,60 @@ function cleanString(value?: string | null): string | undefined {
 	return trimmed ? trimmed : undefined;
 }
 
+const isUuid = (value: string) =>
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+		value
+	);
+
 export async function getActiveListingCount({
-	type,
-	category,
+	categoryId,
 	county,
 	area,
 }: ActiveListingCountParams): Promise<number> {
-	const cleanCategory = cleanString(category);
-	const cleanCounty = cleanString(county);
-	const cleanArea = cleanString(area);
+	const cleanCategory = cleanString(categoryId);
+	const cleanCity = cleanString(county);
+	void area;
 
-	let ref: FirebaseFirestore.Query = adminDb
-		.collection("listings")
-		.where("status", "==", "active")
-		.where("type", "==", type);
+	const supabase = await createSupabaseServerClient();
+	let resolvedCategoryId = cleanCategory;
 
-	if (cleanCategory) {
-		ref = ref.where("category", "==", cleanCategory);
+	if (cleanCategory && !isUuid(cleanCategory)) {
+		const { data: category, error } = await supabase
+			.from("categories")
+			.select("id")
+			.eq("slug", cleanCategory)
+			.single();
+
+		if (error) {
+			throw error;
+		}
+
+		resolvedCategoryId = category?.id ?? undefined;
 	}
 
-	if (cleanCounty) {
-		ref = ref.where("county", "==", cleanCounty);
+	if (cleanCategory && !resolvedCategoryId) {
+		return 0;
 	}
 
-	if (cleanArea) {
-		ref = ref.where("area", "==", cleanArea);
+	let query = supabase
+		.from("listings")
+		.select("id", { count: "exact", head: true });
+
+	if (resolvedCategoryId) {
+		query = query.eq("category_id", resolvedCategoryId);
 	}
 
-	const snapshot = await ref.count().get();
-	return snapshot.data().count ?? 0;
+	if (cleanCity) {
+		query = query.eq("city", cleanCity);
+	}
+
+	query = query.or("status.is.null,status.eq.active");
+
+	const { count, error } = await query;
+
+	if (error) {
+		throw error;
+	}
+
+	return count ?? 0;
 }

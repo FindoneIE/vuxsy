@@ -20,7 +20,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "@/components/ui/Icon";
 
 type PhotoDraft = {
   id: string;

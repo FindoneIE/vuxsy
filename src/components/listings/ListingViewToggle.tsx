@@ -1,5 +1,5 @@
 import * as React from "react";
-import { LayoutGrid, List } from "lucide-react";
+import { LayoutGrid, List } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
 export type ListingViewMode = "grid" | "list";
@@ -23,7 +23,7 @@ export default function ListingViewToggle({ value, onChange, className }: Props)
         aria-pressed={value === "grid"}
         aria-label="Grid view"
       >
-  <LayoutGrid size={20} strokeWidth={1.8} />
+  <LayoutGrid size={24} />
       </button>
       <button
         type="button"
@@ -35,7 +35,7 @@ export default function ListingViewToggle({ value, onChange, className }: Props)
         aria-pressed={value === "list"}
         aria-label="List view"
       >
-  <List size={20} strokeWidth={1.8} />
+  <List size={24} />
       </button>
     </div>
   );

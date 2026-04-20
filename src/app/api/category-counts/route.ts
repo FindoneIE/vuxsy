@@ -1,18 +1,19 @@
-import { getActiveCategoryCounts, type ListingType } from "@/lib/listings/getActiveCategoryCounts";
+import { getActiveCategoryCounts } from "@/lib/listings/getActiveCategoryCounts";
+import type { ListingType } from "@/types/listing";
 
-const MODE_TO_TYPE: Record<string, ListingType> = {
-  services: "service",
-  requests: "request",
-  marketplace: "marketplace",
-};
+function resolveListingType(mode?: string | null): ListingType | undefined {
+  if (!mode) return undefined;
+  if (mode === "marketplace") return "marketplace";
+  if (mode === "services") return "service";
+  if (mode === "requests") return "request";
+  return undefined;
+}
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const mode = url.searchParams.get("mode") ?? "services";
-    const type = MODE_TO_TYPE[mode] ?? "service";
-
-    const counts = await getActiveCategoryCounts(type);
+    const listingType = resolveListingType(url.searchParams.get("mode"));
+    const counts = await getActiveCategoryCounts(listingType);
 
     return new Response(JSON.stringify({ counts }), {
       headers: { "Content-Type": "application/json" },

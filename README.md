@@ -35,25 +35,11 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Firestore indexes
+## Supabase data model
 
-This project expects a composite index to power the dashboard listing queries:
+The app stores listings and user profiles in Supabase tables:
 
-- Collection: `listings`
-- Fields:
-	- `userId` (Ascending)
-	- `updatedAt` (Descending)
+- `listings`
+- `users`
 
-Create this index in the Firebase Console (Firestore Database → Indexes) or by
-adding a `firestore.indexes.json` file and deploying with Firebase CLI.
-
-## Cloud Functions (image optimization)
-
-Image uploads are optimized by Firebase Cloud Functions defined in `functions/`.
-They listen for:
-
-- `tmp/listings/{userId}/{listingId}/{imageId}` → generate 600/1600 WebP assets
-- `tmp/avatars/{userId}/{imageId}` → generate 256 WebP avatars
-
-After optimization, the functions update Firestore (`listings` + `users`) with the
-optimized URLs and delete the temporary originals.
+Uploads are stored in the `uploads` bucket and referenced by public URLs.

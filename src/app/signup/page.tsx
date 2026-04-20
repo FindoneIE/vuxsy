@@ -39,8 +39,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-  await signInWithGoogle();
-  router.replace(safeRedirect);
+  await signInWithGoogle(safeRedirect);
     } catch {
       setError("Google sign-up failed. Please try again.");
     } finally {
@@ -54,7 +53,7 @@ export default function SignupPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">Create your account</h1>
           <p className="text-sm text-slate-500">
-            Join Findqne to publish listings and manage your business.
+            Join Vuxsy to publish listings and manage your business.
           </p>
         </div>
 

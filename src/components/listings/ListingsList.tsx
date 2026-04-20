@@ -5,7 +5,7 @@ import { getListingHref } from "@/lib/listings/getListingHref";
 import { cn } from "@/lib/utils";
 import type { ListingCardItem } from "@/components/listings/ListingCard";
 
-const formatDate = (value: ListingCardItem["createdAt"]) => {
+const formatDate = (value: ListingCardItem["created_at"]) => {
   if (!value) return null;
   if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number") {
     return null;
@@ -30,14 +30,17 @@ export default function ListingsList({ items, className }: Props) {
       {items.map((item) => {
         const imageSrc =
           item.coverImage ?? item.images?.[0] ?? item.images1600?.[0] ?? null;
+        const listingType =
+          (item.listing_type as "service" | "request" | "marketplace" | undefined) ??
+          "service";
         const href = getListingHref({
           id: item.id,
-          type: item.type ?? "service",
-          category: item.category ?? undefined,
+          type: listingType,
+          category: item.category_id ?? undefined,
         });
         const title = item.title ?? "Untitled listing";
-        const locationLabel = item.county ?? item.city ?? "";
-        const dateLabel = formatDate(item.createdAt);
+  const locationLabel = item.city ?? "";
+  const dateLabel = formatDate(item.created_at);
 
         return (
           <Link
@@ -56,12 +59,6 @@ export default function ListingsList({ items, className }: Props) {
                   fill
                   sizes="(max-width: 768px) 128px, 144px"
                   className="object-cover transition-transform duration-200 group-hover:scale-105"
-                  onError={() => {
-                    console.error("LISTING LIST IMAGE ERROR:", {
-                      id: item.id,
-                      src: imageSrc,
-                    });
-                  }}
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">

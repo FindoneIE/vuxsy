@@ -1,23 +1,38 @@
 import "server-only";
-import { adminDb } from "@/lib/firebase/firebaseAdmin";
-
-export type ListingType = "service" | "request" | "marketplace";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { ListingType } from "@/types/listing";
 
 export type CategoryCounts = Record<string, number>;
 
-export async function getActiveCategoryCounts(type: ListingType): Promise<CategoryCounts> {
-  const snapshot = await adminDb
-    .collection("listings")
-    .where("status", "==", "active")
-    .where("type", "==", type)
-    .select("category")
-    .get();
+export async function getActiveCategoryCounts(
+  listingType?: ListingType
+): Promise<CategoryCounts> {
+  const supabase = await createSupabaseServerClient();
+  let query = supabase
+    .from("listings")
+    .select("category_id, listing_type, categories ( slug )");
+
+  if (listingType) {
+    query = query.eq("listing_type", listingType);
+  }
+
+  query = query.or("status.is.null,status.eq.active");
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
 
   const counts: CategoryCounts = {};
 
-  snapshot.forEach((doc) => {
-    const data = doc.data() as { category?: string | null };
-    const category = typeof data.category === "string" ? data.category : "";
+  const rows = (data ?? []) as {
+    category_id?: string | null;
+    categories?: { slug?: string | null } | null;
+  }[];
+
+  rows.forEach((item) => {
+    const category = item.categories?.slug?.trim() || "";
     if (!category) return;
     counts[category] = (counts[category] ?? 0) + 1;
   });

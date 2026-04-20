@@ -7,8 +7,7 @@ import ListingsList from "@/components/listings/ListingsList";
 import ListingViewToggle from "@/components/listings/ListingViewToggle";
 import ResultsHeader from "@/components/listings/ResultsHeader";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { SlidersHorizontal } from "lucide-react";
-import { XIcon } from "lucide-react";
+import { SlidersHorizontal, XIcon } from "@/components/ui/Icon";
 import { useListingViewMode } from "@/hooks/useListingViewMode";
 import type { Listing } from "@/types/listing";
 
@@ -137,7 +136,7 @@ export default function ClientListings({ mode = "services", filters, mobileFilte
                         headerActions: (
                           <SheetClose asChild>
                             <button type="button" className="app-close-button" aria-label="Close filters">
-                              <XIcon className="app-close-icon" strokeWidth={2} />
+                              <XIcon className="app-close-icon" />
                             </button>
                           </SheetClose>
                         ),

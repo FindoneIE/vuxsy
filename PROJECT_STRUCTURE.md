@@ -144,9 +144,11 @@ src/
       Spinner.tsx
 
   lib/
-    firebase/
-      firebase.ts
-      firebaseAdmin.ts
+    supabase/
+      client.ts
+      server.ts
+      middleware.ts
+      storage.ts
 
     auth/
       getCurrentUser.ts

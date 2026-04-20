@@ -13,7 +13,7 @@ import {
   Briefcase,
   PawPrint,
   Layers,
-} from "lucide-react";
+} from "@/components/ui/Icon";
 
 export const CATEGORIES_SERVICES = [
   { id: "home-property", label: "Home & Property", Icon: Home },

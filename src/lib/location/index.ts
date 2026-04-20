@@ -3,7 +3,7 @@ import { getCounties, getCountyNames, type CountyName, type CountryCode } from "
 
 export type Area = string;
 
-export function getCountiesList(country: CountryCode = "IE"): CountyName[] {
+export function getCountiesList(country?: CountryCode): CountyName[] {
   return getCountyNames(country);
 }
 

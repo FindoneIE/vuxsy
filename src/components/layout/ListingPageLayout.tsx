@@ -37,9 +37,9 @@ export default function ListingPageLayout({ title, count, actionLabel, actionHre
           {/* Mobile filters button removed — filters are shown only inside the sidebar card */}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-6">
           {filters && (
-            <aside className="listing-layout__sidebar hidden lg:block sticky top-(--site-header-height)">
+            <aside className="listing-layout__sidebar hidden lg:block sticky top-(--site-header-height) w-75 xl:w-80">
               {filters}
             </aside>
           )}

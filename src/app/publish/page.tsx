@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Wrench, MessageCircleQuestion, Store } from 'lucide-react'
+import { Wrench, MessageCircleQuestion, Store } from '@/components/ui/Icon'
 import ListingForm from '@/components/forms/listing/ListingForm'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import type { ListingType } from '@/types/listing'
@@ -33,7 +33,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
             <div className="publish-grid">
               <Link href={{ pathname: '/publish', query: { type: 'service' } }} className="publish-card" aria-label="Offer a Service">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <Wrench size={30} strokeWidth={1.5} />
+                  <Wrench size={30} />
                 </div>
 
                 <div className="card-body">
@@ -46,7 +46,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
 
               <Link href={{ pathname: '/publish', query: { type: 'request' } }} className="publish-card" aria-label="Post a Request">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <MessageCircleQuestion size={30} strokeWidth={1.5} />
+                  <MessageCircleQuestion size={30} />
                 </div>
 
                 <div className="card-body">
@@ -59,7 +59,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
 
               <Link href={{ pathname: '/publish', query: { type: 'marketplace' } }} className="publish-card" aria-label="Sell on Marketplace">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <Store size={30} strokeWidth={1.5} />
+                  <Store size={30} />
                 </div>
 
                 <div className="card-body">

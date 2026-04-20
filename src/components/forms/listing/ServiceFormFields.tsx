@@ -46,19 +46,6 @@ export default function ServiceFormFields({ values, onChange, errors }: Props) {
         {errors.serviceRate && <p className="text-xs text-destructive">{errors.serviceRate}</p>}
       </div>
 
-        <div className="field-block">
-          <label htmlFor="service-availability" className="field-label">
-            Availability
-          </label>
-          <textarea
-            id="service-availability"
-            className="textarea field-textarea"
-            value={values.serviceAvailability}
-            onChange={(event) => onChange("serviceAvailability", event.target.value)}
-            placeholder="e.g. Available weekdays after 5pm"
-          />
-        </div>
-
       </section>
     </>
   );

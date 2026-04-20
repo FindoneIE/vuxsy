@@ -4,16 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Mail, Bell, Heart, Menu, XIcon, Search } from "lucide-react";
+import { Menu, XIcon, Search } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { logOut } from "@/lib/auth";
+import AvatarDropdown from "@/components/layout/AvatarDropdown";
 import PageContainer from "@/components/layout/PageContainer";
 import MobileQuickSearchSheet from "@/components/search/MobileQuickSearchSheet";
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
-  const { user, loading } = useAuth();
+  const { user, loading, avatarData } = useAuth();
   const createListingHref = user ? "/publish" : "/login?redirect=/publish";
   const pathname = usePathname();
   const isDashboard = pathname?.startsWith("/dashboard");
@@ -69,31 +70,19 @@ export default function Header() {
 
         <div className="site-header__logo">
           <Link href="/" className="section-title">
-            <Image src="/logo.png" alt="Findone" className="logo-img" width={120} height={40} priority />
+            <Image src="/logo.svg" alt="Findone" className="logo-img" width={120} height={40} priority />
           </Link>
         </div>
 
         {/* mobile icons (visible on small screens) */}
-        <div className="site-header__mobile-icons">
+        <div className="site-header__mobile-icons flex items-center gap-2 sm:gap-3">
           <button
             className="mobile-icon"
             aria-label="Search"
             type="button"
             onClick={() => setMobileSearchOpen(true)}
           >
-            <Search size={24} strokeWidth={1.75} />
-          </button>
-
-          <button className="mobile-icon" aria-label="Messages">
-            <Mail size={24} strokeWidth={1.75} />
-          </button>
-
-          <button className="mobile-icon" aria-label="Notifications">
-            <Bell size={24} strokeWidth={1.75} />
-          </button>
-
-          <button className="mobile-icon" aria-label="Favorites">
-            <Heart size={24} strokeWidth={1.75} />
+            <Search className="w-7 h-7" />
           </button>
 
           {/* mobile menu toggle (visible on small screens) */}
@@ -104,12 +93,12 @@ export default function Header() {
             onClick={() => setMobileOpen((prev) => !prev)}
           >
             <span className="sr-only">Menu</span>
-            <Menu size={24} strokeWidth={1.75} aria-hidden />
+            <Menu className="w-7 h-7" aria-hidden />
           </button>
         </div>
 
         {/* desktop actions (hidden on small screens) */}
-        <div className="site-header__actions">
+  <div className="site-header__actions flex items-center gap-3">
           <nav className="site-header__nav" aria-label="Main navigation">
             <Link
               href="/services"
@@ -132,26 +121,18 @@ export default function Header() {
               Marketplace
             </Link>
 
-            {!loading && user && (
-              <Link
-                href="/dashboard"
-                className={`site-nav__link${pathname?.startsWith("/dashboard") ? " is-active" : ""}`}
-              >
-                Dashboard
-              </Link>
-            )}
           </nav>
+
+          {!loading && user && (
+            <div className="flex items-center self-center mr-1">
+              <AvatarDropdown avatarData={avatarData} onLogout={handleLogout} />
+            </div>
+          )}
 
           {!loading && !user && (
             <Link href="/login" className="btn btn--ghost" aria-label="Log in">
               Login
             </Link>
-          )}
-
-          {!loading && user && (
-            <button type="button" className="btn btn--ghost" onClick={handleLogout}>
-              Logout
-            </button>
           )}
 
           {!loading && (
@@ -168,7 +149,7 @@ export default function Header() {
               <div className="mobile-menu__header">
                 <Link href="/" className="mobile-menu__logo" onClick={() => setMobileOpen(false)}>
                   <Image
-                    src="/logo.png"
+                    src="/logo.svg"
                     alt="Findone"
                     className="logo-img"
                     width={120}
@@ -181,7 +162,7 @@ export default function Header() {
                     onClick={() => setMobileOpen(false)}
                     type="button"
                   >
-                    <XIcon className="app-close-icon" strokeWidth={2} />
+                    <XIcon className="app-close-icon" />
                   </button>
               </div>
               <nav className="mobile-menu__nav">

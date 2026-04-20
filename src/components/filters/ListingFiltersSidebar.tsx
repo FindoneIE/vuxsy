@@ -205,10 +205,19 @@ export default function ListingFiltersSidebar({
                 tabIndex={0}
                 onClick={() => handleCategoryClick(c.id)}
                 onKeyDown={(e) => e.key === "Enter" && handleCategoryClick(c.id)}
-                className={`filters-sidebar__category-row ${active ? "is-active" : ""}`}
+                className={cn(
+                  "filters-sidebar__category-row text-gray-800 hover:bg-gray-50 transition-colors duration-150",
+                  active && "is-active bg-primary/10 text-primary ring-1 ring-primary/15"
+                )}
               >
                 <span className="filters-sidebar__category-icon">
-                  <c.Icon size={20} aria-hidden />
+                  <c.Icon
+                    className={cn(
+                      "w-5 h-5 sm:w-7 sm:h-7 shrink-0 text-gray-800",
+                      active && "text-primary"
+                    )}
+                    aria-hidden
+                  />
                 </span>
                 <span className="filters-sidebar__category-label">{c.label}</span>
                 <span className="filters-sidebar__category-count">{count}</span>

@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { getListings, type ListingRecord } from "@/lib/listings/getListings";
 
 function serializeListing(item: ListingRecord) {
@@ -28,7 +29,7 @@ function serializeListing(item: ListingRecord) {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const category = url.searchParams.get("category") ?? undefined;
+  const categoryId = url.searchParams.get("category") ?? undefined;
     const county = url.searchParams.get("county") ?? undefined;
     const area = url.searchParams.get("area") ?? undefined;
     const pageSize = Number(url.searchParams.get("pageSize") ?? "20") || 20;
@@ -36,29 +37,26 @@ export async function GET(req: Request) {
     
 
     const result = await getListings({
-      type: "marketplace",
-      category,
+      categoryId,
       county,
       area,
       pageSize,
+      listingType: "marketplace",
     });
 
     const items = (result.items || []).map((it) => serializeListing(it));
 
     
 
-    return new Response(JSON.stringify({ items, count: items.length }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ items, count: items.length });
   } catch (err) {
     console.error("/api/marketplace error", err);
-
-    return new Response(
-      JSON.stringify({ error: "Failed to load marketplace listings" }),
+    return NextResponse.json(
       {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+        error: (err as Error)?.message || "Failed to load marketplace listings",
+        details: err,
+      },
+      { status: 500 }
     );
   }
 }
