@@ -1,15 +1,21 @@
 import type { ListingInsert } from "@/types/listing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
 
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
 
+const getString = (value: unknown): string | null => {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
 export async function createListing(data: ListingInsert) {
   const tableName = "listings";
   const supabase = createSupabaseBrowserClient();
   const now = new Date().toISOString();
+
   const {
     data: { user },
     error: authError,
@@ -23,9 +29,9 @@ export async function createListing(data: ListingInsert) {
     throw new Error("No authenticated user available to create listing");
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profileRaw, error: profileError } = await supabase
     .from("profiles")
-    .select("id")
+    .select("*")
     .eq("id", user.id)
     .single();
 
@@ -35,9 +41,12 @@ export async function createListing(data: ListingInsert) {
     });
   }
 
-  if (!profile?.id) {
+  if (!profileRaw) {
     throw new Error(`Profile not found for user: ${user.id}`);
   }
+
+  const profile = profileRaw as Record<string, unknown>;
+
   if (process.env.NODE_ENV === "development") {
     console.log("CREATE LISTING RAW CATEGORY:", {
       category: (data as { category?: unknown }).category,
@@ -48,6 +57,7 @@ export async function createListing(data: ListingInsert) {
   const categorySlug = String(
     (data as { category?: unknown }).category ?? data.category_id ?? ""
   ).trim();
+
   let resolvedCategoryId = data.category_id ?? null;
 
   if (categorySlug && !isUuid(categorySlug)) {
@@ -80,6 +90,54 @@ export async function createListing(data: ListingInsert) {
     throw new Error(`category_id must be a UUID: ${categorySlug}`);
   }
 
+  const formSeller =
+    (data.seller as (ListingInsert["seller"] & Record<string, unknown>) | null) ?? null;
+
+  const formDisplayName =
+    getString(formSeller?.displayName) ||
+    getString(formSeller?.fullName) ||
+    getString(formSeller?.name) ||
+    getString(formSeller?.display_name) ||
+    getString(formSeller?.full_name);
+
+  const formSellerType =
+    getString(data.sellerType) || getString(formSeller?.type) || null;
+
+  const { sellerSnapshot, sellerType } = buildSellerSnapshotFromProfile(profile, {
+    sellerType: formSellerType,
+    displayName: formDisplayName,
+    contactEmail:
+      getString(data.contact_email) || getString(formSeller?.contact_email),
+    contactPhone:
+      getString(data.contact_phone) || getString(formSeller?.contact_phone),
+    county: getString(data.county) || getString(formSeller?.county),
+    area: getString(data.area) || getString(formSeller?.area),
+    companyName:
+      getString(formSeller?.companyName) || getString(formSeller?.company_name),
+    businessAddress:
+      getString((formSeller as Record<string, unknown> | null)?.businessAddress) ||
+      getString((formSeller as Record<string, unknown> | null)?.business_address),
+    vatNumber:
+      getString((formSeller as Record<string, unknown> | null)?.vatNumber) ||
+      getString((formSeller as Record<string, unknown> | null)?.vat_number),
+    registrationNumber:
+      getString((formSeller as Record<string, unknown> | null)?.registrationNumber) ||
+      getString(
+        (formSeller as Record<string, unknown> | null)?.registration_number
+      ),
+    website: getString((formSeller as Record<string, unknown> | null)?.website),
+    avatarUrl:
+      getString((formSeller as Record<string, unknown> | null)?.avatarUrl) ||
+      getString((formSeller as Record<string, unknown> | null)?.avatar_url),
+    googlePhotoUrl:
+      getString((formSeller as Record<string, unknown> | null)?.googlePhotoUrl) ||
+      getString(
+        (formSeller as Record<string, unknown> | null)?.google_photo_url
+      ),
+    createdAt: getString(profile.created_at) || now,
+    existingSeller: formSeller,
+  });
+
   const payload: Record<string, unknown> = {
     title: data.title,
     description: data.description ?? null,
@@ -91,6 +149,8 @@ export async function createListing(data: ListingInsert) {
     user_id: user.id,
     created_at: now,
     updated_at: now,
+    seller: sellerSnapshot,
+    sellerType: sellerType,
     contact_email: data.contact_email ?? null,
     contact_phone: data.contact_phone ?? null,
     allow_messages: data.allow_messages ?? true,

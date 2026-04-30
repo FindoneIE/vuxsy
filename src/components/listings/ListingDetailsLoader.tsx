@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import ListingDetailsPage from "@/components/listings/ListingDetailsPage";
 import { getListingById } from "@/lib/listings/getListingById";
 import type { Listing } from "@/types/listing";
@@ -58,7 +59,7 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
           if (!data) {
             setListing(null);
             setLoading(false);
-            setError("Listing not found.");
+            setError("This listing no longer exists (deleted)");
             return;
           }
 
@@ -98,7 +99,15 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     return (
       <div className="py-8">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-muted-foreground shadow-sm">
-          {error}
+          <p>{error}</p>
+          <div className="mt-4">
+            <Link
+              href="/marketplace"
+              className="inline-flex h-9 items-center rounded-full border border-slate-200 px-4 text-sm font-semibold text-slate-700"
+            >
+              Back to marketplace
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -118,7 +127,15 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     return (
       <div className="py-8">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-muted-foreground shadow-sm">
-          Listing not found.
+          <p>This listing no longer exists (deleted)</p>
+          <div className="mt-4">
+            <Link
+              href="/marketplace"
+              className="inline-flex h-9 items-center rounded-full border border-slate-200 px-4 text-sm font-semibold text-slate-700"
+            >
+              Back to marketplace
+            </Link>
+          </div>
         </div>
       </div>
     );

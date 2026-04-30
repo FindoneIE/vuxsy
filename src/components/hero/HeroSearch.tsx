@@ -7,6 +7,7 @@ import { CATEGORIES_BY_MODE } from "@/components/filters/categories";
 import { useQuickSearch } from "@/hooks/useQuickSearch";
 
 export default function HeroSearch() {
+  const [mode, setMode] = React.useState<"services" | "help" | "market">("services");
   const {
     q,
     setQ,
@@ -16,7 +17,6 @@ export default function HeroSearch() {
     setCounty,
     area,
     setArea,
-    activeTab,
     selectTab,
     isLoading,
     listingCount,
@@ -24,12 +24,19 @@ export default function HeroSearch() {
     onSearch,
   } = useQuickSearch({ syncWithHeroTabs: false });
 
-  const tabLabel =
-    activeTab === "/requests"
-      ? "requests"
-      : activeTab === "/marketplace"
-      ? "marketplace"
-      : "services";
+  const tabLabel = mode === "help" ? "requests" : mode === "market" ? "marketplace" : "services";
+  const placeholder =
+    mode === "services"
+      ? "Search services, e.g. plumber, lawn care"
+      : mode === "help"
+      ? "Describe what you need help with"
+      : "Search marketplace listings";
+  const buttonText =
+    mode === "services"
+      ? "Search services"
+      : mode === "help"
+      ? "Post request"
+      : "Search marketplace";
   const categories = CATEGORIES_BY_MODE[tabLabel];
 
   return (
@@ -52,27 +59,36 @@ export default function HeroSearch() {
         >
           <button
             type="button"
-            className={`hero-tab ${activeTab === "/services" ? "is-active" : ""}`}
+            className={`hero-tab ${mode === "services" ? "is-active" : ""}`}
             style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
-            onClick={() => selectTab("/services")}
+            onClick={() => {
+              setMode("services");
+              selectTab("/services");
+            }}
           >
-            Find a services
+            Find services
           </button>
 
           <button
             type="button"
-            className={`hero-tab ${activeTab === "/requests" ? "is-active" : ""}`}
+            className={`hero-tab ${mode === "help" ? "is-active" : ""}`}
             style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
-            onClick={() => selectTab("/requests")}
+            onClick={() => {
+              setMode("help");
+              selectTab("/requests");
+            }}
           >
-            Find a request
+            Get help
           </button>
 
           <button
             type="button"
-            className={`hero-tab ${activeTab === "/marketplace" ? "is-active" : ""}`}
+            className={`hero-tab ${mode === "market" ? "is-active" : ""}`}
             style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap" }}
-            onClick={() => selectTab("/marketplace")}
+            onClick={() => {
+              setMode("market");
+              selectTab("/marketplace");
+            }}
           >
             Find a marketplace
           </button>
@@ -80,7 +96,7 @@ export default function HeroSearch() {
         <input
           className="input"
           name="q"
-          placeholder={`Search ${tabLabel}, e.g. plumber, lawn care`}
+          placeholder={placeholder}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -126,11 +142,7 @@ export default function HeroSearch() {
         >
           <span className="btn__content">
             {isLoading && <span className="spinner" aria-hidden />}
-            {(() => {
-              if (!hasCategorySelection || listingCount == null) return `Search ${tabLabel}`;
-              if (listingCount === 0) return `Search ${tabLabel}`;
-              return `Search ${listingCount} ${tabLabel}`;
-            })()}
+            {buttonText}
           </span>
         </button>
       </div>

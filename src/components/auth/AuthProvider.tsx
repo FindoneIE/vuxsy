@@ -12,6 +12,7 @@ type AuthContextValue = {
   avatarData: AvatarData | null;
   loading: boolean;
   profileLoading: boolean;
+  refreshProfile: () => Promise<void>;
 };
 
 const isMissingProfileError = (error: {
@@ -66,14 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  React.useEffect(() => {
-    let isMounted = true;
-
+  const refreshProfile = React.useCallback(async () => {
     if (!user) {
       setProfile(null);
       setAvatarData(null);
       setProfileLoading(false);
-      return undefined;
+      return;
     }
 
     const metadata = user.user_metadata as Record<string, unknown> | undefined;
@@ -82,68 +81,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (metadata?.picture as string | undefined) ??
       null;
 
-    const loadProfile = async () => {
-      setProfileLoading(true);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "id, email, display_name, phone, city, avatar_url, google_photo_url, language, email_notifications, marketplace_alerts, message_notifications, created_at, updated_at"
-        )
-        .eq("id", user.id)
-        .maybeSingle();
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(
+        "id, email, display_name, role, phone, city, county, area, is_business_seller, company_name, business_address, vat_number, website, company_registration_number, avatar_url, google_photo_url, language, email_notifications, marketplace_alerts, message_notifications, created_at, updated_at"
+      )
+      .eq("id", user.id)
+      .maybeSingle();
 
-      if (!isMounted) return;
+    if (error) {
+      if (!isMissingProfileError(error)) {
+        console.warn("Failed to load user profile", formatProfileError(error));
+      }
+      setProfile(null);
+      setAvatarData(null);
+      setProfileLoading(false);
+      return;
+    }
 
-      if (error) {
-        if (!isMissingProfileError(error)) {
-          console.warn("Failed to load user profile", formatProfileError(error));
-        }
+    console.info("TEMP LOG: fetched profile row", data);
+
+    const googlePhotoUrl = data?.google_photo_url ?? fallbackGooglePhotoUrl;
+    const displayName = data?.display_name ?? null;
+    const email = data?.email ?? user.email ?? null;
+
+    setProfile({
+      uid: data?.id ?? user.id,
+      role: data?.role ?? "user",
+      displayName,
+      email,
+      phone: data?.phone ?? null,
+      city: data?.city ?? null,
+      county: data?.county ?? null,
+      area: data?.area ?? null,
+      businessSeller: data?.is_business_seller ?? null,
+      companyName: data?.company_name ?? null,
+      businessAddress: data?.business_address ?? null,
+      vatNumber: data?.vat_number ?? null,
+      website: data?.website ?? null,
+      registrationNumber: data?.company_registration_number ?? null,
+      avatarUrl: data?.avatar_url ?? null,
+      googlePhotoUrl,
+      language: data?.language ?? "en",
+      emailNotifications: data?.email_notifications ?? true,
+      marketplaceAlerts: data?.marketplace_alerts ?? true,
+      messageNotifications: data?.message_notifications ?? true,
+      createdAt: data?.created_at ?? null,
+      updatedAt: data?.updated_at ?? null,
+    } as UserProfile);
+    setAvatarData({
+      avatarUrl: data?.avatar_url ?? null,
+      googlePhotoUrl,
+      displayName,
+      email,
+    });
+    setProfileLoading(false);
+  }, [supabase, user]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (!user) {
+      queueMicrotask(() => {
+        if (!isMounted) return;
         setProfile(null);
         setAvatarData(null);
         setProfileLoading(false);
-        return;
-      }
-
-      console.info("TEMP LOG: fetched profile row", data);
-
-  const googlePhotoUrl = data?.google_photo_url ?? fallbackGooglePhotoUrl;
-  const displayName = data?.display_name ?? null;
-  const email = data?.email ?? user.email ?? null;
-
-      setProfile({
-        uid: data?.id ?? user.id,
-        displayName,
-        email,
-        phone: data?.phone ?? null,
-        city: data?.city ?? null,
-        avatarUrl: data?.avatar_url ?? null,
-        googlePhotoUrl,
-        language: data?.language ?? "en",
-        emailNotifications: data?.email_notifications ?? true,
-        marketplaceAlerts: data?.marketplace_alerts ?? true,
-        messageNotifications: data?.message_notifications ?? true,
-        createdAt: data?.created_at ?? null,
-        updatedAt: data?.updated_at ?? null,
-      } as UserProfile);
-      setAvatarData({
-        avatarUrl: data?.avatar_url ?? null,
-        googlePhotoUrl,
-        displayName,
-        email,
       });
-      setProfileLoading(false);
-    };
+      return () => {
+        isMounted = false;
+      };
+    }
 
-    loadProfile();
+    queueMicrotask(() => {
+      if (!isMounted) return;
+      refreshProfile();
+    });
 
     return () => {
       isMounted = false;
     };
-  }, [supabase, user]);
+  }, [refreshProfile, user]);
 
   const value = React.useMemo(
-    () => ({ user, profile, avatarData, loading, profileLoading }),
-    [user, profile, avatarData, loading, profileLoading]
+    () => ({ user, profile, avatarData, loading, profileLoading, refreshProfile }),
+    [user, profile, avatarData, loading, profileLoading, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

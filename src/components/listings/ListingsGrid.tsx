@@ -7,11 +7,14 @@ type Props = {
 };
 
 export default function ListingsGrid({ items, className }: Props) {
+  const debugLogs =
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_DEBUG_LOGS === "true";
   if (!items || items.length === 0) {
     return <div className="text-muted-foreground">No listings found.</div>;
   }
 
-  if (process.env.NODE_ENV === "development") {
+  if (debugLogs) {
     console.log("LISTINGS GRID RENDER:", { count: items.length });
   }
 

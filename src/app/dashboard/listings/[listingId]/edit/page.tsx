@@ -30,7 +30,10 @@ import { getListingHref } from "@/lib/listings/getListingHref";
 import { uploadImage } from "@/lib/supabase/storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateUserProfile } from "@/lib/users";
+import { validateDisplayName } from "@/lib/display-name-policy";
+import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
 import type { Listing, ListingType } from "@/types/listing";
+import type { UserProfile } from "@/types/user";
 
 type ExistingImage = {
   path600?: string | null;
@@ -59,12 +62,68 @@ const toNumberOrNull = (value: string) => {
   return Number.isFinite(next) ? next : null;
 };
 
+const resolveNonEmptyString = (
+  ...values: Array<string | null | undefined>
+) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return "";
+};
+
+const resolveNonEmptyNullable = (
+  ...values: Array<string | null | undefined>
+) => {
+  const resolved = resolveNonEmptyString(...values);
+  return resolved ? resolved : null;
+};
+
+const MIN_PHONE_LENGTH = 7;
+const MAX_PHONE_LENGTH = 11;
+
+const normalizeContactPhone = (value: string, country: "+353" | "+44") => {
+  let digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+
+  if (country === "+353" && digits.length !== 9) {
+    throw new Error("Invalid IE phone");
+  }
+
+  if (country === "+44" && digits.length !== 10) {
+    throw new Error("Invalid UK phone");
+  }
+
+  if (digits.length < MIN_PHONE_LENGTH || digits.length > MAX_PHONE_LENGTH) {
+    return null;
+  }
+
+  return `${country}${digits}`;
+};
+
+const parseContactPhone = (value?: string | null) => {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.startsWith("+353")) {
+    return { country: "+353" as const, local: trimmed.slice(4) };
+  }
+  if (trimmed.startsWith("+44")) {
+    return { country: "+44" as const, local: trimmed.slice(3) };
+  }
+  return { country: "+353" as const, local: "" };
+};
+
 
 export default function ListingEditPage() {
   const router = useRouter();
   const params = useParams<{ listingId: string }>();
   const listingId = params?.listingId;
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile, profileLoading } = useAuth();
+  const isAdmin = profile?.role === "admin";
+  const isProfileHydrating = profileLoading && !profile;
 
   const [listing, setListing] = React.useState<Listing | null>(null);
   const [listingType, setListingType] = React.useState<ListingType>("service");
@@ -79,6 +138,7 @@ export default function ListingEditPage() {
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState<string | null>(null);
   const [dirty, setDirty] = React.useState(false);
+  const privateNameRef = React.useRef<string>("");
 
   React.useEffect(() => {
     if (dirty) return;
@@ -86,12 +146,14 @@ export default function ListingEditPage() {
   const fallbackPhone = profile?.phone ?? "";
   const fallbackDisplayName = profile?.displayName ?? "";
     if (!fallbackEmail && !fallbackPhone && !fallbackDisplayName) return;
-    setFormValues((prev) => ({
-      ...prev,
-      displayName: prev.displayName.trim() ? prev.displayName : fallbackDisplayName,
-      contactEmail: prev.contactEmail.trim() ? prev.contactEmail : fallbackEmail,
-      contactPhone: prev.contactPhone.trim() ? prev.contactPhone : fallbackPhone,
-    }));
+    queueMicrotask(() => {
+      setFormValues((prev) => ({
+        ...prev,
+        displayName: prev.displayName.trim() ? prev.displayName : fallbackDisplayName,
+        contactEmail: prev.contactEmail.trim() ? prev.contactEmail : fallbackEmail,
+        contactPhone: prev.contactPhone.trim() ? prev.contactPhone : fallbackPhone,
+      }));
+    });
   }, [dirty, profile?.displayName, profile?.email, profile?.phone, user?.email]);
 
   const categoryOptions = React.useMemo(() => {
@@ -101,8 +163,90 @@ export default function ListingEditPage() {
   }, [listingType]);
 
   const handleChange: ListingFormChangeHandler = (field, value) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
+    setFormValues((prev) => {
+      if (field === "displayName" && !prev.listAsBusiness && typeof value === "string") {
+        privateNameRef.current = value;
+      }
+      return { ...prev, [field]: value };
+    });
     setDirty(true);
+  };
+
+  const handleBusinessToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = event.target.checked;
+    setFormValues((prev) => ({
+      ...prev,
+      listAsBusiness: isChecked,
+      ...(isChecked
+        ? {
+            companyName:
+              prev.companyName.trim() ||
+              resolveNonEmptyString(
+                profile?.companyName ?? null,
+                (profile as Record<string, unknown> | null)?.company_name as
+                  | string
+                  | null
+                  | undefined
+              ),
+            businessAddress:
+              prev.businessAddress.trim() ||
+              resolveNonEmptyString(
+                profile?.businessAddress ?? null,
+                (profile as Record<string, unknown> | null)?.business_address as
+                  | string
+                  | null
+                  | undefined
+              ),
+            vatNumber:
+              prev.vatNumber.trim() ||
+              resolveNonEmptyString(
+                profile?.vatNumber ?? null,
+                (profile as Record<string, unknown> | null)?.vat_number as
+                  | string
+                  | null
+                  | undefined
+              ),
+            website:
+              prev.website.trim() ||
+              resolveNonEmptyString(profile?.website ?? null),
+            registrationNumber:
+              prev.registrationNumber.trim() ||
+              resolveNonEmptyString(
+                profile?.registrationNumber ?? null,
+                (profile as Record<string, unknown> | null)?.company_registration_number as
+                  | string
+                  | null
+                  | undefined
+              ),
+            displayName:
+              prev.displayName.trim() ||
+              resolveNonEmptyString(
+                profile?.companyName ?? null,
+                (profile as Record<string, unknown> | null)?.company_name as
+                  | string
+                  | null
+                  | undefined,
+                prev.displayName
+              ),
+          }
+        : {
+            companyName: "",
+            businessAddress: "",
+            vatNumber: "",
+            website: "",
+            registrationNumber: "",
+            displayName: resolveNonEmptyString(privateNameRef.current, prev.displayName),
+          }),
+    }));
+
+    if (!isChecked) {
+      setErrors((prev) => {
+        const nextErrors = { ...prev };
+        delete nextErrors.companyName;
+        delete nextErrors.businessAddress;
+        return nextErrors;
+      });
+    }
   };
 
   const selectedCategory =
@@ -182,20 +326,237 @@ export default function ListingEditPage() {
 
     const categorySlug = await resolveCategorySlug(result.category_id);
 
-    const fallbackEmail = profile?.email ?? user?.email ?? "";
     const fallbackPhone = profile?.phone ?? "";
     const fallbackDisplayName = profile?.displayName ?? "";
+    const sellerSnapshot = result.seller ?? null;
+    const profileBusinessValue =
+      profile?.businessSeller ??
+      ((profile as Record<string, unknown> | null)?.is_business_seller as
+        | boolean
+        | null
+        | undefined);
+    const snapshotSellerType =
+      result.sellerType ??
+      sellerSnapshot?.type ??
+      (sellerSnapshot?.isBusinessSeller ||
+      (sellerSnapshot as Record<string, unknown> | null)?.is_business_seller
+        ? "business"
+        : "private");
+    const resolvedSellerType =
+      typeof profileBusinessValue === "boolean"
+        ? profileBusinessValue
+          ? "business"
+          : "private"
+        : snapshotSellerType;
+    const profileCompanyName = resolveNonEmptyString(
+      profile?.companyName ?? null,
+      (profile as Record<string, unknown> | null)?.company_name as string | null | undefined
+    );
+    const listingCompanyName = resolveNonEmptyString(
+      sellerSnapshot?.companyName ?? null,
+      (sellerSnapshot as { company_name?: string | null })?.company_name ?? null
+    );
+    const snapshotCompanyName = resolveNonEmptyString(
+      listingCompanyName,
+      profileCompanyName
+    );
+    const snapshotSellerName = resolveNonEmptyString(
+      sellerSnapshot?.displayName ?? null,
+      sellerSnapshot?.fullName ?? null,
+      sellerSnapshot?.name ?? null,
+      profile?.displayName ?? null,
+      fallbackDisplayName
+    );
+    const privateDisplayName = resolveNonEmptyString(
+      snapshotSellerName && snapshotSellerName !== snapshotCompanyName
+        ? snapshotSellerName
+        : "",
+      profile?.displayName ?? null,
+      fallbackDisplayName,
+      snapshotSellerName
+    );
+    privateNameRef.current = privateDisplayName;
+    const snapshotDisplayName =
+      resolvedSellerType === "business"
+        ? resolveNonEmptyString(snapshotCompanyName, snapshotSellerName, fallbackDisplayName)
+        : privateDisplayName;
+    const listingContactEmail = resolveNonEmptyString(
+      result.contact_email ?? null,
+      (sellerSnapshot as { contact_email?: string | null })?.contact_email ?? null,
+      (sellerSnapshot as { email?: string | null })?.email ?? null
+    );
+    const profileContactEmail = resolveNonEmptyString(
+      profile?.email ?? null,
+      user?.email ?? null
+    );
+    const snapshotEmail = resolveNonEmptyString(
+      listingContactEmail,
+      profileContactEmail
+    );
+
+    const listingContactPhone = resolveNonEmptyString(
+      result.contact_phone ?? null,
+      (sellerSnapshot as { contact_phone?: string | null })?.contact_phone ?? null
+    );
+    const profileContactPhone = resolveNonEmptyString(profile?.phone ?? null, fallbackPhone);
+    const snapshotPhone = resolveNonEmptyString(
+      listingContactPhone,
+      profileContactPhone
+    );
+
+    const listingCounty = resolveNonEmptyString(
+      result.county ?? null,
+      result.city ?? null,
+      (sellerSnapshot as { county?: string | null })?.county ?? null
+    );
+    const profileCounty = resolveNonEmptyString(
+      profile?.county ?? null,
+      profile?.city ?? null
+    );
+    const snapshotCounty = resolveNonEmptyString(
+      listingCounty,
+      profileCounty
+    );
+
+    const listingArea = resolveNonEmptyString(
+      result.area ?? null,
+      (sellerSnapshot as { area?: string | null })?.area ?? null
+    );
+    const profileArea = resolveNonEmptyString(profile?.area ?? null);
+    const snapshotArea = resolveNonEmptyString(
+      listingArea,
+      profileArea
+    );
+    const snapshotWebsite = resolveNonEmptyString(
+      resolvedSellerType === "business" ? profile?.website ?? null : null,
+      (sellerSnapshot as { website?: string | null })?.website ?? null
+    );
+    const snapshotBusinessAddress = resolveNonEmptyString(
+      resolvedSellerType === "business" ? profile?.businessAddress ?? null : null,
+      resolvedSellerType === "business"
+        ? ((profile as Record<string, unknown> | null)?.business_address as
+            | string
+            | null
+            | undefined)
+        : null,
+      (sellerSnapshot as { business_address?: string | null })?.business_address ?? null
+    );
+    const snapshotVatNumber = resolveNonEmptyString(
+      resolvedSellerType === "business" ? profile?.vatNumber ?? null : null,
+      resolvedSellerType === "business"
+        ? ((profile as Record<string, unknown> | null)?.vat_number as
+            | string
+            | null
+            | undefined)
+        : null,
+      (sellerSnapshot as { vat_number?: string | null })?.vat_number ?? null
+    );
+    const snapshotRegistrationNumber = resolveNonEmptyString(
+      resolvedSellerType === "business" ? profile?.registrationNumber ?? null : null,
+      resolvedSellerType === "business"
+        ? ((profile as Record<string, unknown> | null)?.company_registration_number as
+            | string
+            | null
+            | undefined)
+        : null,
+      (sellerSnapshot as { registration_number?: string | null })?.registration_number ?? null
+    );
+
+    const profileBusinessFlag = profileBusinessValue === true;
+    const finalDisplayName = resolveNonEmptyString(
+      snapshotDisplayName,
+      profile?.displayName ?? null
+    );
+    const finalEmail = resolveNonEmptyString(
+      snapshotEmail,
+      profile?.email ?? null,
+      user?.email ?? null
+    );
+    const finalPhone = resolveNonEmptyString(
+      snapshotPhone,
+      profile?.phone ?? null
+    );
+    const parsedPhone = parseContactPhone(finalPhone);
+    const finalCounty = resolveNonEmptyString(
+      snapshotCounty,
+      profile?.county ?? null,
+      profile?.city ?? null
+    );
+    const finalArea = resolveNonEmptyString(snapshotArea, profile?.area ?? null);
+    const finalCompanyName = profileBusinessFlag
+      ? resolveNonEmptyString(
+          profile?.companyName ?? null,
+          (profile as Record<string, unknown> | null)?.company_name as
+            | string
+            | null
+            | undefined,
+          snapshotCompanyName
+        )
+      : "";
+    const finalBusinessAddress = profileBusinessFlag
+      ? resolveNonEmptyString(
+          profile?.businessAddress ?? null,
+          (profile as Record<string, unknown> | null)?.business_address as
+            | string
+            | null
+            | undefined,
+          snapshotBusinessAddress
+        )
+      : "";
+    const finalVatNumber = profileBusinessFlag
+      ? resolveNonEmptyString(
+          profile?.vatNumber ?? null,
+          (profile as Record<string, unknown> | null)?.vat_number as
+            | string
+            | null
+            | undefined,
+          snapshotVatNumber
+        )
+      : "";
+    const finalWebsite = profileBusinessFlag
+      ? resolveNonEmptyString(profile?.website ?? null, snapshotWebsite)
+      : "";
+    const finalRegistrationNumber = profileBusinessFlag
+      ? resolveNonEmptyString(
+          profile?.registrationNumber ?? null,
+          (profile as Record<string, unknown> | null)?.company_registration_number as
+            | string
+            | null
+            | undefined,
+          snapshotRegistrationNumber
+        )
+      : "";
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("EDIT LISTING LOCATION SNAPSHOT", {
+        listingCounty,
+        listingArea,
+        profileCounty,
+        profileArea,
+        mergedCounty: snapshotCounty,
+        mergedArea: snapshotArea,
+        loadedCounty: snapshotCounty,
+        loadedArea: snapshotArea,
+        sellerType: resolvedSellerType,
+      });
+    }
 
     setFormValues({
       ...defaultListingFormValues,
       title: result.title ?? "",
       description: result.description ?? "",
-      county: result.city ?? result.county ?? "",
-      area: result.area ?? "",
-  displayName: fallbackDisplayName,
-  contactEmail: result.contact_email?.trim() ? result.contact_email : fallbackEmail,
-  contactPhone: result.contact_phone?.trim() ? result.contact_phone : fallbackPhone,
-      listAsBusiness: result.sellerType === "business",
+      county: finalCounty,
+      area: finalArea,
+      displayName: finalDisplayName,
+      contactEmail: finalEmail ?? "",
+  contactPhone: parsedPhone.local,
+  contactPhoneCountry: parsedPhone.country,
+      listAsBusiness: profileBusinessFlag,
+      companyName: finalCompanyName,
+      businessAddress: finalBusinessAddress,
+      vatNumber: finalVatNumber,
+      website: finalWebsite,
+      registrationNumber: finalRegistrationNumber,
       serviceCategory: type === "service" ? categorySlug : "",
       requestCategory: type === "request" ? categorySlug : "",
       marketplaceCategory: type === "marketplace" ? categorySlug : "",
@@ -249,10 +610,12 @@ export default function ListingEditPage() {
     setExistingImages(images);
     setDirty(false);
     setLoading(false);
-  }, [listingId, profile?.displayName, profile?.email, profile?.phone, resolveCategorySlug, user?.email]);
+  }, [listingId, profile, resolveCategorySlug, user?.email]);
 
   React.useEffect(() => {
-    loadListing();
+    queueMicrotask(() => {
+      loadListing();
+    });
   }, [loadListing]);
 
   const validate = () => {
@@ -277,6 +640,11 @@ export default function ListingEditPage() {
     }
     if (formValues.marketplaceQuantity && Number.isNaN(Number(formValues.marketplaceQuantity))) {
       nextErrors.marketplaceQuantity = "Use a numeric quantity.";
+    }
+
+  const displayNameValidation = validateDisplayName(formValues.displayName.trim(), isAdmin);
+    if (displayNameValidation) {
+      nextErrors.displayName = displayNameValidation;
     }
 
     setErrors(nextErrors);
@@ -325,6 +693,10 @@ export default function ListingEditPage() {
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!listingId) return;
+    if (isProfileHydrating) {
+      setSaveError("Loading your profile defaults...");
+      return;
+    }
     if (!formValues.displayName.trim()) {
       setSaveError("Please enter your name before saving.");
       return;
@@ -346,27 +718,133 @@ export default function ListingEditPage() {
 
       console.log("RAW EDIT FORM VALUES", formValues);
 
-      if (user?.id && formValues.displayName.trim()) {
-        await updateUserProfile(user.id, {
-          displayName: formValues.displayName.trim(),
-        });
+      const profileCompanyName = resolveNonEmptyNullable(
+        profile?.companyName ?? null,
+        (profile as Record<string, unknown> | null)?.company_name as
+          | string
+          | null
+          | undefined
+      );
+      const resolvedCompanyName = formValues.companyName.trim() || profileCompanyName || "";
+
+      if (formValues.listAsBusiness && !resolvedCompanyName) {
+        setErrors((prev) => ({
+          ...prev,
+          companyName: "Company name is required when listing as a business.",
+        }));
+        setSaveError("Company name is required when listing as a business.");
+        setSaving(false);
+        return;
       }
+
+      let normalizedContactPhone: string | null = null;
+      try {
+        normalizedContactPhone = normalizeContactPhone(
+          formValues.contactPhone,
+          formValues.contactPhoneCountry
+        );
+      } catch {
+        normalizedContactPhone = null;
+      }
+
+      if (user?.id) {
+        const profileUpdates: Partial<UserProfile> = {
+          businessSeller: formValues.listAsBusiness,
+        };
+        const trimmedDisplayName = formValues.displayName.trim();
+        if (trimmedDisplayName) profileUpdates.displayName = trimmedDisplayName;
+        const trimmedEmail = formValues.contactEmail.trim();
+        if (trimmedEmail) profileUpdates.email = trimmedEmail;
+        if (normalizedContactPhone) profileUpdates.phone = normalizedContactPhone;
+        const trimmedCounty = formValues.county.trim();
+        if (trimmedCounty) profileUpdates.county = trimmedCounty;
+        const trimmedArea = formValues.area.trim();
+        if (trimmedArea) profileUpdates.area = trimmedArea;
+        if (formValues.listAsBusiness && resolvedCompanyName) {
+          profileUpdates.companyName = resolvedCompanyName;
+          const trimmedBusinessAddress = formValues.businessAddress.trim();
+          if (trimmedBusinessAddress) {
+            profileUpdates.businessAddress = trimmedBusinessAddress;
+          }
+          const trimmedVatNumber = formValues.vatNumber.trim();
+          if (trimmedVatNumber) profileUpdates.vatNumber = trimmedVatNumber;
+          const trimmedWebsite = formValues.website.trim();
+          if (trimmedWebsite) profileUpdates.website = trimmedWebsite;
+          const trimmedRegistrationNumber = formValues.registrationNumber.trim();
+          if (trimmedRegistrationNumber) {
+            profileUpdates.registrationNumber = trimmedRegistrationNumber;
+          }
+        }
+
+        await updateUserProfile(user.id, profileUpdates);
+        await refreshProfile();
+      }
+
+      const companyName = formValues.listAsBusiness
+        ? resolveNonEmptyNullable(resolvedCompanyName)
+        : null;
+      const businessAddress = formValues.listAsBusiness
+        ? resolveNonEmptyNullable(formValues.businessAddress)
+        : null;
+      const vatNumber = formValues.listAsBusiness
+        ? resolveNonEmptyNullable(formValues.vatNumber)
+        : null;
+      const website = formValues.listAsBusiness
+        ? resolveNonEmptyNullable(formValues.website)
+        : null;
+      const registrationNumber = formValues.listAsBusiness
+        ? resolveNonEmptyNullable(formValues.registrationNumber)
+        : null;
+
+      const { sellerSnapshot, sellerType } = buildSellerSnapshotFromProfile(
+        profile as Record<string, unknown> | null,
+        {
+          sellerType: formValues.listAsBusiness ? "business" : "private",
+          displayName: resolveNonEmptyNullable(formValues.displayName),
+          contactEmail: resolveNonEmptyNullable(formValues.contactEmail),
+          contactPhone: normalizedContactPhone ?? resolveNonEmptyNullable(formValues.contactPhone),
+          county: formValues.county.trim() || null,
+          area: formValues.area.trim() || null,
+          companyName,
+          businessAddress,
+          vatNumber,
+          registrationNumber,
+          website,
+          avatarUrl: listing?.seller?.avatarUrl ?? profile?.avatarUrl ?? null,
+          googlePhotoUrl:
+            listing?.seller?.googlePhotoUrl ?? profile?.googlePhotoUrl ?? null,
+          existingSeller: listing?.seller ?? null,
+        }
+      );
 
       const payload = {
         title: formValues.title,
         description: formValues.description,
         category_id: formValues.category_id ?? selectedCategoryId ?? null,
         city: formValues.city ?? formValues.county ?? null,
+        county: formValues.county ?? null,
+        area: formValues.area ?? null,
         price:
           typeof formValues.price === "number"
             ? formValues.price
             : price ?? 0,
         status: formValues.status ?? status,
         listing_type: formValues.listing_type ?? listingType,
-        contact_email: formValues.contactEmail,
-        contact_phone: formValues.contactPhone,
+  contact_email: formValues.contactEmail,
+  contact_phone: normalizedContactPhone ?? formValues.contactPhone,
         marketplace_condition: formValues.marketplaceCondition ?? null,
+        sellerType,
+        seller: sellerSnapshot,
       };
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("EDIT LISTING SAVE LOCATION", {
+          payloadCounty: payload.county,
+          payloadArea: payload.area,
+          sellerCounty: sellerSnapshot.county,
+          sellerArea: sellerSnapshot.area,
+        });
+      }
 
       console.log("FINAL LISTINGS UPDATE PAYLOAD", payload);
 
@@ -413,8 +891,17 @@ export default function ListingEditPage() {
       setSaveSuccess("Changes saved.");
       setDirty(false);
     } catch (error) {
-      console.error("Unexpected listing update error", error);
-      setSaveError("Unexpected error while saving.");
+      console.error("LISTING UPDATE ERROR", {
+        message: (error as { message?: string }).message,
+        code: (error as { code?: string }).code,
+        details: (error as { details?: string }).details,
+        hint: (error as { hint?: string }).hint,
+        full: error,
+      });
+      setSaveError(
+        (error as { message?: string }).message ||
+          "Unexpected error while saving."
+      );
     } finally {
       setSaving(false);
     }
@@ -482,16 +969,22 @@ export default function ListingEditPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" form="edit-listing-form" disabled={saving}>
+              <Button
+                type="submit"
+                form="edit-listing-form"
+                disabled={saving || isProfileHydrating}
+              >
                 {saving ? "Saving…" : "Save changes"}
               </Button>
             </div>
           </div>
 
           {loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-              Loading listing…
-            </div>
+            <div
+              className="min-h-30"
+              aria-busy="true"
+              aria-live="polite"
+            />
           ) : !listing ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-600">
               We could not load this listing.
@@ -674,7 +1167,7 @@ export default function ListingEditPage() {
                       id="list-as-business"
                       type="checkbox"
                       checked={formValues.listAsBusiness}
-                      onChange={(event) => handleChange("listAsBusiness", event.target.checked)}
+                      onChange={handleBusinessToggle}
                     />
                     <span>List as a business</span>
                   </label>
@@ -739,7 +1232,7 @@ export default function ListingEditPage() {
                   </div>
                 )}
                 {saveSuccess && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-primary">
                     {saveSuccess}
                   </div>
                 )}

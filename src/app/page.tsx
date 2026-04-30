@@ -7,10 +7,10 @@ export default function HomePage() {
   <section className="pt-4">
         <div className="hero">
           <div className="hero-card">
-            <h1 className="hero-title">Find services, requests and products in one place</h1>
+            <h1 className="hero-title">Find services, get help and products in one place</h1>
 
             <p className="hero-text">
-              Discover local professionals, post requests, or shop for products — all in one
+              Discover local professionals, post jobs, or shop for products — all in one
               easy-to-use marketplace built for your community.
             </p>
 
@@ -20,7 +20,7 @@ export default function HomePage() {
               </Link>
 
               <Link href="/requests" className="btn btn--ghost">
-                Browse Requests
+                Get Help
               </Link>
 
               <Link href="/marketplace" className="btn btn--ghost">
@@ -53,10 +53,10 @@ export default function HomePage() {
             </Link>
 
             <Link href="/requests" className="quick-card">
-              <h3 className="quick-card__title">Requests</h3>
-              <p className="quick-card__text">Post a request and get offers from local providers.</p>
+              <h3 className="quick-card__title">Get Help</h3>
+              <p className="quick-card__text">Post what you need and get offers from local people.</p>
               <div style={{ marginTop: 12 }}>
-                <span className="btn btn--ghost">Browse Requests</span>
+                <span className="btn btn--ghost">Get Help</span>
               </div>
             </Link>
 

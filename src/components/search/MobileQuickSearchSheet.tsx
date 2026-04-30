@@ -13,6 +13,7 @@ type MobileQuickSearchSheetProps = {
 };
 
 export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSearchSheetProps) {
+  const [mode, setMode] = React.useState<"services" | "help" | "market">("services");
   const {
     q,
     setQ,
@@ -22,11 +23,8 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
     setCounty,
     area,
     setArea,
-    activeTab,
     selectTab,
     isLoading,
-    listingCount,
-    hasCategorySelection,
     onSearch,
   } = useQuickSearch({ syncWithHeroTabs: false });
 
@@ -60,20 +58,33 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
 
   if (!open) return null;
 
-  const tabLabel =
-    activeTab === "/requests"
-      ? "requests"
-      : activeTab === "/marketplace"
-      ? "marketplace"
-      : "services";
+  const tabLabel = mode === "help" ? "requests" : mode === "market" ? "marketplace" : "services";
+  const placeholder =
+    mode === "services"
+      ? "Search services, e.g. plumber, lawn care"
+      : mode === "help"
+      ? "Describe what you need help with"
+      : "Search marketplace listings";
+  const buttonText =
+    mode === "services"
+      ? "Search services"
+      : mode === "help"
+      ? "Post request"
+      : "Search marketplace";
   const categories = CATEGORIES_BY_MODE[tabLabel];
 
   return (
-    <div className="mobile-search-sheet is-open" role="dialog" aria-modal="true" onClick={onClose}>
+    <>
       <div
-        className="mobile-search-sheet__panel"
-        onClick={(e) => e.stopPropagation()}
-      >
+        className="mobile-menu mobile-menu--fullscreen fixed inset-0 isolate z-50 bg-primary/10 duration-100 supports-backdrop-filter:backdrop-blur-xs is-open"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="mobile-search-sheet is-open" role="dialog" aria-modal="true">
+        <div
+          className="mobile-search-sheet__panel"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="mobile-search-sheet__header">
           <div />
           <button
@@ -93,24 +104,33 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
         <div className="mobile-search-sheet__tabs" style={{ marginBottom: 12 }}>
           <button
             type="button"
-            className={`mobile-search-sheet__tab ${activeTab === "/services" ? "is-active" : ""}`}
-            onClick={() => selectTab("/services")}
+            className={`mobile-search-sheet__tab ${mode === "services" ? "is-active" : ""}`}
+            onClick={() => {
+              setMode("services");
+              selectTab("/services");
+            }}
           >
-            Find a services
+            Find services
           </button>
 
           <button
             type="button"
-            className={`mobile-search-sheet__tab ${activeTab === "/requests" ? "is-active" : ""}`}
-            onClick={() => selectTab("/requests")}
+            className={`mobile-search-sheet__tab ${mode === "help" ? "is-active" : ""}`}
+            onClick={() => {
+              setMode("help");
+              selectTab("/requests");
+            }}
           >
-            Find a request
+            Get help
           </button>
 
           <button
             type="button"
-            className={`mobile-search-sheet__tab ${activeTab === "/marketplace" ? "is-active" : ""}`}
-            onClick={() => selectTab("/marketplace")}
+            className={`mobile-search-sheet__tab ${mode === "market" ? "is-active" : ""}`}
+            onClick={() => {
+              setMode("market");
+              selectTab("/marketplace");
+            }}
           >
             Find a marketplace
           </button>
@@ -127,7 +147,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
             ref={inputRef}
             className="input"
             name="q"
-            placeholder={`Search ${tabLabel}, e.g. plumber, lawn care`}
+            placeholder={placeholder}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -167,21 +187,18 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
 
           <button
             type="submit"
-            className="btn btn--primary"
-            disabled={isLoading || (hasCategorySelection && listingCount === 0)}
+            className="btn primary-action-button bg-blue-600 text-white hover:bg-blue-700"
+            disabled={isLoading}
             aria-busy={isLoading}
           >
             <span className="btn__content">
               {isLoading && <span className="spinner" aria-hidden />}
-              {(() => {
-                if (!hasCategorySelection || listingCount == null) return `Search ${tabLabel}`;
-                if (listingCount === 0) return `Search ${tabLabel}`;
-                return `Search ${listingCount} ${tabLabel}`;
-              })()}
+              {buttonText}
             </span>
           </button>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

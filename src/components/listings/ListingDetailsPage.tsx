@@ -14,19 +14,21 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
   const createdAt = listing.created_at ?? null;
 
   return (
-    <div className="bg-slate-50/40">
-      <div className="py-4 lg:py-10">
+    <div className="bg-slate-50/40 listing-detail-page">
+      <div className="pb-4 lg:py-10">
         <div className="grid grid-cols-1 gap-3 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-3 lg:space-y-6">
-            <ListingGallery
-              images1600={listing.images1600}
-              images={listing.images}
-              coverImage={listing.coverImage ?? null}
-              title={title}
-            />
+            <div className="listing-detail-gallery">
+              <ListingGallery
+                images1600={listing.images1600}
+                images={listing.images}
+                coverImage={listing.coverImage ?? null}
+                title={title}
+              />
+            </div>
 
-            <div className="listing-media rounded-2xl border border-gray-200 bg-white p-3 lg:p-5 shadow-sm">
-              <div className="space-y-2 lg:space-y-3">
+            <div className="listing-media rounded-2xl border border-gray-200 bg-white p-3 lg:p-5 shadow-sm listing-detail-card">
+              <div className="space-y-2 lg:space-y-3 listing-detail-card-inner">
                 <div>
                   <h1 className="text-2xl font-semibold text-foreground md:text-3xl">
                     {title}
@@ -37,19 +39,22 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
                 </div>
 
                 <ListingInfo
+                  listingId={listing.id}
+                  sellerId={listing.user_id ?? null}
                   location={locationLabel}
                   sellerType={listing.sellerType}
                   price={listing.price}
                   currency={listing.currency}
                   createdAt={createdAt}
+                  savedByCurrentUser={listing.savedByCurrentUser}
                 />
 
                 {listing.description ? (
-                  <div className="pt-2 lg:pt-3 text-sm leading-6 text-slate-700 md:text-base">
+                  <div className="pt-2 lg:pt-3 text-sm leading-6 text-slate-700 md:text-base listing-description-card">
                     {listing.description}
                   </div>
                 ) : (
-                  <div className="pt-2 lg:pt-3 text-sm text-muted-foreground">
+                  <div className="pt-2 lg:pt-3 text-sm text-muted-foreground listing-description-card">
                     Description coming soon.
                   </div>
                 )}
@@ -57,12 +62,16 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
             </div>
           </div>
 
-          <aside className="lg:sticky lg:top-[calc(var(--site-header-height)+24px)]">
+          <aside className="lg:sticky lg:top-[calc(var(--site-header-height)+24px)] listing-seller-card">
             <SellerCardV2
               seller={listing.seller}
+              sellerType={listing.sellerType}
               createdAt={createdAt}
               contactPhone={listing.contact_phone ?? null}
               contactEmail={listing.contact_email ?? null}
+              listingId={listing.id}
+              sellerId={listing.user_id ?? null}
+              allowMessages={listing.allow_messages ?? null}
             />
           </aside>
         </div>

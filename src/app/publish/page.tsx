@@ -44,17 +44,17 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
                 <div className="card-cta">Create service →</div>
               </Link>
 
-              <Link href={{ pathname: '/publish', query: { type: 'request' } }} className="publish-card" aria-label="Post a Request">
+              <Link href={{ pathname: '/publish', query: { type: 'request' } }} className="publish-card" aria-label="Post your job">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
                   <MessageCircleQuestion size={30} />
                 </div>
 
                 <div className="card-body">
-                  <h3>Post a Request</h3>
+                  <h3>Post your job</h3>
                   <p className="card-desc">Describe what you need and let providers send you offers.</p>
                 </div>
 
-                <div className="card-cta">Create request →</div>
+                <div className="card-cta">Create job →</div>
               </Link>
 
               <Link href={{ pathname: '/publish', query: { type: 'marketplace' } }} className="publish-card" aria-label="Sell on Marketplace">
@@ -80,7 +80,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
                   listingType === 'service'
                     ? 'Offer a Service'
                     : listingType === 'request'
-                    ? 'Post a Request'
+                    ? 'Post your job'
                     : 'Sell on Marketplace'
                 }
               />

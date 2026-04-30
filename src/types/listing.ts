@@ -33,6 +33,7 @@ export interface Listing {
   sellerType?: "private" | "business" | string | null;
   rating?: number | null;
   isFeatured?: boolean;
+  savedByCurrentUser?: boolean | null;
   // optional internal fields used by backend
   status?: "draft" | "active" | "paused" | "sold" | "expired" | "archived";
   listing_type?: ListingType | string | null;

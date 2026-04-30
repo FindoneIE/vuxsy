@@ -13,12 +13,17 @@ type ListingCountResponse = {
 
 function getDefaultLabelForMode(mode: ResultsHeaderMode) {
   if (mode === "services") return "All services";
-  if (mode === "requests") return "All requests";
+  if (mode === "requests") return "All jobs";
   if (mode === "marketplace") return "All marketplace listings";
   return "All items";
 }
 
-export default function ResultsHeader({ mode }: { mode: ResultsHeaderMode }) {
+type ResultsHeaderProps = {
+  mode: ResultsHeaderMode;
+  count?: number | null;
+};
+
+export default function ResultsHeader({ mode, count: countProp }: ResultsHeaderProps) {
   const searchParams = useSearchParams();
 
   const categoryParam = searchParams?.get("category");
@@ -48,6 +53,10 @@ export default function ResultsHeader({ mode }: { mode: ResultsHeaderMode }) {
   const [count, setCount] = React.useState<number | null>(null);
 
   React.useEffect(() => {
+    if (typeof countProp === "number") {
+      queueMicrotask(() => setCount(countProp));
+      return;
+    }
     let mounted = true;
     const qs = searchParams?.toString() ?? "";
 
@@ -89,9 +98,9 @@ export default function ResultsHeader({ mode }: { mode: ResultsHeaderMode }) {
       mounted = false;
       clearTimeout(id);
     };
-  }, [searchParams, mode]);
+  }, [searchParams, mode, countProp]);
 
-  const noun = mode === "requests" ? "requests" : "listings";
+  const noun = mode === "requests" ? "jobs" : "listings";
 
   return (
     <div>

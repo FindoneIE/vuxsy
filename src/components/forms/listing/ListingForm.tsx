@@ -30,6 +30,7 @@ export default function ListingForm({ type, title }: Props) {
     handlePreview,
     handleSubmit,
     closePreview,
+    isProfileHydrating,
   } = useListingForm(type);
 
   const renderTypeFields = () => {
@@ -112,6 +113,11 @@ export default function ListingForm({ type, title }: Props) {
       {title && (
         <div className="mb-3">
           <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
+        </div>
+      )}
+      {isProfileHydrating && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          Loading your profile defaults…
         </div>
       )}
       <form onSubmit={handleSubmit} className="form-stack">
@@ -499,12 +505,13 @@ export default function ListingForm({ type, title }: Props) {
               variant="outline"
               className="rounded-xl border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-900"
               onClick={handlePreview}
+              disabled={isSubmitting || isProfileHydrating}
             >
               Preview
             </Button>
           </div>
 
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || isProfileHydrating}>
             {isSubmitting ? "Submitting…" : "Submit listing"}
           </Button>
         </div>

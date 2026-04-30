@@ -19,6 +19,7 @@ import {
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import UserAvatar from "@/components/ui/UserAvatar";
+import VuxsyVerifiedBadge from "@/components/ui/VuxsyVerifiedBadge";
 import { cn } from "@/lib/utils";
 
 const navSections = [
@@ -27,7 +28,7 @@ const navSections = [
     items: [
       { label: "All listings", href: "/dashboard/listings", icon: ClipboardList },
       { label: "Services", href: "/dashboard/services", icon: Wrench },
-      { label: "Requests", href: "/dashboard/requests", icon: FileQuestion },
+      { label: "Get Help", href: "/dashboard/requests", icon: FileQuestion },
       { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
     ],
   },
@@ -58,12 +59,16 @@ type Props = {
 
 export default function DashboardLayout({ children }: Props) {
   const pathname = usePathname();
-  const { user, profile } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const metadata = user?.user_metadata as Record<string, unknown> | undefined;
+  const isProfileReady = !loading && !profileLoading;
   const resolvedGooglePhotoUrl =
     profile?.googlePhotoUrl ?? (metadata?.avatar_url as string | undefined) ?? null;
-  const resolvedDisplayName = profile?.displayName ?? user?.email ?? null;
-  const resolvedEmail = profile?.email ?? user?.email ?? null;
+  const resolvedDisplayName = isProfileReady
+    ? profile?.displayName ?? user?.email ?? null
+    : null;
+  const resolvedEmail = isProfileReady ? profile?.email ?? user?.email ?? null : null;
+  const isOfficialVuxsy = resolvedDisplayName === "VUXSY";
   const isListingsSection =
     pathname === "/dashboard/listings" ||
     pathname === "/dashboard/services" ||
@@ -73,12 +78,12 @@ export default function DashboardLayout({ children }: Props) {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-(--bg-page)">
-  <div className="pt-4 pb-6">
-          <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-          <aside className="hidden w-60 shrink-0 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm md:block">
+        <div className="pt-4 pb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
+          <aside className="hidden w-60 shrink-0 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm lg:block">
             <div className="mb-5 flex items-center gap-3">
               <UserAvatar
-                avatarUrl={profile?.avatarUrl ?? null}
+                avatarUrl={isProfileReady ? profile?.avatarUrl ?? null : null}
                 googlePhotoUrl={resolvedGooglePhotoUrl}
                 displayName={resolvedDisplayName}
                 email={resolvedEmail}
@@ -91,20 +96,38 @@ export default function DashboardLayout({ children }: Props) {
                 >
                   Dashboard
                 </Link>
-                {resolvedDisplayName ? (
-                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                    {resolvedDisplayName}
-                  </p>
-                ) : null}
-                <p
-                  className={
-                    resolvedDisplayName
-                      ? "mt-1 truncate text-xs font-medium text-slate-500"
-                      : "mt-1 truncate text-sm font-semibold text-slate-900"
-                  }
-                >
-                  {resolvedEmail ?? ""}
-                </p>
+                <div className="mt-1 min-h-10">
+                  {isProfileReady ? (
+                    <>
+                      {resolvedDisplayName ? (
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {isOfficialVuxsy ? (
+                            <span className="inline-flex items-center">
+                              VUXSY
+                              <VuxsyVerifiedBadge
+                                displayName={resolvedDisplayName}
+                                size={14}
+                              />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              {resolvedDisplayName}
+                            </span>
+                          )}
+                        </p>
+                      ) : null}
+                      <p
+                        className={
+                          resolvedDisplayName
+                            ? "mt-1 truncate text-xs font-normal text-slate-500"
+                            : "truncate text-sm font-normal text-slate-500"
+                        }
+                      >
+                        {resolvedEmail ?? ""}
+                      </p>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
 

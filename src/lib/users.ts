@@ -23,38 +23,41 @@ export const updateUserProfile = async (
   updates: Partial<UserProfile>
 ) => {
   const supabase = createSupabaseBrowserClient();
+  const { role, ...safeUpdates } = updates;
   const now = new Date().toISOString();
   const payload: Record<string, unknown> = {
     id: userId,
     updated_at: now,
   };
 
-  if ("displayName" in updates) payload.display_name = updates.displayName ?? null;
-  if ("email" in updates) payload.email = updates.email ?? null;
-  if ("phone" in updates) payload.phone = updates.phone ?? null;
-  if ("city" in updates) payload.city = updates.city ?? null;
-  if ("county" in updates) payload.county = updates.county ?? null;
-  if ("area" in updates) payload.area = updates.area ?? null;
-  if ("businessSeller" in updates)
-    payload.is_business_seller = updates.businessSeller ?? null;
-  if ("companyName" in updates) payload.company_name = updates.companyName ?? null;
-  if ("businessAddress" in updates)
-    payload.business_address = updates.businessAddress ?? null;
-  if ("vatNumber" in updates) payload.vat_number = updates.vatNumber ?? null;
-  if ("website" in updates) payload.website = updates.website ?? null;
-  if ("registrationNumber" in updates)
-    payload.company_registration_number = updates.registrationNumber ?? null;
-  if ("avatarUrl" in updates) payload.avatar_url = updates.avatarUrl ?? null;
-  if ("googlePhotoUrl" in updates) payload.google_photo_url = updates.googlePhotoUrl ?? null;
-  if ("language" in updates) payload.language = updates.language ?? null;
-  if ("emailNotifications" in updates)
-    payload.email_notifications = updates.emailNotifications ?? null;
-  if ("marketplaceAlerts" in updates)
-    payload.marketplace_alerts = updates.marketplaceAlerts ?? null;
-  if ("messageNotifications" in updates)
-    payload.message_notifications = updates.messageNotifications ?? null;
-  if ("createdAt" in updates) payload.created_at = updates.createdAt ?? null;
-  if ("updatedAt" in updates) payload.updated_at = updates.updatedAt ?? now;
+  void role;
+
+  if ("displayName" in safeUpdates) payload.display_name = safeUpdates.displayName ?? null;
+  if ("email" in safeUpdates) payload.email = safeUpdates.email ?? null;
+  if ("phone" in safeUpdates) payload.phone = safeUpdates.phone ?? null;
+  if ("city" in safeUpdates) payload.city = safeUpdates.city ?? null;
+  if ("county" in safeUpdates) payload.county = safeUpdates.county ?? null;
+  if ("area" in safeUpdates) payload.area = safeUpdates.area ?? null;
+  if ("businessSeller" in safeUpdates)
+    payload.is_business_seller = safeUpdates.businessSeller ?? null;
+  if ("companyName" in safeUpdates) payload.company_name = safeUpdates.companyName ?? null;
+  if ("businessAddress" in safeUpdates)
+    payload.business_address = safeUpdates.businessAddress ?? null;
+  if ("vatNumber" in safeUpdates) payload.vat_number = safeUpdates.vatNumber ?? null;
+  if ("website" in safeUpdates) payload.website = safeUpdates.website ?? null;
+  if ("registrationNumber" in safeUpdates)
+    payload.company_registration_number = safeUpdates.registrationNumber ?? null;
+  if ("avatarUrl" in safeUpdates) payload.avatar_url = safeUpdates.avatarUrl ?? null;
+  if ("googlePhotoUrl" in safeUpdates) payload.google_photo_url = safeUpdates.googlePhotoUrl ?? null;
+  if ("language" in safeUpdates) payload.language = safeUpdates.language ?? null;
+  if ("emailNotifications" in safeUpdates)
+    payload.email_notifications = safeUpdates.emailNotifications ?? null;
+  if ("marketplaceAlerts" in safeUpdates)
+    payload.marketplace_alerts = safeUpdates.marketplaceAlerts ?? null;
+  if ("messageNotifications" in safeUpdates)
+    payload.message_notifications = safeUpdates.messageNotifications ?? null;
+  if ("createdAt" in safeUpdates) payload.created_at = safeUpdates.createdAt ?? null;
+  if ("updatedAt" in safeUpdates) payload.updated_at = safeUpdates.updatedAt ?? now;
 
   console.info("TEMP LOG: profile save payload", payload);
 
@@ -62,7 +65,7 @@ export const updateUserProfile = async (
     .from("profiles")
     .upsert(payload, { onConflict: "id" })
     .select(
-      "id, email, display_name, phone, city, county, area, is_business_seller, company_name, business_address, vat_number, website, company_registration_number, avatar_url, google_photo_url, language, email_notifications, marketplace_alerts, message_notifications, created_at, updated_at"
+      "id, email, display_name, role, phone, city, county, area, is_business_seller, company_name, business_address, vat_number, website, company_registration_number, avatar_url, google_photo_url, language, email_notifications, marketplace_alerts, message_notifications, created_at, updated_at"
     )
     .maybeSingle();
 

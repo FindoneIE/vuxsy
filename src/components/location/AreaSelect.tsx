@@ -28,11 +28,11 @@ export default function AreaSelect({
   React.useEffect(() => {
     let mounted = true;
     if (!county) {
-      setAreas([]);
+      queueMicrotask(() => setAreas([]));
       return;
     }
 
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     // getAreasByCounty returns a Promise to allow lazy loading or future remote calls
     getAreasByCounty(county)
       .then((list) => {

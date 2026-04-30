@@ -31,6 +31,7 @@ export type ListingRecord = {
   spotlightUntil?: unknown;
   created_at?: unknown;
   updated_at?: unknown;
+  savedByCurrentUser?: boolean | null;
   [key: string]: unknown;
 };
 
@@ -95,22 +96,19 @@ export async function getListings({
       throw error;
     }
 
-    if (!category) {
-      return { items: [], nextCursor: null };
+    if (!category?.id) {
+      console.warn("CATEGORY SLUG NOT FOUND, SKIPPING FILTER", {
+        slug: cleanCategory,
+      });
+      resolvedCategoryId = undefined;
+    } else {
+      resolvedCategoryId = category.id;
     }
-
-    resolvedCategoryId = category.id ?? undefined;
   }
 
-  if (cleanCategory && !resolvedCategoryId) {
-    return { items: [], nextCursor: null };
-  }
-
-  let query = supabase
-    .from("listings")
-    .select(
-      "id, title, description, price, city, category_id, user_id, created_at, updated_at, contact_email, contact_phone, status, listing_type"
-    );
+  const baseSelect =
+    "id, title, description, price, city, category_id, user_id, created_at, updated_at, contact_email, contact_phone, status, listing_type";
+  let query = supabase.from("listings").select(baseSelect);
 
   if (resolvedCategoryId) {
     query = query.eq("category_id", resolvedCategoryId);
@@ -127,19 +125,56 @@ export async function getListings({
   query = query.or("status.is.null,status.eq.active");
 
   query = query
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .range(offset, offset + safePageSize - 1);
 
   const { data, error } = await query;
 
   if (error) {
-    throw error;
+    console.warn("GET LISTINGS FAILED", {
+      categoryId,
+      county,
+      area,
+      listingType,
+      query: {
+        select: baseSelect,
+        order: ["created_at desc", "id desc"],
+      },
+      error,
+    });
+
+    return { items: [], nextCursor: null };
   }
 
   const items = (data ?? []) as ListingRecord[];
 
   if (items.length > 0) {
     const listingIds = items.map((item) => item.id).filter(Boolean);
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData.user?.id ?? null;
+
+    if (currentUserId) {
+      const { data: savedRows, error: savedError } = await supabase
+        .from("saved_listings")
+        .select("listing_id")
+        .eq("user_id", currentUserId)
+        .in("listing_id", listingIds);
+
+      if (savedError) {
+        console.warn("SAVED LISTINGS LOOKUP FAILED", savedError);
+      } else {
+        const savedSet = new Set(
+          (savedRows ?? [])
+            .map((row) => row.listing_id)
+            .filter((value): value is string => Boolean(value))
+        );
+        items.forEach((item) => {
+          item.savedByCurrentUser = savedSet.has(item.id);
+        });
+      }
+    }
+
     const { data: imageRows, error: imageError } = await supabase
       .from("listing_images")
       .select("listing_id, storage_path_600, storage_path_1800, sort_order")

@@ -45,6 +45,11 @@ export default function ListingFiltersSidebar({
 
   const refreshCounts = React.useCallback(async () => {
     try {
+      window.dispatchEvent(
+        new CustomEvent("listing:counts-fetch", {
+          detail: { mode },
+        })
+      );
       const res = await fetch(`/api/category-counts?mode=${mode}`);
       if (!res.ok) return;
       const data = (await res.json()) as { counts?: Record<string, number> };
@@ -58,19 +63,21 @@ export default function ListingFiltersSidebar({
       });
     } catch {
       // ignore fetch errors
+    } finally {
+      // no-op
     }
   }, [mode]);
 
   // Sync local state when URL changes (e.g., back/forward navigation)
   React.useEffect(() => {
-    setActiveCategory(searchParams?.get("category") ?? null);
+    queueMicrotask(() => setActiveCategory(searchParams?.get("category") ?? null));
   }, [searchParams]);
 
   React.useEffect(() => {
-    refreshCounts();
+    queueMicrotask(() => refreshCounts());
 
     function handleRefresh() {
-      refreshCounts();
+      queueMicrotask(() => refreshCounts());
     }
 
     window.addEventListener("listing:added", handleRefresh as EventListener);
@@ -91,6 +98,12 @@ export default function ListingFiltersSidebar({
     setActiveCategory(next);
     onCategoryChange?.(next);
 
+    window.dispatchEvent(
+      new CustomEvent("listing:category-click", {
+        detail: { category: next, navigationMethod: "history.pushState" },
+      })
+    );
+
     // Build new search params while preserving other params
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     if (next) {
@@ -102,7 +115,9 @@ export default function ListingFiltersSidebar({
     const qs = params.toString();
     // Determine target base path: prefer provided basePath, otherwise use mode-based path
     const targetBase = basePath ?? `/${mode}`;
-    router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
+    if (typeof window !== "undefined") {
+      window.history.pushState({}, "", `${targetBase}${qs ? `?${qs}` : ""}`);
+    }
   }
 
   function handleCountyChange(value: string) {

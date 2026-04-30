@@ -94,7 +94,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {loading ? "Registering..." : "Register"}
           </button>

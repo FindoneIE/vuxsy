@@ -6,12 +6,15 @@ import PageContainer from "@/components/layout/PageContainer";
 
 const LINKS = [
   { label: "Services", href: "/services" },
-  { label: "Requests", href: "/requests" },
+  { label: "Get Help", href: "/requests" },
   { label: "Marketplace", href: "/marketplace" },
 ];
 
 export default function MobileSubheader() {
   const pathname = usePathname();
+  const isDetailPage = Boolean(
+    pathname?.match(/^\/(services|requests|marketplace)\/[^/]+\/[^/]+/)
+  );
 
   const handleTabClick = (href: string) => {
     try {
@@ -21,6 +24,10 @@ export default function MobileSubheader() {
       // ignore
     }
   };
+
+  if (isDetailPage) {
+    return null;
+  }
 
   return (
     <div className="mobile-subheader" role="navigation" aria-label="Browse">

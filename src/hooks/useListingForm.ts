@@ -7,7 +7,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { uploadImage } from "@/lib/supabase/storage";
 import { createListing } from "@/lib/listings/createListing";
 import { getListingHref } from "@/lib/listings/getListingHref";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { updateUserProfile } from "@/lib/users";
+import { validateDisplayName } from "@/lib/display-name-policy";
 import {
 	defaultListingFormValues,
 	requiredFieldsByType,
@@ -15,6 +16,7 @@ import {
 	type ListingFormErrors,
 	type ListingFormValues,
 } from "@/components/forms/listing/listingFormConfig";
+import type { UserProfile } from "@/types/user";
 
 type ListingFormState = {
 	formValues: ListingFormValues;
@@ -30,6 +32,7 @@ type UseListingFormReturn = ListingFormState & {
 	handlePreview: () => void;
 	handleSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
 	closePreview: () => void;
+	isProfileHydrating: boolean;
 };
 
 const getPhotosForType = (type: ListingType, values: ListingFormValues) => {
@@ -181,12 +184,20 @@ const revokePhotoPreviews = (
 
 
 export const useListingForm = (type: ListingType): UseListingFormReturn => {
-	const { user, profile } = useAuth();
+	const { user, profile, refreshProfile } = useAuth();
 	const router = useRouter();
-	const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
 	const didPrefillContact = React.useRef(false);
 	const didPrefillLocation = React.useRef(false);
 	const didPrefillBusiness = React.useRef(false);
+	const [didHydrateProfile, setDidHydrateProfile] = React.useState(false);
+	const businessDefaultsRef = React.useRef({
+		isBusinessSeller: false,
+		companyName: "",
+		businessAddress: "",
+		vatNumber: "",
+		website: "",
+		registrationNumber: "",
+	});
 	const [formValues, setFormValues] = React.useState<ListingFormValues>(
 		defaultListingFormValues
 	);
@@ -194,109 +205,92 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 	const [isPreview, setIsPreview] = React.useState(false);
 	const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const isProfileHydrating = Boolean(profile && !didHydrateProfile);
 
 	React.useEffect(() => {
-		setErrors({});
-		setIsPreview(false);
-		setStatusMessage(null);
-		setIsSubmitting(false);
-		didPrefillContact.current = false;
-		didPrefillLocation.current = false;
-		didPrefillBusiness.current = false;
-		setFormValues((prev) => {
-			revokePhotoPreviews(prev.servicePhotos);
-			revokePhotoPreviews(prev.requestPhotos);
-			revokePhotoPreviews(prev.marketplacePhotos);
-			return defaultListingFormValues;
-		});
+		const timeoutId = window.setTimeout(() => {
+			setErrors({});
+			setIsPreview(false);
+			setStatusMessage(null);
+			setIsSubmitting(false);
+			didPrefillContact.current = false;
+			didPrefillLocation.current = false;
+			didPrefillBusiness.current = false;
+			setFormValues((prev) => {
+				revokePhotoPreviews(prev.servicePhotos);
+				revokePhotoPreviews(prev.requestPhotos);
+				revokePhotoPreviews(prev.marketplacePhotos);
+				return defaultListingFormValues;
+			});
+		}, 0);
+
+		return () => window.clearTimeout(timeoutId);
 	}, [type]);
 
 	React.useEffect(() => {
-		const nextDisplayName = profile?.displayName ?? "";
-		const nextEmail = profile?.email ?? user?.email ?? "";
-		const nextPhone = parseContactPhone(profile?.phone);
-		if (didPrefillContact.current) return;
-		if (!nextDisplayName && !nextEmail && !nextPhone.local) return;
-		setFormValues((prev) => ({
-			...prev,
-			displayName: prev.displayName.trim() ? prev.displayName : nextDisplayName,
-			contactEmail: prev.contactEmail.trim() ? prev.contactEmail : nextEmail,
-			contactPhone: prev.contactPhone.trim() ? prev.contactPhone : nextPhone.local,
-			contactPhoneCountry: prev.contactPhone.trim()
-				? prev.contactPhoneCountry
-				: nextPhone.country,
-		}));
-		didPrefillContact.current = true;
-	}, [profile?.displayName, profile?.email, profile?.phone, user?.email, type]);
+		if (!profile || didHydrateProfile) return;
+		const nextDisplayName = profile.displayName ?? "";
+		const nextEmail = profile.email ?? user?.email ?? "";
+		const nextPhone = parseContactPhone(profile.phone);
+		const nextCounty = profile.county ?? "";
+		const nextArea = profile.area ?? "";
+		const isBusiness = Boolean(profile.businessSeller);
+		const defaults = {
+			isBusinessSeller: isBusiness,
+			companyName: profile.companyName ?? "",
+			businessAddress: profile.businessAddress ?? "",
+			vatNumber: profile.vatNumber ?? "",
+			website: profile.website ?? "",
+			registrationNumber: profile.registrationNumber ?? "",
+		};
 
-	React.useEffect(() => {
-		if (!user?.id) return;
-		let mounted = true;
-		if (didPrefillLocation.current) return;
-		didPrefillLocation.current = true;
-
-		const loadLocation = async () => {
-			const { data, error } = await supabase
-				.from("profiles")
-				.select("county, area")
-				.eq("id", user.id)
-				.maybeSingle();
-
-			if (!mounted || error) return;
-
+		const timeoutId = window.setTimeout(() => {
 			setFormValues((prev) => ({
 				...prev,
-				county: prev.county.trim() ? prev.county : data?.county ?? "",
-				area: prev.area.trim() ? prev.area : data?.area ?? "",
+				displayName: prev.displayName.trim() ? prev.displayName : nextDisplayName,
+				contactEmail: prev.contactEmail.trim() ? prev.contactEmail : nextEmail,
+				contactPhone: prev.contactPhone.trim() ? prev.contactPhone : nextPhone.local,
+				contactPhoneCountry: prev.contactPhone.trim()
+					? prev.contactPhoneCountry
+					: nextPhone.country,
+				county: prev.county.trim() ? prev.county : nextCounty,
+				area: prev.area.trim() ? prev.area : nextArea,
+				listAsBusiness: prev.listAsBusiness ? prev.listAsBusiness : isBusiness,
+				companyName: isBusiness
+					? prev.companyName.trim()
+						? prev.companyName
+						: defaults.companyName
+					: prev.companyName,
+				businessAddress: isBusiness
+					? prev.businessAddress.trim()
+						? prev.businessAddress
+						: defaults.businessAddress
+					: prev.businessAddress,
+				vatNumber: isBusiness
+					? prev.vatNumber.trim()
+						? prev.vatNumber
+						: defaults.vatNumber
+					: prev.vatNumber,
+				website: isBusiness
+					? prev.website.trim()
+						? prev.website
+						: defaults.website
+					: prev.website,
+				registrationNumber: isBusiness
+					? prev.registrationNumber.trim()
+						? prev.registrationNumber
+						: defaults.registrationNumber
+					: prev.registrationNumber,
 			}));
-		};
+			businessDefaultsRef.current = defaults;
+			didPrefillContact.current = true;
+			didPrefillLocation.current = true;
+			didPrefillBusiness.current = true;
+			setDidHydrateProfile(true);
+		}, 0);
 
-		loadLocation();
-
-		return () => {
-			mounted = false;
-		};
-	}, [supabase, user?.id]);
-
-	React.useEffect(() => {
-		if (!user?.id) return;
-		let mounted = true;
-		if (didPrefillBusiness.current) return;
-		didPrefillBusiness.current = true;
-
-		const loadBusinessDefaults = async () => {
-			const { data, error } = await supabase
-				.from("profiles")
-				.select(
-					"is_business_seller, company_name, business_address, vat_number, website, company_registration_number"
-				)
-				.eq("id", user.id)
-				.maybeSingle();
-
-			if (!mounted || error) return;
-			if (!data?.is_business_seller) return;
-
-			setFormValues((prev) => ({
-				...prev,
-				listAsBusiness: prev.listAsBusiness || Boolean(data?.is_business_seller),
-				companyName: prev.companyName.trim() ? prev.companyName : data?.company_name ?? "",
-				businessAddress: prev.businessAddress.trim()
-					? prev.businessAddress
-					: data?.business_address ?? "",
-				vatNumber: prev.vatNumber.trim() ? prev.vatNumber : data?.vat_number ?? "",
-				website: prev.website.trim() ? prev.website : data?.website ?? "",
-				registrationNumber: prev.registrationNumber.trim()
-					? prev.registrationNumber
-					: data?.company_registration_number ?? "",
-			}));
-		};
-
-		loadBusinessDefaults();
-
-		return () => {
-			mounted = false;
-		};
-	}, [supabase, user?.id]);
+		return () => window.clearTimeout(timeoutId);
+	}, [didHydrateProfile, profile, user?.email]);
 
 	const handleChange: ListingFormChangeHandler = (field, value) => {
 		setFormValues((prev) => {
@@ -349,7 +343,23 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			...prev,
 			listAsBusiness: isChecked,
 			...(isChecked
-				? {}
+				? {
+						companyName: prev.companyName.trim()
+							? prev.companyName
+							: businessDefaultsRef.current.companyName,
+						businessAddress: prev.businessAddress.trim()
+							? prev.businessAddress
+							: businessDefaultsRef.current.businessAddress,
+						vatNumber: prev.vatNumber.trim()
+							? prev.vatNumber
+							: businessDefaultsRef.current.vatNumber,
+						website: prev.website.trim()
+							? prev.website
+							: businessDefaultsRef.current.website,
+						registrationNumber: prev.registrationNumber.trim()
+							? prev.registrationNumber
+							: businessDefaultsRef.current.registrationNumber,
+					}
 				: {
 						companyName: "",
 						businessAddress: "",
@@ -438,6 +448,11 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		event.preventDefault();
 		setIsSubmitting(true);
 		setStatusMessage(null);
+		if (isProfileHydrating) {
+			setStatusMessage("Loading your profile defaults...");
+			setIsSubmitting(false);
+			return;
+		}
 
 		const formSnapshot: ListingFormValues = { ...formValues };
 
@@ -463,6 +478,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		}
 
 		try {
+			setStatusMessage("Publishing listing…");
 			const photos = getPhotosForType(type, formSnapshot);
 			if (photos.length === 0) {
 				setStatusMessage("Please upload at least one photo before submitting.");
@@ -485,6 +501,72 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				setErrors((prev) => ({ ...prev, displayName: "This field is required." }));
 				setIsSubmitting(false);
 				return;
+			}
+
+			const isAdmin = profile?.role === "admin";
+			const displayNameValidation = validateDisplayName(displayName, isAdmin);
+			if (displayNameValidation) {
+				setErrors((prev) => ({ ...prev, displayName: displayNameValidation }));
+				setStatusMessage(displayNameValidation);
+				setIsSubmitting(false);
+				return;
+			}
+
+			const profileCompanyName =
+				profile?.companyName ||
+				((profile as Record<string, unknown> | null)?.company_name as
+					| string
+					| null
+					| undefined) ||
+				null;
+			const resolvedCompanyName =
+				formSnapshot.companyName.trim() || profileCompanyName || "";
+			if (formSnapshot.listAsBusiness && !resolvedCompanyName) {
+				setErrors((prev) => ({
+					...prev,
+					companyName: "Company name is required when listing as a business.",
+				}));
+				setStatusMessage("Company name is required when listing as a business.");
+				setIsSubmitting(false);
+				return;
+			}
+
+			if (authUser.id) {
+				const profileUpdates: Partial<UserProfile> = {
+					businessSeller: formSnapshot.listAsBusiness,
+				};
+
+				const trimmedDisplayName = displayName.trim();
+				if (trimmedDisplayName) profileUpdates.displayName = trimmedDisplayName;
+				const trimmedEmail = formSnapshot.contactEmail.trim();
+				if (trimmedEmail) profileUpdates.email = trimmedEmail;
+				const normalizedProfilePhone = normalizeContactPhone(
+					formSnapshot.contactPhone ?? "",
+					formSnapshot.contactPhoneCountry
+				);
+				if (normalizedProfilePhone) profileUpdates.phone = normalizedProfilePhone;
+				const trimmedCounty = formSnapshot.county.trim();
+				if (trimmedCounty) profileUpdates.county = trimmedCounty;
+				const trimmedArea = formSnapshot.area.trim();
+				if (trimmedArea) profileUpdates.area = trimmedArea;
+				if (formSnapshot.listAsBusiness && resolvedCompanyName) {
+					profileUpdates.companyName = resolvedCompanyName;
+					const trimmedBusinessAddress = formSnapshot.businessAddress.trim();
+					if (trimmedBusinessAddress) {
+						profileUpdates.businessAddress = trimmedBusinessAddress;
+					}
+					const trimmedVatNumber = formSnapshot.vatNumber.trim();
+					if (trimmedVatNumber) profileUpdates.vatNumber = trimmedVatNumber;
+					const trimmedWebsite = formSnapshot.website.trim();
+					if (trimmedWebsite) profileUpdates.website = trimmedWebsite;
+					const trimmedRegistrationNumber = formSnapshot.registrationNumber.trim();
+					if (trimmedRegistrationNumber) {
+						profileUpdates.registrationNumber = trimmedRegistrationNumber;
+					}
+				}
+
+				await updateUserProfile(authUser.id, profileUpdates);
+				await refreshProfile();
 			}
 
 			const listingPayload = buildListingPayload(
@@ -525,30 +607,6 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 							});
 						}
 
-						if (process.env.NODE_ENV === "development") {
-							console.log("LISTING SUBMIT DEBUG", {
-								title: formSnapshot.title,
-								description: formSnapshot.description,
-								type,
-								categoryId: selectedCategoryId,
-								county: listingPayload.county,
-								area: listingPayload.area,
-								price: listingPayload.price,
-								sellerType: listingPayload.sellerType,
-								photoCount: photos.length,
-								photoNames,
-								previewUrls,
-								payload: listingPayload,
-							});
-						}
-
-						if (process.env.NODE_ENV === "development") {
-							console.log("DATA USER ID:", authUser.id);
-							console.log("LISTING PAYLOAD:", listingPayload);
-						}
-			if (process.env.NODE_ENV === "development") {
-				console.log("LISTING DB PAYLOAD:", listingPayload);
-			}
 			const listingId = await createListing({
 				...listingPayload,
 				images: [],
@@ -557,19 +615,33 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				photoCount: 0,
 			});
 
-			await Promise.all(
-				photos.map((photo) =>
-					uploadImage(photo.file, {
-						userId: authUser.id,
-						listingId,
-						kind: "listing",
-					})
-				)
-			);
-						if (process.env.NODE_ENV === "development") {
-							console.log("LISTING CREATED:", listingId);
-							console.log("LISTING DOC ID FOR UPLOAD:", listingId);
-						}
+			setStatusMessage("Uploading photos…");
+
+			const uploadBatch = async (batch: typeof photos) => {
+				await Promise.all(
+					batch.map((photo) =>
+						uploadImage(photo.file, {
+							userId: authUser.id,
+							listingId,
+							kind: "listing",
+						})
+					)
+				);
+			};
+
+			const [coverPhoto, ...restPhotos] = photos;
+			if (coverPhoto) {
+				await uploadImage(coverPhoto.file, {
+					userId: authUser.id,
+					listingId,
+					kind: "listing",
+				});
+			}
+
+			for (let i = 0; i < restPhotos.length; i += 2) {
+				const batch = restPhotos.slice(i, i + 2);
+				await uploadBatch(batch);
+			}
 
 			formSnapshot.servicePhotos.forEach((photo) => {
 				if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
@@ -592,6 +664,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				category: selectedCategoryId ?? undefined,
 			});
 			router.push(href);
+			setIsSubmitting(false);
 		} catch (error) {
 			console.error("Listing submission failed:", error);
 			setIsSubmitting(false);
@@ -612,5 +685,6 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		handlePreview,
 		handleSubmit,
 		closePreview,
+		isProfileHydrating,
 	};
 };

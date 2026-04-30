@@ -4,6 +4,64 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 export async function updateListing(id: string, data: ListingUpdate) {
   const supabase = createSupabaseBrowserClient();
   const now = new Date().toISOString();
+  const sellerSnapshot = (() => {
+    if (!data.seller) return undefined;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const seller = data.seller as ListingUpdate["seller"] & Record<string, unknown>;
+    const normalized = {
+      displayName:
+        seller.displayName ?? (seller as any).display_name ?? null,
+      display_name:
+        (seller as any).display_name ?? seller.displayName ?? null,
+      fullName:
+        seller.fullName ?? (seller as any).full_name ?? null,
+      full_name:
+        (seller as any).full_name ?? seller.fullName ?? null,
+      name: seller.name ?? (seller as any).name ?? null,
+      username: (seller as any).username ?? null,
+      email: (seller as any).email ?? null,
+      companyName:
+        seller.companyName ?? (seller as any).company_name ?? null,
+      company_name:
+        (seller as any).company_name ?? seller.companyName ?? null,
+      businessAddress:
+        (seller as any).businessAddress ?? (seller as any).business_address ?? null,
+      business_address:
+        (seller as any).business_address ?? (seller as any).businessAddress ?? null,
+      vatNumber:
+        (seller as any).vatNumber ?? (seller as any).vat_number ?? null,
+      vat_number:
+        (seller as any).vat_number ?? (seller as any).vatNumber ?? null,
+      registrationNumber:
+        (seller as any).registrationNumber ?? (seller as any).registration_number ?? null,
+      registration_number:
+        (seller as any).registration_number ?? (seller as any).registrationNumber ?? null,
+      isBusinessSeller:
+        seller.isBusinessSeller ?? (seller as any).is_business_seller ?? null,
+      is_business_seller:
+        (seller as any).is_business_seller ?? seller.isBusinessSeller ?? null,
+      county: seller.county ?? null,
+      area: seller.area ?? null,
+      avatarUrl:
+        seller.avatarUrl ?? (seller as any).avatar_url ?? null,
+      avatar_url:
+        (seller as any).avatar_url ?? seller.avatarUrl ?? null,
+      googlePhotoUrl:
+        seller.googlePhotoUrl ?? (seller as any).google_photo_url ?? null,
+      google_photo_url:
+        (seller as any).google_photo_url ?? seller.googlePhotoUrl ?? null,
+      contact_phone: (seller as any).contact_phone ?? null,
+      contact_email: (seller as any).contact_email ?? null,
+      website: seller.website ?? null,
+      created_at: (seller as any).created_at ?? seller.createdAt ?? null,
+      createdAt: seller.createdAt ?? (seller as any).created_at ?? null,
+      type: seller.type ?? null,
+      sellerType: (seller as any).sellerType ?? null,
+      seller_type: (seller as any).seller_type ?? (seller as any).sellerType ?? null,
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    return normalized;
+  })();
   const cleanPayload = {
     title: data.title ?? "",
     description: data.description ?? "",
@@ -26,6 +84,15 @@ export async function updateListing(id: string, data: ListingUpdate) {
       null,
     updated_at: now,
   };
+
+  if (data.sellerType != null) {
+    (cleanPayload as { sellerType?: ListingUpdate["sellerType"] | null }).sellerType =
+      data.sellerType;
+  }
+
+  if (sellerSnapshot) {
+    (cleanPayload as { seller?: ListingUpdate["seller"] }).seller = sellerSnapshot;
+  }
 
   console.log("FINAL LISTINGS UPDATE PAYLOAD", cleanPayload);
 

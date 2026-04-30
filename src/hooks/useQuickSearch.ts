@@ -34,34 +34,22 @@ export function useQuickSearch(options: UseQuickSearchOptions = {}) {
   const { syncWithHeroTabs = true } = options;
   const pathname = usePathname();
   const router = useRouter();
+  const [isPending, startTransition] = React.useTransition();
 
   const [q, setQ] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [county, setCounty] = React.useState<string | undefined>(undefined);
   const [area, setArea] = React.useState<string | undefined>(undefined);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<QuickSearchTab>(() => {
-    const derived = deriveTabFromPath(pathname);
-    return syncWithHeroTabs ? getStoredTab() ?? derived : derived;
-  });
-
-  React.useEffect(() => {
-    const derived = deriveTabFromPath(pathname);
-    if (!syncWithHeroTabs) {
-      setActiveTab(derived);
-      return;
-    }
-    const stored = getStoredTab();
-    setActiveTab(stored ?? derived);
-  }, [pathname, syncWithHeroTabs]);
-
-  React.useEffect(() => {
-    setIsLoading(false);
-  }, [pathname]);
+  const derivedTab = React.useMemo(() => deriveTabFromPath(pathname), [pathname]);
+  const [storedTab, setStoredTab] = React.useState<QuickSearchTab | undefined>(() =>
+    syncWithHeroTabs ? getStoredTab() : undefined
+  );
+  const activeTab = syncWithHeroTabs ? storedTab ?? derivedTab : derivedTab;
+  const isLoading = isPending;
 
   const selectTab = React.useCallback(
     (tab: QuickSearchTab) => {
-      setActiveTab(tab);
+  setStoredTab(tab);
       if (!syncWithHeroTabs) return;
       try {
         sessionStorage.setItem("heroActiveTab", tab);
@@ -79,7 +67,7 @@ export function useQuickSearch(options: UseQuickSearchOptions = {}) {
     function onTabChange(e: Event) {
       try {
         const href = (e as CustomEvent<string>).detail as QuickSearchTab | undefined;
-        if (href) setActiveTab(href);
+  if (href) setStoredTab(href);
       } catch {
         // ignore
       }
@@ -152,7 +140,6 @@ export function useQuickSearch(options: UseQuickSearchOptions = {}) {
   function onSearch(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (isLoading) return;
-    setIsLoading(true);
     const params = new URLSearchParams();
     if (q) params.set("keyword", q);
     if (category) params.set("category", category);
@@ -161,7 +148,9 @@ export function useQuickSearch(options: UseQuickSearchOptions = {}) {
 
     const qs = params.toString();
     const base = activeTab ?? "/services";
-    router.push(`${base}${qs ? `?${qs}` : ""}`);
+    startTransition(() => {
+      router.push(`${base}${qs ? `?${qs}` : ""}`);
+    });
   }
 
   return {

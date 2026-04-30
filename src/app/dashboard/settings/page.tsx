@@ -10,6 +10,10 @@ import AreaSelect from "@/components/location/AreaSelect";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadImage } from "@/lib/supabase/storage";
 import { updateUserProfile } from "@/lib/users";
+import type { UserProfile } from "@/types/user";
+import { validateDisplayName } from "@/lib/display-name-policy";
+import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
+import type { Listing } from "@/types/listing";
 
 const MAX_SIZE_MB = 5;
 const MIN_PHONE_LENGTH = 7;
@@ -69,13 +73,14 @@ const Switch = ({ className, checked, onCheckedChange }: SwitchProps) => (
       onChange={(event) => onCheckedChange?.(event.target.checked)}
       className="peer sr-only"
     />
-    <span className="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-slate-900" />
+  <span className="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-primary" />
     <span className="absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition peer-checked:translate-x-5" />
   </span>
 );
 
 export default function DashboardSettingsPage() {
-  const { user, profile, profileLoading } = useAuth();
+  const { user, profile, profileLoading, refreshProfile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const [status, setStatus] = React.useState<string | null>(null);
   const [isUploading, setIsUploading] = React.useState(false);
@@ -84,6 +89,7 @@ export default function DashboardSettingsPage() {
   const [preferencesState, setPreferencesState] = React.useState<"saved" | "saving" | "error">("saved");
   const [phoneError, setPhoneError] = React.useState<string | null>(null);
   const [locationError, setLocationError] = React.useState<string | null>(null);
+  const [displayNameError, setDisplayNameError] = React.useState<string | null>(null);
   const [personalForm, setPersonalForm] = React.useState({
     displayName: "",
     email: "",
@@ -180,25 +186,27 @@ export default function DashboardSettingsPage() {
     console.info("SETTINGS LOAD: profile.phone", profile.phone);
     const phoneParts = splitPhoneNumber(profile.phone);
     console.info("SETTINGS LOAD: split phone", phoneParts);
-    setPersonalForm({
-      displayName: profile.displayName ?? "",
-      email: profile.email ?? user?.email ?? "",
-      phoneCountry: phoneParts.country,
-      phoneLocal: phoneParts.local,
-      county: "",
-      area: "",
-      businessSeller: profile.businessSeller ?? false,
-      companyName: profile.companyName ?? "",
-      businessAddress: profile.businessAddress ?? "",
-      vatNumber: profile.vatNumber ?? "",
-      website: profile.website ?? "",
-      registrationNumber: profile.registrationNumber ?? "",
-    });
-    setPreferencesForm({
-      language: profile.language ?? "en",
-      emailNotifications: profile.emailNotifications ?? true,
-      marketplaceAlerts: profile.marketplaceAlerts ?? true,
-      messageNotifications: profile.messageNotifications ?? true,
+    queueMicrotask(() => {
+      setPersonalForm({
+        displayName: profile.displayName ?? "",
+        email: profile.email ?? user?.email ?? "",
+        phoneCountry: phoneParts.country,
+        phoneLocal: phoneParts.local,
+        county: profile.county ?? "",
+        area: profile.area ?? "",
+        businessSeller: profile.businessSeller ?? false,
+        companyName: profile.companyName ?? "",
+        businessAddress: profile.businessAddress ?? "",
+        vatNumber: profile.vatNumber ?? "",
+        website: profile.website ?? "",
+        registrationNumber: profile.registrationNumber ?? "",
+      });
+      setPreferencesForm({
+        language: profile.language ?? "en",
+        emailNotifications: profile.emailNotifications ?? true,
+        marketplaceAlerts: profile.marketplaceAlerts ?? true,
+        messageNotifications: profile.messageNotifications ?? true,
+      });
     });
   }, [profile, user?.email]);
 
@@ -206,11 +214,13 @@ export default function DashboardSettingsPage() {
     if (!profile?.phone) return;
     const { country, local } = splitPhoneNumber(profile.phone);
     console.info("SETTINGS LOAD: split phone (effect)", { country, local });
-    setPersonalForm((prev) => ({
-      ...prev,
-      phoneCountry: country,
-      phoneLocal: local,
-    }));
+    queueMicrotask(() => {
+      setPersonalForm((prev) => ({
+        ...prev,
+        phoneCountry: country,
+        phoneLocal: local,
+      }));
+    });
   }, [profile?.phone]);
 
   React.useEffect(() => {
@@ -259,9 +269,9 @@ export default function DashboardSettingsPage() {
   };
 
   const statusClassName = (state: "saved" | "saving" | "error") => {
-    if (state === "saving") return "bg-amber-50 text-amber-700";
-    if (state === "error") return "bg-rose-50 text-rose-700";
-    return "bg-emerald-50 text-emerald-700";
+  if (state === "saving") return "bg-primary/10 text-primary";
+  if (state === "error") return "bg-rose-50 text-rose-700";
+  return "bg-primary/10 text-primary";
   };
 
   const handlePersonalSave = async () => {
@@ -285,6 +295,15 @@ export default function DashboardSettingsPage() {
       website: personalForm.website.trim(),
       registrationNumber: personalForm.registrationNumber.trim(),
     };
+
+  const displayNameValidation = validateDisplayName(trimmed.displayName, isAdmin);
+    if (displayNameValidation) {
+      setDisplayNameError(displayNameValidation);
+      setPersonalState("error");
+      return;
+    }
+
+    setDisplayNameError(null);
 
     if (trimmed.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed.email)) {
       setPersonalState("error");
@@ -324,6 +343,23 @@ export default function DashboardSettingsPage() {
 
     setPersonalState("saving");
     try {
+      const profileUpdates: Partial<UserProfile> = {
+        businessSeller: trimmed.businessSeller ?? false,
+      };
+      if (trimmed.displayName) profileUpdates.displayName = trimmed.displayName;
+      if (trimmed.email) profileUpdates.email = trimmed.email;
+      if (normalizedPhone) profileUpdates.phone = normalizedPhone;
+      if (trimmed.county) profileUpdates.county = trimmed.county;
+      if (trimmed.area) profileUpdates.area = trimmed.area;
+      if (trimmed.companyName) profileUpdates.companyName = trimmed.companyName;
+      if (trimmed.businessAddress) profileUpdates.businessAddress = trimmed.businessAddress;
+      if (trimmed.vatNumber) profileUpdates.vatNumber = trimmed.vatNumber;
+      if (normalizedWebsite) profileUpdates.website = normalizedWebsite;
+      if (trimmed.registrationNumber) profileUpdates.registrationNumber = trimmed.registrationNumber;
+
+      await updateUserProfile(user.id, profileUpdates);
+      await refreshProfile();
+
       const payload = {
         id: user.id,
         display_name: trimmed.displayName || null,
@@ -340,20 +376,59 @@ export default function DashboardSettingsPage() {
       };
       console.info("SETTINGS SAVE: user id", user.id);
       console.info("SETTINGS SAVE: profile payload", payload);
-      const { error } = await supabase
-        .from("profiles")
-        .upsert(payload, { onConflict: "id" });
-      if (error) {
-        console.error("SETTINGS SAVE: profile upsert error", {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-        setPhoneError(error.message ?? "We couldn’t save your settings. Please try again.");
-        throw error;
+
+      const { data: listings, error: listingsError } = await supabase
+        .from("listings")
+        .select("id, seller")
+        .eq("user_id", user.id);
+
+      if (!listingsError && listings) {
+        await Promise.all(
+          listings.map((listing) => {
+            const existingSellerSnapshot =
+              (listing.seller as Listing["seller"] | null) ?? null;
+            const { sellerSnapshot: nextSellerSnapshot, sellerType } =
+              buildSellerSnapshotFromProfile(payload, {
+                sellerType: trimmed.businessSeller ? "business" : "private",
+                displayName: trimmed.displayName || null,
+                contactEmail: trimmed.email || null,
+                contactPhone: normalizedPhone,
+                county: trimmed.county || null,
+                area: trimmed.area || null,
+                companyName: trimmed.companyName || null,
+                businessAddress: trimmed.businessAddress || null,
+                vatNumber: trimmed.vatNumber || null,
+                registrationNumber: trimmed.registrationNumber || null,
+                website: normalizedWebsite,
+                existingSeller: existingSellerSnapshot,
+              });
+
+            return supabase
+              .from("listings")
+              .update({
+                seller: nextSellerSnapshot,
+                sellerType,
+                county: trimmed.county || null,
+                area: trimmed.area || null,
+                city: trimmed.county || null,
+              })
+              .eq("id", listing.id);
+          })
+        );
       }
+
       setPersonalState("saved");
+      setPersonalForm((prev) => ({
+        ...prev,
+        county: trimmed.county,
+        area: trimmed.area,
+        businessSeller: trimmed.businessSeller ?? prev.businessSeller,
+        companyName: trimmed.companyName,
+        businessAddress: trimmed.businessAddress,
+        vatNumber: trimmed.vatNumber,
+        website: trimmed.website,
+        registrationNumber: trimmed.registrationNumber,
+      }));
     } catch (error) {
       console.error("SETTINGS SAVE: update failed", error);
       if (!phoneError) {
@@ -419,7 +494,7 @@ export default function DashboardSettingsPage() {
                 {statusLabel(photoState)}
               </span>
               <div className="flex flex-wrap gap-2">
-              <label className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+              <label className="cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-gray-300">
                 {isUploading ? "Uploading..." : "Upload new"}
                 <input
                   type="file"
@@ -476,14 +551,20 @@ export default function DashboardSettingsPage() {
                 <input
                   className="h-11 w-full rounded-lg border border-gray-200 px-3"
                   value={personalForm.displayName}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setPersonalForm((prev) => ({
                       ...prev,
                       displayName: event.target.value,
-                    }))
-                  }
+                    }));
+                    if (displayNameError) {
+                      setDisplayNameError(null);
+                    }
+                  }}
                   required
                 />
+                {displayNameError && (
+                  <p className="text-xs text-rose-600">{displayNameError}</p>
+                )}
                 <p className="text-xs text-slate-500">
                   This is the public name shown on your listings.
                 </p>
@@ -542,11 +623,16 @@ export default function DashboardSettingsPage() {
                   className="h-11 w-full rounded-lg border border-gray-200 px-3"
                   value={personalForm.county}
                   onChange={(value) => {
-                    setPersonalForm((prev) => ({
-                      ...prev,
-                      county: value,
-                      area: "",
-                    }));
+                    setPersonalForm((prev) => {
+                      if (prev.county === value) {
+                        return prev;
+                      }
+                      return {
+                        ...prev,
+                        county: value,
+                        area: "",
+                      };
+                    });
                     setLocationError(null);
                   }}
                   placeholder="Select county"
@@ -693,7 +779,8 @@ export default function DashboardSettingsPage() {
           <div className="mt-4 flex justify-end">
             <button
               type="button"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="rounded-xl bg-(--color-primary) px-4 py-2 text-sm font-semibold text-white transition hover:bg-(--color-primary-hover) disabled:cursor-not-allowed disabled:bg-gray-300"
+              style={{ backgroundColor: "var(--color-primary)" }}
               onClick={handlePersonalSave}
               disabled={personalState === "saving"}
             >
@@ -707,7 +794,7 @@ export default function DashboardSettingsPage() {
             <div>
             <h2 className="text-base font-semibold text-slate-900">Login & security</h2>
             </div>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Saved
             </span>
           </div>

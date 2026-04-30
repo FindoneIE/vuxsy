@@ -32,10 +32,12 @@ export async function uploadImage(
 
     if (!response.ok) {
       const message = await response.text();
+      console.error("LISTING_UPLOAD_ERROR", message || response.status);
       throw new Error(message || "Listing image upload failed");
     }
 
-    return (await response.json()) as UploadImageResult;
+    const result = (await response.json()) as UploadImageResult;
+    return result;
   }
 
   formData.append("userId", userId);
@@ -46,8 +48,10 @@ export async function uploadImage(
 
   if (!response.ok) {
     const message = await response.text();
+    console.error("LISTING_UPLOAD_ERROR", message || response.status);
     throw new Error(message || "Avatar upload failed");
   }
 
-  return (await response.json()) as UploadImageResult;
+  const result = (await response.json()) as UploadImageResult;
+  return result;
 }

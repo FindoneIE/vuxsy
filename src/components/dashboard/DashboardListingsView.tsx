@@ -35,6 +35,16 @@ type DashboardListing = {
   last_promoted_at?: string | number | Date | null;
 };
 
+const getErrorMeta = (error: { message?: string } | null) => {
+  if (!error || typeof error !== "object") return {};
+  const meta = error as { code?: string; details?: string; hint?: string };
+  return {
+    code: "code" in meta ? meta.code : undefined,
+    details: "details" in meta ? meta.details : undefined,
+    hint: "hint" in meta ? meta.hint : undefined,
+  };
+};
+
 export default function DashboardListingsView({ title, type }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -52,7 +62,7 @@ export default function DashboardListingsView({ title, type }: Props) {
     setError(null);
 
     try {
-  const listings = await getUserListings({ userId: user.id, listingType: type });
+      const listings = await getUserListings({ userId: user.id, listingType: type });
       setItems(listings as DashboardListing[]);
     } catch (err) {
       console.error("Failed to load user listings:", err);
@@ -60,10 +70,12 @@ export default function DashboardListingsView({ title, type }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [type, user?.id]);
+  }, [type, user]);
 
   React.useEffect(() => {
-    loadListings();
+    queueMicrotask(() => {
+      void loadListings();
+    });
   }, [loadListings]);
 
   const handleEdit = (id: string) => {
@@ -71,15 +83,16 @@ export default function DashboardListingsView({ title, type }: Props) {
   };
 
   const handleToggleStatus = async (id: string, nextStatus: ListingStatus) => {
-    const { error: updateError } = await updateListingStatus(id, nextStatus);
+    const { error: updateError } = await updateListingStatus(id, nextStatus, {
+      bumpOnActivate: nextStatus === "active",
+    });
     if (updateError) {
+      const errorMeta = getErrorMeta(updateError);
       console.warn("Listing update failed", {
         id,
         status: nextStatus,
-        code: updateError.code,
         message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
+        ...errorMeta,
       });
       setError(updateError.message || "Could not update listing status.");
       return;
@@ -98,17 +111,17 @@ export default function DashboardListingsView({ title, type }: Props) {
         lastPromotedAt: target.last_promoted_at ?? null,
       })
     ) {
-      setError("This listing was recently boosted. Try again later.");
+      setError("Boost available in 24h");
       return;
     }
-    const { error: updateError } = await promoteListing(id);
+    const resolvedType = (type ?? target?.listing_type ?? "service") as ListingType;
+    const { error: updateError } = await promoteListing(id, { listingType: resolvedType });
     if (updateError) {
+      const errorMeta = getErrorMeta(updateError);
       console.warn("Listing bump failed", {
         id,
-        code: updateError.code,
         message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
+        ...errorMeta,
       });
       setError(updateError.message || "Could not bump listing.");
       return;
@@ -119,13 +132,12 @@ export default function DashboardListingsView({ title, type }: Props) {
   const handleMarkSold = async (id: string) => {
     const { error: updateError } = await updateListingStatus(id, "sold");
     if (updateError) {
+      const errorMeta = getErrorMeta(updateError);
       console.warn("Listing update failed", {
         id,
         status: "sold",
-        code: updateError.code,
         message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
+        ...errorMeta,
       });
       setError(updateError.message || "Could not mark listing as sold.");
       return;
@@ -138,13 +150,12 @@ export default function DashboardListingsView({ title, type }: Props) {
   const handleArchive = async (id: string) => {
     const { error: updateError } = await updateListingStatus(id, "archived");
     if (updateError) {
+      const errorMeta = getErrorMeta(updateError);
       console.warn("Listing update failed", {
         id,
         status: "archived",
-        code: updateError.code,
         message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
+        ...errorMeta,
       });
       setError(updateError.message || "Could not archive listing.");
       return;
@@ -194,11 +205,7 @@ export default function DashboardListingsView({ title, type }: Props) {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          <div className="h-4 w-40 animate-pulse rounded-full bg-slate-200/70" />
-          <div className="h-28 animate-pulse rounded-2xl bg-white" />
-          <div className="h-28 animate-pulse rounded-2xl bg-white" />
-        </div>
+        <div className="min-h-32" aria-busy="true" aria-live="polite" />
       ) : error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-600">
           {error}

@@ -8,7 +8,7 @@ type Tab = { href: string; label: string };
 
 const TABS: Tab[] = [
   { href: "/services", label: "Services" },
-  { href: "/requests", label: "Requests" },
+  { href: "/requests", label: "Get Help" },
   { href: "/marketplace", label: "Marketplace" },
 ];
 
@@ -32,7 +32,9 @@ export default function HeroTabs() {
     try {
       if (typeof window !== "undefined") {
         const stored = sessionStorage.getItem("heroActiveTab");
-        if (stored && stored !== active) setActive(stored);
+        if (stored && stored !== active) {
+          queueMicrotask(() => setActive(stored));
+        }
       }
     } catch {
       // ignore

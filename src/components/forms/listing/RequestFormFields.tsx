@@ -12,7 +12,7 @@ export default function RequestFormFields({ values, onChange, errors }: Props) {
   return (
     <>
       <section className="form-section form-card">
-        <h3 className="form-card-title">Request details</h3>
+  <h3 className="form-card-title">Job details</h3>
 
       <div className="field-block">
         <label htmlFor="request-budget" className="field-label">

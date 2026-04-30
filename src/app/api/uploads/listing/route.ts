@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       });
 
     if (largeError) {
-      console.error("LISTING UPLOAD LARGE FAILED:", largeError);
+      console.error("LISTING_UPLOAD_ERROR", largeError);
       return NextResponse.json(
         { error: largeError.message ?? "Failed to upload large image." },
         { status: 500 }
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       });
 
     if (mediumError) {
-      console.error("LISTING UPLOAD MEDIUM FAILED:", mediumError);
+      console.error("LISTING_UPLOAD_ERROR", mediumError);
       await supabase.storage.from("uploads").remove([largePath]);
       return NextResponse.json(
         { error: mediumError.message ?? "Failed to upload medium image." },
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (latestError) {
-      console.error("LISTING IMAGE SORT ORDER LOOKUP FAILED:", latestError);
+      console.error("LISTING_UPLOAD_ERROR", latestError);
     } else if (typeof latestImage?.sort_order === "number") {
       sortOrder = latestImage.sort_order + 1;
     }
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (listingImageError) {
-      console.error("LISTING IMAGE INSERT FAILED:", listingImageError);
+      console.error("LISTING_UPLOAD_ERROR", listingImageError);
       await bucket.remove([largePath, mediumPath]);
       return NextResponse.json(
         {
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       listingImage: listingImage ?? null,
     });
   } catch (error) {
-    console.error("LISTING UPLOAD FAILED:", error);
+    console.error("LISTING_UPLOAD_ERROR", error);
     const message = error instanceof Error ? error.message : "Listing upload failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -14,30 +14,32 @@ type StatusConfig = {
   className: string;
 };
 
+const primaryStatusClassName = "bg-primary/10 text-primary border border-primary/20";
+
 const STATUS_CONFIG: Record<ListingStatus, StatusConfig> = {
   active: {
     label: "Active",
-    className: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+    className: primaryStatusClassName,
   },
   draft: {
     label: "Draft",
-    className: "bg-slate-100 text-slate-600 border border-slate-200",
+    className: primaryStatusClassName,
   },
   paused: {
     label: "Paused",
-    className: "bg-amber-50 text-amber-700 border border-amber-100",
+    className: primaryStatusClassName,
   },
   sold: {
     label: "Sold",
-    className: "bg-blue-50 text-blue-700 border border-blue-100",
+    className: primaryStatusClassName,
   },
   expired: {
     label: "Expired",
-    className: "bg-orange-50 text-orange-700 border border-orange-100",
+    className: primaryStatusClassName,
   },
   archived: {
     label: "Archived",
-    className: "bg-slate-100 text-slate-600 border border-slate-200",
+    className: primaryStatusClassName,
   },
 };
 

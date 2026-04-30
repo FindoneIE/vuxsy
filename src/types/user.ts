@@ -9,6 +9,7 @@ export type AvatarData = {
 
 export type UserProfile = {
   uid: string;
+  role?: "user" | "admin" | null;
   displayName?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -28,6 +29,7 @@ export type UserProfile = {
   emailNotifications?: boolean | null;
   marketplaceAlerts?: boolean | null;
   messageNotifications?: boolean | null;
+  showSavedBadge?: boolean | null;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 };

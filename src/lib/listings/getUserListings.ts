@@ -11,6 +11,7 @@ export type UserListingRecord = {
   coverImage?: string | null;
   created_at?: unknown;
   updated_at?: unknown;
+  last_promoted_at?: unknown;
 };
 
 export type GetUserListingsParams = {
@@ -20,21 +21,66 @@ export type GetUserListingsParams = {
 
 export async function getUserListings({ userId, listingType }: GetUserListingsParams) {
   const supabase = createSupabaseBrowserClient();
+  const baseSelect =
+    "id, title, category_id, city, status, listing_type, created_at, updated_at, last_promoted_at";
 
   let query = supabase
     .from("listings")
-    .select("id, title, category_id, city, status, listing_type, created_at, updated_at")
+    .select(baseSelect)
     .eq("user_id", userId)
-    .order("updated_at", { ascending: false });
+    .order("last_promoted_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
 
   if (listingType) {
     query = query.eq("listing_type", listingType);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
 
   if (error) {
-    throw error;
+    console.warn("GET USER LISTINGS FAILED", {
+      userId,
+      listingType,
+      query: {
+        select: baseSelect,
+        order: ["last_promoted_at desc", "created_at desc"],
+      },
+      error,
+    });
+
+    const message = String(error.message ?? "");
+    if (message.includes("last_promoted_at")) {
+      const fallbackSelect =
+        "id, title, category_id, city, status, listing_type, created_at, updated_at";
+      let fallbackQuery = supabase
+        .from("listings")
+        .select(fallbackSelect)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (listingType) {
+        fallbackQuery = fallbackQuery.eq("listing_type", listingType);
+      }
+
+  const fallbackResult = await fallbackQuery;
+  data = fallbackResult.data as typeof data;
+      error = fallbackResult.error;
+
+      if (error) {
+        console.warn("GET USER LISTINGS FALLBACK FAILED", {
+          userId,
+          listingType,
+          query: {
+            select: fallbackSelect,
+            order: ["created_at desc"],
+          },
+          error,
+        });
+        return [];
+      }
+    } else {
+      return [];
+    }
   }
 
   const items = (data ?? []) as UserListingRecord[];

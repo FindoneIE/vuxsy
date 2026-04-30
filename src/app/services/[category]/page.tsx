@@ -1,6 +1,8 @@
 import { getListings } from "@/lib/listings/getListings";
 import ListingCard from "@/components/listings/ListingCard";
 
+export const dynamic = "force-dynamic";
+
 export default async function ServicesPage({
   params,
 }: {

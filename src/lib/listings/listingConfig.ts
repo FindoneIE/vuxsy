@@ -27,8 +27,8 @@ export const listingConfig: Record<ListingType, ListingSectionConfig> = {
 
   requests: {
     type: "requests",
-    label: "Requests",
-    singularLabel: "Request",
+    label: "Get Help",
+    singularLabel: "Job",
     basePath: "/requests",
     collectionName: "requests",
     supportsPrice: false,

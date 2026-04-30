@@ -50,13 +50,23 @@ export default function MarketplaceFormFields({ values, onChange, errors }: Prop
           <label htmlFor="marketplace-condition" className="field-label">
             Condition
           </label>
-          <input
+          <select
             id="marketplace-condition"
             className="input field-input"
             value={values.marketplaceCondition}
             onChange={(event) => onChange("marketplaceCondition", event.target.value)}
-            placeholder="e.g. New, Used"
-          />
+            required
+          >
+            <option value="" disabled>
+              Select condition
+            </option>
+            <option value="New">New</option>
+            <option value="Like new">Like new</option>
+            <option value="Used">Used</option>
+            <option value="Good condition">Good condition</option>
+            <option value="Fair condition">Fair condition</option>
+            <option value="For parts / repair">For parts / repair</option>
+          </select>
           {errors.marketplaceCondition && (
             <p className="text-xs text-destructive">{errors.marketplaceCondition}</p>
           )}

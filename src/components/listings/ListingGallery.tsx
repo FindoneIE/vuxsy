@@ -1,7 +1,14 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import * as React from "react";
 import Image from "next/image";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type ListingGalleryProps = {
   images1600?: string[];
@@ -35,15 +42,20 @@ export default function ListingGallery({
   title,
 }: ListingGalleryProps) {
   const sources = React.useMemo(() => {
-    const raw = images1600 && images1600.length > 0
-      ? images1600
-      : images && images.length > 0
-      ? images
-      : coverImage
-      ? [coverImage]
-      : [];
+    const raw =
+      images1600 && images1600.length > 0
+        ? images1600
+        : images && images.length > 0
+        ? images
+        : coverImage
+        ? [coverImage]
+        : [];
 
-    return raw.filter((value) => typeof value === "string" && value.trim().length > 0);
+    return Array.from(
+      new Set(
+        raw.filter((value) => typeof value === "string" && value.trim().length > 0)
+      )
+    );
   }, [images1600, images, coverImage]);
 
   const youtubeId = React.useMemo(() => extractYouTubeId(youtubeUrl), [youtubeUrl]);
@@ -63,33 +75,52 @@ export default function ListingGallery({
 
   const [activeIndex, setActiveIndex] = React.useState(0);
   const activeItem = items[activeIndex] ?? items[0];
+  const imageItems = React.useMemo(
+    () =>
+      items.filter(
+        (item): item is Extract<GalleryItem, { type: "image" }> => item.type === "image"
+      ),
+    [items]
+  );
+  const imageItemsWithIndex = React.useMemo(
+    () => imageItems.map((item, index) => ({ item, index })),
+    [imageItems]
+  );
+  const imageCount = imageItems.length;
+  const hasMultipleImages = imageCount > 1;
+  const maxThumbnailSlots = 3;
+  const visibleThumbnails = React.useMemo(
+    () => imageItemsWithIndex.slice(0, maxThumbnailSlots),
+    [imageItemsWithIndex]
+  );
+  const extraThumbnailCount = Math.max(imageItemsWithIndex.length - maxThumbnailSlots, 0);
+  const placeholderSlots = React.useMemo(
+    () => Array.from({ length: Math.max(maxThumbnailSlots - visibleThumbnails.length, 0) }),
+    [maxThumbnailSlots, visibleThumbnails.length]
+  );
+  const [isFullscreenOpen, setIsFullscreenOpen] = React.useState(false);
+  const [fullscreenIndex, setFullscreenIndex] = React.useState(0);
 
-  const [canHover, setCanHover] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("fullscreen-gallery-open", isFullscreenOpen);
+    return () => {
+      document.body.classList.remove("fullscreen-gallery-open");
+    };
+  }, [isFullscreenOpen]);
 
   React.useEffect(() => {
     if (activeIndex >= items.length) {
-      setActiveIndex(0);
+      queueMicrotask(() => setActiveIndex(0));
     }
   }, [activeIndex, items.length]);
 
   React.useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
+    if (fullscreenIndex >= imageItems.length) {
+      queueMicrotask(() => setFullscreenIndex(0));
     }
+  }, [fullscreenIndex, imageItems.length]);
 
-    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const updateHover = () => setCanHover(mediaQuery.matches);
-
-    updateHover();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updateHover);
-      return () => mediaQuery.removeEventListener("change", updateHover);
-    }
-
-    mediaQuery.addListener(updateHover);
-    return () => mediaQuery.removeListener(updateHover);
-  }, []);
 
   const goPrev = React.useCallback(() => {
     setActiveIndex((prev) => (items.length ? (prev - 1 + items.length) % items.length : 0));
@@ -98,11 +129,6 @@ export default function ListingGallery({
   const goNext = React.useCallback(() => {
     setActiveIndex((prev) => (items.length ? (prev + 1) % items.length : 0));
   }, [items.length]);
-
-  const handleThumbnailHover = React.useCallback((index: number) => {
-    if (!canHover) return;
-    setActiveIndex(index);
-  }, [canHover]);
 
   const touchStartX = React.useRef<number | null>(null);
   const touchDeltaX = React.useRef(0);
@@ -131,6 +157,95 @@ export default function ListingGallery({
       goNext();
     }
   }, [goNext, goPrev]);
+
+  const openFullscreenAt = React.useCallback(
+    (index: number) => {
+      if (!imageItems.length) return;
+      const nextIndex = index >= 0 && index < imageItems.length ? index : 0;
+      setFullscreenIndex(nextIndex);
+      setIsFullscreenOpen(true);
+    },
+    [imageItems.length]
+  );
+
+  const openFullscreen = React.useCallback(() => {
+    if (activeItem?.type !== "image") return;
+    const nextIndex = imageItems.findIndex((item) => item.src === activeItem.src);
+    openFullscreenAt(nextIndex >= 0 ? nextIndex : 0);
+  }, [activeItem, imageItems, openFullscreenAt]);
+
+  const setActiveFromThumbnail = React.useCallback(
+    (index: number) => {
+      if (index >= 0 && index < items.length) {
+        setActiveIndex(index);
+      }
+    },
+    [items.length]
+  );
+
+  const fullscreenPrev = React.useCallback(() => {
+    setFullscreenIndex((prev) =>
+      imageItems.length ? (prev - 1 + imageItems.length) % imageItems.length : 0
+    );
+  }, [imageItems.length]);
+
+  const fullscreenNext = React.useCallback(() => {
+    setFullscreenIndex((prev) =>
+      imageItems.length ? (prev + 1) % imageItems.length : 0
+    );
+  }, [imageItems.length]);
+
+  React.useEffect(() => {
+    if (!isFullscreenOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFullscreenOpen(false);
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        fullscreenPrev();
+      }
+      if (event.key === "ArrowRight") {
+        fullscreenNext();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreenNext, fullscreenPrev, isFullscreenOpen]);
+
+  const fullscreenTouchStartX = React.useRef<number | null>(null);
+  const fullscreenTouchDeltaX = React.useRef(0);
+
+  const onFullscreenTouchStart = React.useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      fullscreenTouchStartX.current = event.touches[0]?.clientX ?? null;
+      fullscreenTouchDeltaX.current = 0;
+    },
+    []
+  );
+
+  const onFullscreenTouchMove = React.useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (fullscreenTouchStartX.current == null) return;
+      const currentX = event.touches[0]?.clientX ?? null;
+      if (currentX == null) return;
+      fullscreenTouchDeltaX.current = currentX - fullscreenTouchStartX.current;
+    },
+    []
+  );
+
+  const onFullscreenTouchEnd = React.useCallback(() => {
+    if (fullscreenTouchStartX.current == null) return;
+    const delta = fullscreenTouchDeltaX.current;
+    fullscreenTouchStartX.current = null;
+    fullscreenTouchDeltaX.current = 0;
+    if (Math.abs(delta) < 40) return;
+    if (delta > 0) {
+      fullscreenPrev();
+    } else {
+      fullscreenNext();
+    }
+  }, [fullscreenNext, fullscreenPrev]);
 
   if (!activeItem) {
     return (
@@ -165,93 +280,231 @@ export default function ListingGallery({
   }
 
   return (
-    <div className="listing-media-wrapper">
+    <div className="listing-media-wrapper listing-media-wrapper--bleed listing-gallery-mobile-fullbleed">
       <div className="listing-media">
-        <div
-          className="listing-media__frame"
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          {activeItem.type === "video" ? (
-            <iframe
-              src={`https://www.youtube.com/embed/${activeItem.id}`}
-              title={title ?? "Listing video"}
-              className="h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : (
-            <Image
-              src={activeItem.src}
-              alt={title ?? "Listing image"}
-              fill
-              sizes="(min-width: 1024px) 60vw, 100vw"
-              className="object-contain"
-              priority
-            />
-          )}
-          {items.length > 1 ? (
-            <div className="listing-media__counter">
-              {activeIndex + 1} / {items.length}
-            </div>
-          ) : null}
+  <div className={`listing-media__layout ${hasMultipleImages ? "" : "is-single"}`}>
+          <div
+            className="listing-media__frame mobile-listing-image"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
+            {activeItem.type === "video" ? (
+              <iframe
+                src={`https://www.youtube.com/embed/${activeItem.id}`}
+                title={title ?? "Listing video"}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <Image
+                src={activeItem.src}
+                alt={title ?? "Listing image"}
+                fill
+                sizes="(min-width: 1024px) 60vw, 100vw"
+                className="listing-media__image cursor-zoom-in"
+                priority
+                onClick={openFullscreen}
+              />
+            )}
+            {imageCount > 1 ? (
+              <div className="listing-media__counter">
+                {activeIndex + 1} / {imageCount}
+              </div>
+            ) : null}
+          </div>
 
-          {items.length > 1 ? (
-            <div className="listing-media__nav">
-              <button type="button" className="listing-media__nav-btn" onClick={goPrev} aria-label="Previous image">
-                <svg viewBox="0 0 20 20" fill="none" aria-hidden>
-                  <path d="M12.5 5l-5 5 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button type="button" className="listing-media__nav-btn" onClick={goNext} aria-label="Next image">
-                <svg viewBox="0 0 20 20" fill="none" aria-hidden>
-                  <path d="M7.5 5l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+          {hasMultipleImages ? (
+            <div className="listing-media__thumbnails" aria-label="Listing thumbnails">
+              {visibleThumbnails.map(({ item, index: itemIndex }, thumbIndex) => {
+                const isActive = activeIndex === itemIndex;
+                const showOverlay =
+                  thumbIndex === maxThumbnailSlots - 1 && extraThumbnailCount > 0;
+
+                return (
+                  <button
+                    key={`thumb-${item.src}-${itemIndex}-${thumbIndex}`}
+                    type="button"
+                    className={`listing-media__thumb ${isActive ? "is-active" : ""}`}
+                    onClick={() => {
+                      setActiveFromThumbnail(itemIndex);
+                      openFullscreenAt(itemIndex);
+                    }}
+                    onMouseEnter={() => {
+                      if (typeof window !== "undefined" && window.innerWidth >= 769) {
+                        setActiveFromThumbnail(itemIndex);
+                      }
+                    }}
+                    aria-label={`Show image ${thumbIndex + 1}`}
+                  >
+                    <Image
+                      src={item.src}
+                      alt={title ?? "Listing thumbnail"}
+                      fill
+                      sizes="180px"
+                      className="listing-media__thumb-image"
+                    />
+                    {showOverlay ? (
+                      <span className="listing-media__thumb-overlay">+{extraThumbnailCount}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+              {placeholderSlots.map((_, placeholderIndex) => (
+                <div
+                  key={`placeholder-${placeholderIndex}`}
+                  className="listing-media__thumb listing-media__thumb--placeholder"
+                  aria-hidden
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    className="listing-media__thumb-icon"
+                  >
+                    <path
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"
+                    />
+                    <path
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 11l2.5 3 3.5-4.5L18 17H6l2-6z"
+                    />
+                  </svg>
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
 
         {items.length > 1 ? (
-          <div className="listing-media__thumbnails">
-            {items.map((item, index) => (
-              <button
-                key={`${item.type}-${item.type === "image" ? item.src : item.id}-${index}`}
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                onMouseEnter={canHover ? () => handleThumbnailHover(index) : undefined}
-                className={`listing-media__thumb relative ${index === activeIndex ? "is-active" : ""}`}
-              >
-                {item.type === "video" ? (
-                  <Image
-                    src={item.thumbnail}
-                    alt="Video thumbnail"
-                    fill
-                    sizes="72px"
-                    className="object-cover"
-                  />
-                ) : (
-                  <Image
-                    src={item.src}
-                    alt={title ?? "Listing thumbnail"}
-                    fill
-                    className="object-cover"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {items.length > 1 ? (
           <div className="listing-media__dots" aria-hidden>
             {items.map((_, index) => (
-              <span key={`dot-${index}`} className={`listing-media__dot ${index === activeIndex ? "is-active" : ""}`} />
+              <span
+                key={`dot-${index}`}
+                className={`listing-media__dot ${index === activeIndex ? "is-active" : ""}`}
+              />
             ))}
           </div>
         ) : null}
       </div>
+
+      <Dialog open={isFullscreenOpen} onOpenChange={setIsFullscreenOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="fullscreen-viewer fullscreen-gallery fullscreen-gallery-modal top-0 left-0 h-dvh w-dvw max-w-none translate-x-0 translate-y-0 rounded-none border-none p-0 text-white shadow-none ring-0 ring-transparent"
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>{title ?? "Listing images"}</DialogTitle>
+          </DialogHeader>
+          <div className="fullscreen-gallery__topbar">
+            {imageItems.length > 1 ? (
+              <div className="fullscreen-gallery__counter">
+                {fullscreenIndex + 1}/{imageItems.length}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              aria-label="Close image viewer"
+              onClick={() => setIsFullscreenOpen(false)}
+              className="fullscreen-gallery__close"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+                <path
+                  d="M6 6l12 12M18 6l-12 12"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <div
+            className="fullscreen-gallery__main"
+            onTouchStart={onFullscreenTouchStart}
+            onTouchMove={onFullscreenTouchMove}
+            onTouchEnd={onFullscreenTouchEnd}
+          >
+            <div className="fullscreen-gallery-layout">
+              <div className="fullscreen-main-image-area">
+                <button
+                  type="button"
+                  aria-label="Previous image"
+                  className="fullscreen-gallery__nav fullscreen-gallery__nav--prev"
+                  onClick={fullscreenPrev}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+                    <path
+                      d="M15 19l-6-7 6-7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {imageItems[fullscreenIndex] ? (
+                  <img
+                    src={imageItems[fullscreenIndex].src}
+                    alt={title ?? "Listing image"}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "80vh",
+                      objectFit: "contain",
+                      borderRadius: "18px",
+                      display: "block",
+                    }}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  aria-label="Next image"
+                  className="fullscreen-gallery__nav fullscreen-gallery__nav--next"
+                  onClick={fullscreenNext}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+                    <path
+                      d="M9 5l6 7-6 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              {imageItems.length > 1 ? (
+                <div className="fullscreen-thumbnails fullscreen-gallery__thumbnails fullscreen-thumbnail-row">
+                  {imageItems.map((item, index) => (
+                    <button
+                      key={`fullscreen-thumb-${item.src}-${index}`}
+                      type="button"
+                      className={`fullscreen-thumbnail ${index === fullscreenIndex ? "is-active" : ""}`}
+                      onClick={() => setFullscreenIndex(index)}
+                      onMouseEnter={() => setFullscreenIndex(index)}
+                      aria-label={`Show image ${index + 1}`}
+                    >
+                      <Image
+                        src={item.src}
+                        alt={title ?? "Listing thumbnail"}
+                        fill
+                        sizes="120px"
+                        className="fullscreen-thumbnail__image"
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
