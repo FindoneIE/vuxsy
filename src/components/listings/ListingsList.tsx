@@ -51,7 +51,7 @@ export default function ListingsList({ items, className }: Props) {
             <Link
               href={href}
               className={cn(
-                "group flex items-center gap-4 rounded-xl overflow-hidden bg-white px-4 py-0 pl-0 shadow-sm transition hover:shadow-md cursor-pointer mb-2 md:mb-3 last:mb-0 md:gap-3 md:rounded-xl md:bg-white md:p-3 md:shadow-none md:transition-[border-color,box-shadow,transform] md:duration-200 md:ease-in-out md:hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)] md:hover:-translate-y-0.5 lg:hidden",
+                "group flex items-center gap-4 rounded-xl overflow-hidden bg-white px-4 py-0 pl-0 shadow-sm transition cursor-pointer mb-2 md:mb-3 last:mb-0 md:gap-3 md:rounded-xl md:bg-white md:p-3 md:shadow-none md:transition-[border-color,box-shadow,transform] md:duration-200 md:ease-in-out lg:hidden",
                 className
               )}
             >
@@ -136,7 +136,7 @@ export default function ListingsList({ items, className }: Props) {
 
             <Link
               href={href}
-              className="hidden lg:grid lg:grid-cols-[280px_1fr_120px] lg:h-70 rounded-xl overflow-hidden bg-white shadow-sm transition hover:shadow-md lg:mb-4 last:lg:mb-0"
+              className="hidden lg:grid lg:grid-cols-[280px_1fr_120px] lg:h-70 rounded-xl overflow-hidden bg-white shadow-sm transition lg:mb-4 last:lg:mb-0"
             >
               <div className="relative h-70 w-70 overflow-hidden">
                 {imageSrc ? (

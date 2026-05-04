@@ -18,10 +18,18 @@ function hasValidSellerSnapshot(seller: Listing["seller"] | null) {
   );
 }
 
+type GetListingByIdOptions = {
+  includeSavedStatus?: boolean;
+  currentUserId?: string | null;
+};
+
 export async function getListingById(
-  listingId: string
+  listingId: string,
+  options: GetListingByIdOptions = {}
 ): Promise<Listing | null> {
   const supabase = createSupabaseBrowserClient();
+  const includeSavedStatus = options.includeSavedStatus ?? true;
+  let currentUserId = options.currentUserId ?? null;
 
   const { data, error } = await supabase
     .from("listings")
@@ -111,18 +119,23 @@ export async function getListingById(
     )
     .filter((v): v is string => Boolean(v));
 
-  const { data: authData } = await supabase.auth.getUser();
-  const currentUserId = authData.user?.id ?? null;
   let savedByCurrentUser = false;
 
-  if (currentUserId) {
-    const { data: savedRow } = await supabase
-      .from("saved_listings")
-      .select("id")
-      .eq("user_id", currentUserId)
-      .eq("listing_id", listingId)
-      .maybeSingle();
-    savedByCurrentUser = Boolean(savedRow);
+  if (includeSavedStatus) {
+    if (!currentUserId) {
+      const { data: authData } = await supabase.auth.getUser();
+      currentUserId = authData.user?.id ?? null;
+    }
+
+    if (currentUserId) {
+      const { data: savedRow } = await supabase
+        .from("saved_listings")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("listing_id", listingId)
+        .maybeSingle();
+      savedByCurrentUser = Boolean(savedRow);
+    }
   }
 
   return {

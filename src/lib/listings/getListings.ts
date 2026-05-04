@@ -122,7 +122,7 @@ export async function getListings({
     query = query.eq("listing_type", listingType);
   }
 
-  query = query.or("status.is.null,status.eq.active");
+  query = query.eq("status", "active");
 
   query = query
     .order("created_at", { ascending: false })

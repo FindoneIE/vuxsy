@@ -38,7 +38,8 @@ export async function getSavedListings(userId: string): Promise<ListingRecord[]>
   const { data: listingRows, error: listingError } = await supabase
     .from("listings")
     .select(baseSelect)
-    .in("id", savedListingIds);
+    .in("id", savedListingIds)
+    .eq("status", "active");
 
   if (listingError) {
     console.error("SAVED LISTINGS DETAILS ERROR", listingError);

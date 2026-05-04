@@ -9,11 +9,17 @@ type Toast = {
   title: string;
   message: string;
   type: ToastType;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
   closing?: boolean;
 };
 
 type ToastContextValue = {
-  addToast: (toast: Omit<Toast, "id" | "closing"> & { duration?: number }) => void;
+  addToast: (
+    toast: Omit<Toast, "id" | "closing"> & { duration?: number }
+  ) => void;
 };
 
 const ToastContext = React.createContext<ToastContextValue | undefined>(undefined);
@@ -38,7 +44,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addToast = React.useCallback<ToastContextValue["addToast"]>(
-    ({ title, message, type, duration }) => {
+    ({ title, message, type, duration, action }) => {
       const toastId = createToastId();
       const timeoutMs = duration ?? (type === "error" ? 4500 : 2500);
       setToasts((prev) => [
@@ -48,6 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           title,
           message,
           type,
+          action,
         },
       ]);
       window.setTimeout(() => {
@@ -70,7 +77,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {toasts.length > 0 ? (
-        <div className="fixed bottom-6 right-6 z-50 flex w-[92%] max-w-[320px] flex-col gap-2">
+        <div className="fixed bottom-6 left-1/2 z-50 flex w-[92%] max-w-[320px] -translate-x-1/2 flex-col gap-2 sm:left-auto sm:right-6 sm:translate-x-0">
           {toasts.map((toast) => {
             const isError = toast.type === "error";
             const isSuccess = toast.type === "success";
@@ -103,6 +110,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   <div className="flex-1 text-left">
                     <p className={`text-sm font-semibold ${titleStyles}`}>{toast.title}</p>
                     <p className={`text-xs ${messageStyles}`}>{toast.message}</p>
+                    {toast.action ? (
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                        onClick={() => {
+                          toast.action?.onClick();
+                          closeToast(toast.id);
+                        }}
+                      >
+                        {toast.action.label}
+                      </button>
+                    ) : null}
                   </div>
                   <button
                     type="button"

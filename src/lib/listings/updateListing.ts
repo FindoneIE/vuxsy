@@ -62,14 +62,13 @@ export async function updateListing(id: string, data: ListingUpdate) {
     /* eslint-enable @typescript-eslint/no-explicit-any */
     return normalized;
   })();
-  const cleanPayload = {
+  const cleanPayload: Record<string, unknown> = {
     title: data.title ?? "",
     description: data.description ?? "",
     category_id: data.category_id ?? null,
     county: data.county ?? null,
     area: data.area ?? null,
     price: typeof data.price === "number" ? data.price : null,
-    status: data.status ?? "active",
     listing_type: data.listing_type ?? "service",
     contact_email: data.contact_email ?? null,
     contact_phone: data.contact_phone ?? null,
@@ -88,6 +87,10 @@ export async function updateListing(id: string, data: ListingUpdate) {
   if (data.sellerType != null) {
     (cleanPayload as { sellerType?: ListingUpdate["sellerType"] | null }).sellerType =
       data.sellerType;
+  }
+
+  if (data.status != null) {
+    (cleanPayload as { status?: ListingUpdate["status"] }).status = data.status;
   }
 
   if (sellerSnapshot) {

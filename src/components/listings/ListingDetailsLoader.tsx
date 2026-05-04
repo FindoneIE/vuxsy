@@ -27,7 +27,7 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
 
   const isListingActive = React.useCallback((nextListing: Listing | null) => {
     if (!nextListing) return false;
-    return !nextListing.status || nextListing.status === "active";
+    return nextListing.status === "active";
   }, []);
 
   const isListingReady = React.useCallback(
@@ -60,6 +60,13 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
             setListing(null);
             setLoading(false);
             setError("This listing no longer exists (deleted)");
+            return;
+          }
+
+          if (!isListingActive(data)) {
+            setListing(null);
+            setLoading(false);
+            setError("This listing is not available.");
             return;
           }
 

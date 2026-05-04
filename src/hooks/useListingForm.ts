@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { uploadImage } from "@/lib/supabase/storage";
 import { createListing } from "@/lib/listings/createListing";
-import { getListingHref } from "@/lib/listings/getListingHref";
+import { updateListing } from "@/lib/listings/updateListing";
 import { updateUserProfile } from "@/lib/users";
 import { validateDisplayName } from "@/lib/display-name-policy";
+import { useToast } from "@/components/ui/ToastProvider";
 import {
 	defaultListingFormValues,
 	requiredFieldsByType,
@@ -24,13 +25,16 @@ type ListingFormState = {
 	isPreview: boolean;
 	isSubmitting: boolean;
 	statusMessage: string | null;
+	submitMode: "draft" | "publish" | null;
 };
 
 type UseListingFormReturn = ListingFormState & {
 	handleChange: ListingFormChangeHandler;
 	handleBusinessToggle: (event: React.ChangeEvent<HTMLInputElement>) => void;
 	handlePreview: () => void;
+	handleSaveDraft: () => Promise<void>;
 	handleSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+	handleCancel: () => void;
 	closePreview: () => void;
 	isProfileHydrating: boolean;
 };
@@ -186,6 +190,7 @@ const revokePhotoPreviews = (
 export const useListingForm = (type: ListingType): UseListingFormReturn => {
 	const { user, profile, refreshProfile } = useAuth();
 	const router = useRouter();
+	const { addToast } = useToast();
 	const didPrefillContact = React.useRef(false);
 	const didPrefillLocation = React.useRef(false);
 	const didPrefillBusiness = React.useRef(false);
@@ -205,6 +210,9 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 	const [isPreview, setIsPreview] = React.useState(false);
 	const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [submitMode, setSubmitMode] = React.useState<"draft" | "publish" | null>(null);
+	const [draftListingId, setDraftListingId] = React.useState<string | null>(null);
+	const uploadedPhotoNamesRef = React.useRef<Set<string>>(new Set());
 	const isProfileHydrating = Boolean(profile && !didHydrateProfile);
 
 	React.useEffect(() => {
@@ -213,6 +221,9 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			setIsPreview(false);
 			setStatusMessage(null);
 			setIsSubmitting(false);
+			setSubmitMode(null);
+			setDraftListingId(null);
+			uploadedPhotoNamesRef.current.clear();
 			didPrefillContact.current = false;
 			didPrefillLocation.current = false;
 			didPrefillBusiness.current = false;
@@ -444,13 +455,14 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		setIsPreview(true);
 	};
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const submitListing = async (mode: "draft" | "publish") => {
 		setIsSubmitting(true);
+		setSubmitMode(mode);
 		setStatusMessage(null);
 		if (isProfileHydrating) {
 			setStatusMessage("Loading your profile defaults...");
 			setIsSubmitting(false);
+			setSubmitMode(null);
 			return;
 		}
 
@@ -460,14 +472,20 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		setErrors(nextErrors);
 
 		if (Object.keys(nextErrors).length > 0) {
-			setStatusMessage("Please fix the highlighted fields before submitting.");
+			setStatusMessage(
+				mode === "draft"
+					? "Please fix the highlighted fields before saving your draft."
+					: "Please fix the highlighted fields before submitting."
+			);
 			setIsSubmitting(false);
+			setSubmitMode(null);
 			return;
 		}
 
 		if (!user) {
 			setStatusMessage("Please sign in before submitting a listing.");
 			setIsSubmitting(false);
+			setSubmitMode(null);
 			return;
 		}
 
@@ -478,11 +496,12 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		}
 
 		try {
-			setStatusMessage("Publishing listing…");
+			setStatusMessage(mode === "draft" ? "Saving draft…" : "Publishing listing…");
 			const photos = getPhotosForType(type, formSnapshot);
-			if (photos.length === 0) {
+			if (mode === "publish" && photos.length === 0) {
 				setStatusMessage("Please upload at least one photo before submitting.");
 				setIsSubmitting(false);
+				setSubmitMode(null);
 				return;
 			}
 			const photoNames = photos.map((photo) => photo.fileName ?? photo.file.name);
@@ -500,6 +519,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			if (!displayName) {
 				setErrors((prev) => ({ ...prev, displayName: "This field is required." }));
 				setIsSubmitting(false);
+				setSubmitMode(null);
 				return;
 			}
 
@@ -509,6 +529,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				setErrors((prev) => ({ ...prev, displayName: displayNameValidation }));
 				setStatusMessage(displayNameValidation);
 				setIsSubmitting(false);
+				setSubmitMode(null);
 				return;
 			}
 
@@ -528,6 +549,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				}));
 				setStatusMessage("Company name is required when listing as a business.");
 				setIsSubmitting(false);
+				setSubmitMode(null);
 				return;
 			}
 
@@ -585,62 +607,92 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				}
 			);
 
-						if (process.env.NODE_ENV === "development") {
-							console.log("SUBMIT SNAPSHOT", {
-								title: formSnapshot.title,
-								description: formSnapshot.description,
-								type,
-								categoryId: selectedCategoryId,
-								county: formSnapshot.county,
-								area: formSnapshot.area,
-								price:
-									type === "service"
-										? formSnapshot.serviceRate
-										: type === "request"
-										? formSnapshot.requestBudget
-										: formSnapshot.marketplacePrice,
-								sellerType: formSnapshot.listAsBusiness ? "business" : "private",
-								photoCount: photos.length,
-								photoNames,
-								previewUrls,
-								payload: listingPayload,
-							});
-						}
-
-			const listingId = await createListing({
-				...listingPayload,
-				images: [],
-				images1600: [],
-				coverImage: null,
-				photoCount: 0,
-			});
-
-			setStatusMessage("Uploading photos…");
-
-			const uploadBatch = async (batch: typeof photos) => {
-				await Promise.all(
-					batch.map((photo) =>
-						uploadImage(photo.file, {
-							userId: authUser.id,
-							listingId,
-							kind: "listing",
-						})
-					)
-				);
-			};
-
-			const [coverPhoto, ...restPhotos] = photos;
-			if (coverPhoto) {
-				await uploadImage(coverPhoto.file, {
-					userId: authUser.id,
-					listingId,
-					kind: "listing",
+			if (process.env.NODE_ENV === "development") {
+				console.log("SUBMIT SNAPSHOT", {
+					title: formSnapshot.title,
+					description: formSnapshot.description,
+					type,
+					categoryId: selectedCategoryId,
+					county: formSnapshot.county,
+					area: formSnapshot.area,
+					price:
+						type === "service"
+							? formSnapshot.serviceRate
+							: type === "request"
+							? formSnapshot.requestBudget
+							: formSnapshot.marketplacePrice,
+					sellerType: formSnapshot.listAsBusiness ? "business" : "private",
+					photoCount: photos.length,
+					photoNames,
+					previewUrls,
+					payload: listingPayload,
 				});
 			}
 
-			for (let i = 0; i < restPhotos.length; i += 2) {
-				const batch = restPhotos.slice(i, i + 2);
-				await uploadBatch(batch);
+			const listingStatus = mode === "draft" ? "draft" : "active";
+			let listingId = draftListingId;
+
+			if (listingId) {
+				const { error } = await updateListing(listingId, {
+					...listingPayload,
+					status: listingStatus,
+				});
+				if (error) {
+					setStatusMessage(error.message || "Failed to update listing.");
+					setIsSubmitting(false);
+					setSubmitMode(null);
+					return;
+				}
+			} else {
+				listingId = await createListing({
+					...listingPayload,
+					status: listingStatus,
+					images: [],
+					images1600: [],
+					coverImage: null,
+					photoCount: 0,
+				});
+				setDraftListingId(listingId);
+			}
+
+			const uploadTargets = photos.filter((photo) => {
+				const name = photo.fileName ?? photo.file.name;
+				return !uploadedPhotoNamesRef.current.has(name);
+			});
+
+			if (uploadTargets.length > 0) {
+				setStatusMessage("Uploading photos…");
+
+				const uploadBatch = async (batch: typeof uploadTargets) => {
+					await Promise.all(
+						batch.map((photo) =>
+							uploadImage(photo.file, {
+								userId: authUser.id,
+								listingId: listingId ?? "",
+								kind: "listing",
+							})
+						)
+					);
+				};
+
+				const [coverPhoto, ...restPhotos] = uploadTargets;
+				if (coverPhoto) {
+					await uploadImage(coverPhoto.file, {
+						userId: authUser.id,
+						listingId: listingId ?? "",
+						kind: "listing",
+					});
+				}
+
+				for (let i = 0; i < restPhotos.length; i += 2) {
+					const batch = restPhotos.slice(i, i + 2);
+					await uploadBatch(batch);
+				}
+
+				uploadTargets.forEach((photo) => {
+					const name = photo.fileName ?? photo.file.name;
+					uploadedPhotoNamesRef.current.add(name);
+				});
 			}
 
 			formSnapshot.servicePhotos.forEach((photo) => {
@@ -656,20 +708,44 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			setFormValues(defaultListingFormValues);
 			setErrors({});
 			setIsPreview(false);
-			setStatusMessage("Listing submitted successfully.");
+			setStatusMessage(mode === "draft" ? "Draft saved." : "Listing published.");
 
-			const href = getListingHref({
-				id: listingId,
-				type,
-				category: selectedCategoryId ?? undefined,
-			});
-			router.push(href);
+			if (mode === "draft") {
+				addToast({
+					title: "Draft saved",
+					message: "Your draft is ready in your dashboard.",
+					type: "success",
+				});
+				router.push("/dashboard/listings?status=draft");
+			} else {
+				addToast({
+					title: "Listing published",
+					message: "Your listing is now live.",
+					type: "success",
+				});
+				router.push("/dashboard/listings?status=active");
+			}
 			setIsSubmitting(false);
+			setSubmitMode(null);
 		} catch (error) {
 			console.error("Listing submission failed:", error);
 			setIsSubmitting(false);
+			setSubmitMode(null);
 			setStatusMessage("Upload failed. Please try again.");
 		}
+	};
+
+	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		await submitListing("publish");
+	};
+
+	const handleSaveDraft = async () => {
+		await submitListing("draft");
+	};
+
+	const handleCancel = () => {
+		router.push("/dashboard/listings");
 	};
 
 	const closePreview = () => setIsPreview(false);
@@ -680,10 +756,13 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		isPreview,
 		isSubmitting,
 		statusMessage,
+		submitMode,
 		handleChange,
 		handleBusinessToggle,
 		handlePreview,
+		handleSaveDraft,
 		handleSubmit,
+		handleCancel,
 		closePreview,
 		isProfileHydrating,
 	};

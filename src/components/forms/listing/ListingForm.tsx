@@ -26,10 +26,13 @@ export default function ListingForm({ type, title }: Props) {
     isPreview,
     isSubmitting,
     statusMessage,
+    submitMode,
     handleChange,
     handleBusinessToggle,
     handlePreview,
+    handleSaveDraft,
     handleSubmit,
+    handleCancel,
     closePreview,
     isProfileHydrating,
   } = useListingForm(type);
@@ -481,30 +484,51 @@ export default function ListingForm({ type, title }: Props) {
           </div>
         </section>
 
-        {statusMessage && (
-          <div className="listing-form__alert">
-            {statusMessage}
+        <div className="mt-3 space-y-3">
+          {statusMessage && (
+            <div className="text-sm text-red-600">
+              {statusMessage}
+            </div>
+          )}
+        </div>
+
+        <div className={statusMessage ? "mt-3" : "mt-4"}>
+          <div className="grid grid-cols-4 gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-500 hover:text-black"
+              onClick={handleCancel}
+              disabled={isSubmitting || isProfileHydrating}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+              onClick={handlePreview}
+              disabled={isSubmitting || isProfileHydrating}
+            >
+              Preview
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+              onClick={handleSaveDraft}
+              disabled={isSubmitting || isProfileHydrating}
+            >
+              {isSubmitting && submitMode === "draft" ? "Saving draft..." : "Save as draft"}
+            </Button>
+            <Button
+              type="submit"
+              className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium"
+              disabled={isSubmitting || isProfileHydrating}
+            >
+              {isSubmitting && submitMode === "publish" ? "Publishing..." : "Submit listing"}
+            </Button>
           </div>
-        )}
-
-        <div className="listing-form__actions">
-          <Button
-            type="button"
-            variant="outline"
-            className="btn btn-outline listing-form__preview"
-            onClick={handlePreview}
-            disabled={isSubmitting || isProfileHydrating}
-          >
-            Preview
-          </Button>
-
-          <Button
-            type="submit"
-            className="btn btn-primary listing-form__submit"
-            disabled={isSubmitting || isProfileHydrating}
-          >
-            {isSubmitting ? "Submitting…" : "Submit listing"}
-          </Button>
         </div>
       </form>
 

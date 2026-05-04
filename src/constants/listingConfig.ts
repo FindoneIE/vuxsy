@@ -1,7 +1,7 @@
 export const listingConfig = {
   types: ["service", "request", "marketplace"],
 
-  status: ["draft", "active", "paused", "sold", "expired", "archived"],
+  status: ["draft", "active", "paused", "archived", "pending", "rejected"],
 
   currencies: ["EUR", "GBP"],
 

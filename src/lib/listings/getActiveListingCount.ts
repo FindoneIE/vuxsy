@@ -59,7 +59,7 @@ export async function getActiveListingCount({
 		query = query.eq("city", cleanCity);
 	}
 
-	query = query.or("status.is.null,status.eq.active");
+	query = query.eq("status", "active");
 
 	const { count, error } = await query;
 

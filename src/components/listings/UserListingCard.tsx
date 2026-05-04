@@ -46,68 +46,72 @@ export default function UserListingCard({
   const createdLabel = formatDate(createdAt);
   const updatedLabel = formatDate(updatedAt);
   const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  const dateLabel = updatedLabel ?? createdLabel;
 
   return (
     <div
       className={cn(
-        "group flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-0 sm:p-5 shadow-sm transition sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-6 hover:border-slate-300 hover:shadow-md",
+        "group rounded-xl overflow-hidden bg-white shadow-sm transition max-sm:flex max-sm:h-47.5 max-sm:flex-col max-sm:overflow-hidden sm:grid sm:h-70 sm:grid-cols-[280px_1fr]",
         className
       )}
       data-listing-id={id}
     >
-  <div className="relative w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 aspect-4/3 sm:aspect-square sm:w-40 sm:h-40">
-        {coverImage ? (
-          <Image
-            src={coverImage}
-            alt={title}
-            fill
-            className="object-cover"
-            sizes="(min-width: 640px) 160px, 100vw"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-400">
-            <span className="text-xs">No image</span>
-          </div>
-        )}
-      </div>
-
-  <div className="w-full p-2 sm:p-5 md:p-0 md:contents">
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <ListingStatusBadge status={status} />
-              <span className="text-xs font-medium text-slate-500">{typeLabel}</span>
+  <div className="max-sm:flex max-sm:h-32.5 sm:contents">
+        <div className="relative shrink-0 overflow-hidden rounded-none bg-transparent p-0 m-0 max-sm:h-32.5 max-sm:w-28 max-sm:shrink-0 sm:h-70 sm:w-70 sm:row-span-2">
+          {coverImage ? (
+            <Image
+              src={coverImage}
+              alt={title}
+              fill
+              sizes="280px"
+              className="h-full w-full object-cover object-center"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
+              <span className="text-[10px] sm:text-xs">No image</span>
             </div>
-            <h3 className="mt-2 text-base font-semibold text-slate-900 line-clamp-2">
-              {title}
-            </h3>
-            {location ? <p className="mt-1 text-sm text-slate-500">{location}</p> : null}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{views ?? 0} views</span>
-            {createdLabel && (
-              <>
-                <span aria-hidden>•</span>
-                <span>Created {createdLabel}</span>
-              </>
-            )}
-            {updatedLabel && (
-              <>
-                <span aria-hidden>•</span>
-                <span>Updated {updatedLabel}</span>
-              </>
-            )}
-          </div>
-
-          {secondaryActions ? <div className="w-full">{secondaryActions}</div> : null}
+          )}
         </div>
 
-        {actions ? (
-          <div className="w-full sm:w-auto sm:min-w-max sm:justify-self-end sm:self-start">
-            {actions}
+  <div className="flex min-w-0 flex-1 flex-col max-sm:h-32.5 max-sm:min-w-0 max-sm:p-3 max-sm:relative sm:p-5 sm:col-start-2 sm:row-start-1">
+          <div className="flex min-w-0 items-start justify-between gap-3 sm:block">
+            <div className="min-w-0 flex-1">
+              <div className="hidden items-center gap-2 sm:flex">
+                <ListingStatusBadge status={status} />
+                <span className="text-xs font-medium text-slate-500">{typeLabel}</span>
+              </div>
+              <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:mb-1 md:text-base md:font-semibold sm:mb-0 sm:text-lg max-sm:line-clamp-1 max-sm:font-semibold">
+                {title}
+              </h3>
+              {location ? (
+                <div className="mt-0.5 text-sm text-(--text-primary) opacity-70 sm:mt-0 sm:text-sm max-sm:line-clamp-1">
+                  {location}
+                </div>
+              ) : null}
+              <div className="mt-1 text-xs text-(--text-primary) opacity-60 sm:hidden max-sm:line-clamp-1">
+                {typeLabel}
+              </div>
+              {(createdLabel || updatedLabel || views != null) ? (
+                <div className="mt-1 text-xs text-(--text-primary) opacity-60 sm:mt-2 sm:text-sm max-sm:truncate max-sm:whitespace-nowrap max-sm:text-xs">
+                  {views != null ? `${views ?? 0} views` : null}
+                  {createdLabel ? `${views != null ? " • " : ""}Created ${createdLabel}` : ""}
+                  {updatedLabel ? `${(views != null || createdLabel) ? " • " : ""}Updated ${updatedLabel}` : ""}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex w-24 shrink-0 flex-col items-end justify-between text-right text-sm text-(--text-primary) sm:hidden max-sm:absolute max-sm:right-3 max-sm:top-3">
+              <ListingStatusBadge status={status} />
+              {dateLabel ? (
+                <div className="mt-1 text-xs text-(--text-primary) opacity-60 max-sm:whitespace-nowrap">{dateLabel}</div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        </div>
+      </div>
+
+  <div className="max-sm:h-15 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:bg-slate-50 max-sm:border-t max-sm:border-slate-200 max-sm:px-4 max-sm:py-3 max-sm:gap-2 max-sm:overflow-x-auto max-sm:whitespace-nowrap sm:col-start-2 sm:row-start-2 sm:flex sm:flex-wrap sm:items-center sm:gap-5 sm:pt-4 sm:px-5 sm:pb-5">
+        {secondaryActions}
+        {actions}
       </div>
     </div>
   );

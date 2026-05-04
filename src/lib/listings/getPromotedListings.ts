@@ -86,7 +86,7 @@ export async function getPromotedListings({
   }
 
   query = query
-    .or("status.is.null,status.eq.active")
+    .eq("status", "active")
     .gt("promoted_until", nowIso)
     .or("promotion_status.is.null,promotion_status.eq.active")
     .order("promotion_weight", { ascending: false, nullsFirst: false })

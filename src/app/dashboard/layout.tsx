@@ -51,7 +51,10 @@ export default function DashboardLayout({ children }: Props) {
   const isListingsSection =
     pathname === "/dashboard/listings" || pathname === "/dashboard/saved";
   const isProfileSection = pathname === "/dashboard/settings";
-  const isFlatDashboardPage = isListingsSection || isProfileSection;
+  const isEditListingPage = pathname?.startsWith("/dashboard/listings/") &&
+    pathname?.endsWith("/edit");
+  const isFlatDashboardPage =
+    isListingsSection || isProfileSection || isEditListingPage;
 
   return (
     <ProtectedRoute>

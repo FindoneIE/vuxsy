@@ -162,6 +162,8 @@ export async function createListing(data: ListingInsert) {
 
   if (data.status != null) {
     payload.status = data.status;
+  } else {
+    payload.status = "draft";
   }
 
   if (data.listing_type != null) {

@@ -16,6 +16,7 @@ type AdminModalProps = {
   className?: string;
   maxWidthClassName?: string;
   showCloseButton?: boolean;
+  onOpenAutoFocus?: React.ComponentProps<typeof DialogContent>["onOpenAutoFocus"];
 };
 
 export function AdminModal({
@@ -23,12 +24,14 @@ export function AdminModal({
   className,
   maxWidthClassName = "sm:max-w-sm",
   showCloseButton = true,
+  onOpenAutoFocus,
 }: AdminModalProps) {
   return (
     <DialogContent
       showCloseButton={showCloseButton}
       overlayClassName={adminModalOverlayClassName}
       className={cn(adminModalBaseClassName, maxWidthClassName, className)}
+      onOpenAutoFocus={onOpenAutoFocus}
     >
       {children}
     </DialogContent>

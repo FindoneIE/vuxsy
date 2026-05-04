@@ -5,41 +5,39 @@ export type ListingStatus =
   | "active"
   | "draft"
   | "paused"
-  | "sold"
-  | "expired"
-  | "archived";
+  | "archived"
+  | "pending"
+  | "rejected";
 
 type StatusConfig = {
   label: string;
   className: string;
 };
 
-const primaryStatusClassName = "bg-primary/10 text-primary border border-primary/20";
-
 const STATUS_CONFIG: Record<ListingStatus, StatusConfig> = {
   active: {
     label: "Active",
-    className: primaryStatusClassName,
+    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
   },
   draft: {
     label: "Draft",
-    className: primaryStatusClassName,
+    className: "bg-slate-50 text-slate-600 border border-slate-200",
   },
   paused: {
     label: "Paused",
-    className: primaryStatusClassName,
-  },
-  sold: {
-    label: "Sold",
-    className: primaryStatusClassName,
-  },
-  expired: {
-    label: "Expired",
-    className: primaryStatusClassName,
+    className: "bg-amber-50 text-amber-700 border border-amber-200",
   },
   archived: {
     label: "Archived",
-    className: primaryStatusClassName,
+    className: "bg-slate-100 text-slate-600 border border-slate-200",
+  },
+  pending: {
+    label: "Pending review",
+    className: "bg-violet-50 text-violet-700 border border-violet-200",
+  },
+  rejected: {
+    label: "Rejected",
+    className: "bg-rose-50 text-rose-700 border border-rose-200",
   },
 };
 

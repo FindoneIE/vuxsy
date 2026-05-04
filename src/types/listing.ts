@@ -35,7 +35,7 @@ export interface Listing {
   isFeatured?: boolean;
   savedByCurrentUser?: boolean | null;
   // optional internal fields used by backend
-  status?: "draft" | "active" | "paused" | "sold" | "expired" | "archived";
+  status?: "draft" | "active" | "paused" | "archived" | "pending" | "rejected";
   listing_type?: ListingType | string | null;
   user_id?: string;
   contact_email?: string | null;

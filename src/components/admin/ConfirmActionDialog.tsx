@@ -20,6 +20,7 @@ type ConfirmActionDialogProps = {
   title: string;
   description?: string;
   confirmLabel?: string;
+  confirmLoadingLabel?: string;
   trigger?: React.ReactNode;
   onConfirm: () => Promise<void>;
   confirmTone?: "default" | "danger";
@@ -32,6 +33,7 @@ export default function ConfirmActionDialog({
   title,
   description,
   confirmLabel = "Confirm",
+  confirmLoadingLabel,
   trigger,
   onConfirm,
   confirmTone = "default",
@@ -58,7 +60,10 @@ export default function ConfirmActionDialog({
           {trigger}
         </DialogTrigger>
       ) : null}
-      <AdminModal maxWidthClassName="sm:max-w-sm">
+      <AdminModal
+        maxWidthClassName="sm:max-w-sm"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <AdminModalHeader>
           <DialogTitle>{title}</DialogTitle>
         </AdminModalHeader>
@@ -74,8 +79,9 @@ export default function ConfirmActionDialog({
             className="rounded-md px-3 py-1.5 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.98]"
             onClick={handleConfirm}
             disabled={isPending}
+            autoFocus={false}
           >
-            {confirmLabel}
+            {isPending ? confirmLoadingLabel ?? confirmLabel : confirmLabel}
           </Button>
         </AdminModalFooter>
       </AdminModal>

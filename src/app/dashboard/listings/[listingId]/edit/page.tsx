@@ -48,8 +48,8 @@ const statusOptions: Array<{ value: Listing["status"]; label: string }> = [
   { value: "paused", label: "Paused" },
   { value: "archived", label: "Archived" },
   { value: "draft", label: "Draft" },
-  { value: "sold", label: "Sold" },
-  { value: "expired", label: "Expired" },
+  { value: "pending", label: "Pending review" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 const isUuid = (value: string) =>
@@ -312,7 +312,10 @@ export default function ListingEditPage() {
     setLoading(true);
   setSaveError(null);
   setSaveSuccess(null);
-    const result = await getListingById(String(listingId));
+    const result = await getListingById(String(listingId), {
+      includeSavedStatus: false,
+      currentUserId: user?.id ?? null,
+    });
     if (!result) {
       setListing(null);
       setLoading(false);
@@ -324,7 +327,15 @@ export default function ListingEditPage() {
     setListing(result);
     setStatus(result.status ?? "active");
 
-    const categorySlug = await resolveCategorySlug(result.category_id);
+    const [categorySlug, imageRows] = await Promise.all([
+      resolveCategorySlug(result.category_id),
+      createSupabaseBrowserClient()
+        .from("listing_images")
+        .select("storage_path_600, storage_path_1800, sort_order")
+        .eq("listing_id", result.id)
+        .order("sort_order", { ascending: true })
+        .then(({ data }) => data ?? []),
+    ]);
 
     const fallbackPhone = profile?.phone ?? "";
     const fallbackDisplayName = profile?.displayName ?? "";
@@ -583,12 +594,6 @@ export default function ListingEditPage() {
     });
 
     const supabase = createSupabaseBrowserClient();
-    const { data: imageRows } = await supabase
-      .from("listing_images")
-      .select("storage_path_600, storage_path_1800, sort_order")
-      .eq("listing_id", result.id)
-      .order("sort_order", { ascending: true });
-
     const images: ExistingImage[] = (imageRows ?? []).map((row) => {
       const url = row.storage_path_600
         ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_600).data
@@ -610,7 +615,7 @@ export default function ListingEditPage() {
     setExistingImages(images);
     setDirty(false);
     setLoading(false);
-  }, [listingId, profile, resolveCategorySlug, user?.email]);
+  }, [listingId, profile, resolveCategorySlug, user?.email, user?.id]);
 
   React.useEffect(() => {
     queueMicrotask(() => {
@@ -946,8 +951,8 @@ export default function ListingEditPage() {
 
   return (
     <ProtectedRoute>
-      <PageContainer>
-        <div className="space-y-6 py-6 sm:py-8">
+      <PageContainer className="mx-auto max-w-5xl">
+        <div className="space-y-6 py-4 sm:py-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold text-slate-900">Edit listing</h1>
@@ -1282,33 +1287,49 @@ export default function ListingEditPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleViewListing}
-                      className="w-full justify-between"
-                    >
-                      View listing
-                      <ArrowUpRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        handleQuickStatus(status === "active" ? "paused" : "active")
-                      }
-                      className="w-full"
-                    >
-                      {status === "active" ? "Pause listing" : "Resume listing"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleQuickStatus("archived")}
-                      className="w-full"
-                    >
-                      Archive listing
-                    </Button>
+                    {status === "active" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleViewListing}
+                        className="w-full justify-between"
+                      >
+                        View listing
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    {(status === "active" || status === "paused") ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          handleQuickStatus(status === "active" ? "paused" : "active")
+                        }
+                        className="w-full"
+                      >
+                        {status === "active" ? "Pause listing" : "Resume listing"}
+                      </Button>
+                    ) : null}
+                    {(status === "active" || status === "paused") ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleQuickStatus("archived")}
+                        className="w-full"
+                      >
+                        Archive listing
+                      </Button>
+                    ) : null}
+                    {status === "archived" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleQuickStatus("active")}
+                        className="w-full"
+                      >
+                        Restore listing
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="destructive"

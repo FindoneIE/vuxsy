@@ -16,7 +16,7 @@ export async function getActiveCategoryCounts(
     query = query.eq("listing_type", listingType);
   }
 
-  query = query.or("status.is.null,status.eq.active");
+  query = query.eq("status", "active");
 
   const { data, error } = await query;
 

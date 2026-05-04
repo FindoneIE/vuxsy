@@ -92,7 +92,7 @@ export async function getUserListings({ userId, listingType }: GetUserListingsPa
   const listingIds = items.map((item) => item.id).filter(Boolean);
   const { data: imageRows, error: imageError } = await supabase
     .from("listing_images")
-    .select("listing_id, storage_path_600, sort_order")
+    .select("listing_id, storage_path_600, storage_path_1800, sort_order")
     .in("listing_id", listingIds)
     .order("sort_order", { ascending: true });
 
@@ -101,7 +101,14 @@ export async function getUserListings({ userId, listingType }: GetUserListingsPa
     return items;
   }
 
-  const imageMap = new Map<string, { listing_id?: string | null; storage_path_600?: string | null }[]>();
+  const imageMap = new Map<
+    string,
+    {
+      listing_id?: string | null;
+      storage_path_600?: string | null;
+      storage_path_1800?: string | null;
+    }[]
+  >();
   (imageRows ?? []).forEach((row) => {
     if (!row.listing_id) return;
     const existing = imageMap.get(row.listing_id) ?? [];
@@ -111,9 +118,11 @@ export async function getUserListings({ userId, listingType }: GetUserListingsPa
 
   items.forEach((item) => {
     const rows = imageMap.get(item.id) ?? [];
-    const firstImage = rows.find((row) => row.storage_path_600)?.storage_path_600 ?? null;
-    if (!firstImage) return;
-    const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(firstImage);
+    const firstHighRes = rows.find((row) => row.storage_path_1800)?.storage_path_1800 ?? null;
+    const firstFallback = rows.find((row) => row.storage_path_600)?.storage_path_600 ?? null;
+    const targetPath = firstHighRes ?? firstFallback;
+    if (!targetPath) return;
+    const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(targetPath);
     item.coverImage = publicData?.publicUrl ?? null;
   });
 
