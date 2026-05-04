@@ -79,7 +79,7 @@ const Switch = ({ className, checked, onCheckedChange }: SwitchProps) => (
 );
 
 export default function DashboardSettingsPage() {
-  const { user, profile, profileLoading, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const [status, setStatus] = React.useState<string | null>(null);
@@ -457,11 +457,11 @@ export default function DashboardSettingsPage() {
 
   return (
     <ProtectedRoute>
-  <div className="space-y-10">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Account settings</h1>
+  <div className="space-y-6">
+  <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900">Profile</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Manage your profile, login methods, and preferences.
+            Manage your personal information and profile details.
           </p>
         </div>
 
@@ -524,9 +524,7 @@ export default function DashboardSettingsPage() {
             </div>
           </div>
 
-          {profileLoading ? (
-            <p className="mt-4 text-xs text-slate-500">Loading profile…</p>
-          ) : status ? (
+          {status ? (
             <p className="mt-4 text-xs text-slate-600">{status}</p>
           ) : null}
         </div>
@@ -790,11 +788,11 @@ export default function DashboardSettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition-shadow hover:shadow-md">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
             <div>
             <h2 className="text-base font-semibold text-slate-900">Login & security</h2>
             </div>
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+            <span className="text-xs text-slate-400">
               Saved
             </span>
           </div>
@@ -836,15 +834,11 @@ export default function DashboardSettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition-shadow hover:shadow-md">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
             <div>
             <h2 className="text-base font-semibold text-slate-900">Preferences</h2>
             </div>
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClassName(
-                preferencesState
-              )}`}
-            >
+            <span className="text-xs text-slate-400">
               {statusLabel(preferencesState)}
             </span>
           </div>
@@ -918,18 +912,26 @@ export default function DashboardSettingsPage() {
           </div>
         </div>
 
-  <div className="rounded-2xl border border-rose-200/70 bg-red-50 p-7 shadow-sm transition-shadow hover:shadow-md">
+  <div
+  className="rounded-2xl border border-red-100 bg-red-50/40 p-7 shadow-sm"
+    style={{
+      backgroundColor: "rgba(254, 242, 242, 0.4)",
+      opacity: 1,
+      filter: "none",
+      backdropFilter: "none",
+    }}
+  >
           <div className="flex flex-col gap-1">
-            <h2 className="text-base font-semibold text-rose-700">Danger zone</h2>
-            <p className="text-sm text-rose-600">
+            <h2 className="text-base font-medium text-red-600">Danger zone</h2>
+            <p className="text-sm text-slate-500">
               Manage sensitive actions for your account.
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">
+            <button className="btn rounded-xl border border-red-300 bg-transparent text-red-600 hover:bg-red-50">
               Deactivate account
             </button>
-            <button className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+            <button className="btn rounded-xl bg-red-600 text-white hover:bg-red-700">
               Delete account
             </button>
           </div>

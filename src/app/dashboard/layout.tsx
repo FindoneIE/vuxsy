@@ -4,53 +4,28 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bookmark,
-  Building2,
   ClipboardList,
-  CreditCard,
-  FileQuestion,
+  Heart,
   LogOut,
-  Megaphone,
   MessageCircle,
-  Settings,
-  Store,
-  Wrench,
+  User,
 } from "@/components/ui/Icon";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import UserAvatar from "@/components/ui/UserAvatar";
 import VuxsyVerifiedBadge from "@/components/ui/VuxsyVerifiedBadge";
 import { cn } from "@/lib/utils";
+import { logOut } from "@/lib/auth";
 
 const navSections = [
-  {
-    label: "Listings",
-    items: [
-      { label: "All listings", href: "/dashboard/listings", icon: ClipboardList },
-      { label: "Services", href: "/dashboard/services", icon: Wrench },
-      { label: "Get Help", href: "/dashboard/requests", icon: FileQuestion },
-      { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
-    ],
-  },
-  {
-    label: "Communication",
-    items: [{ label: "Messages", href: "/dashboard/messages", icon: MessageCircle }],
-  },
-  {
-    label: "User",
-    items: [
-      { label: "Saved", href: "/dashboard/saved", icon: Bookmark },
-      { label: "Settings", href: "/dashboard/settings", icon: Settings },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
-      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
-      { label: "Promotions", href: "/dashboard/promotions", icon: Megaphone },
-      { label: "Business profile", href: "/dashboard/business-profile", icon: Building2 },
-    ],
-  },
+  [
+    { label: "My Listings", href: "/dashboard/listings", icon: ClipboardList },
+  ],
+  [{ label: "Messages", href: "/dashboard/messages", icon: MessageCircle }],
+  [
+    { label: "Saved", href: "/dashboard/saved", icon: Heart },
+    { label: "Profile", href: "/dashboard/settings", icon: User },
+  ],
 ];
 
 type Props = {
@@ -60,6 +35,10 @@ type Props = {
 export default function DashboardLayout({ children }: Props) {
   const pathname = usePathname();
   const { user, profile, loading, profileLoading } = useAuth();
+  const handleLogout = async () => {
+    await logOut();
+    window.location.href = "/";
+  };
   const metadata = user?.user_metadata as Record<string, unknown> | undefined;
   const isProfileReady = !loading && !profileLoading;
   const resolvedGooglePhotoUrl =
@@ -70,17 +49,16 @@ export default function DashboardLayout({ children }: Props) {
   const resolvedEmail = isProfileReady ? profile?.email ?? user?.email ?? null : null;
   const isOfficialVuxsy = resolvedDisplayName === "VUXSY";
   const isListingsSection =
-    pathname === "/dashboard/listings" ||
-    pathname === "/dashboard/services" ||
-    pathname === "/dashboard/requests" ||
-    pathname === "/dashboard/marketplace";
+    pathname === "/dashboard/listings" || pathname === "/dashboard/saved";
+  const isProfileSection = pathname === "/dashboard/settings";
+  const isFlatDashboardPage = isListingsSection || isProfileSection;
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-(--bg-page)">
         <div className="pt-4 pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
-          <aside className="hidden w-60 shrink-0 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm lg:block">
+          <aside className="hidden w-60 shrink-0 p-5 lg:block">
             <div className="mb-5 flex items-center gap-3">
               <UserAvatar
                 avatarUrl={isProfileReady ? profile?.avatarUrl ?? null : null}
@@ -90,12 +68,6 @@ export default function DashboardLayout({ children }: Props) {
                 size={40}
               />
               <div className="min-w-0 flex-1">
-                <Link
-                  href="/dashboard"
-                  className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
-                >
-                  Dashboard
-                </Link>
                 <div className="mt-1 min-h-10">
                   {isProfileReady ? (
                     <>
@@ -134,63 +106,66 @@ export default function DashboardLayout({ children }: Props) {
             <nav className="space-y-4">
               {navSections.map((section, index) => (
                 <div
-                  key={section.label}
-                  className={cn("space-y-2", index > 0 && "border-t border-slate-200/70 pt-4")}
+                  key={section.map((item) => item.href).join("-")}
+                  className={cn("flex flex-col gap-4", index > 0 && "mt-2")}
                 >
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400/90">
-                    {section.label}
-                  </p>
-                  <div className="flex flex-col gap-1">
-                    {section.items.map((item) => {
-                      const isActive = pathname === item.href;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cn(
-                            "filters-sidebar__category-row text-gray-800 hover:bg-gray-50 transition-colors duration-150",
-                            isActive && "is-active bg-primary/10 text-primary ring-1 ring-primary/15"
-                          )}
-                        >
-                          {item.icon ? (
-                            <span className="filters-sidebar__category-icon">
-                              <item.icon
-                                className={cn(
-                                  "w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-gray-800",
-                                  isActive && "text-primary"
-                                )}
-                                aria-hidden
-                              />
-                            </span>
-                          ) : null}
-                          <span className="filters-sidebar__category-label">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+                  {section.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "dashboard-sidebar-item",
+                          isActive && "is-active"
+                        )}
+                      >
+                        {item.icon ? (
+                          <span className="filters-sidebar__category-icon">
+                            <item.icon
+                              className={cn("w-5 h-5 sm:w-6 sm:h-6 shrink-0")}
+                              color={isActive ? "var(--brand)" : "var(--text-secondary)"}
+                              weight={isActive ? "fill" : "regular"}
+                              aria-hidden
+                            />
+                          </span>
+                        ) : null}
+                        <span className="filters-sidebar__category-label">{item.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               ))}
             </nav>
             <div className="mt-4 border-t border-slate-200 pt-3">
-              <button
-                type="button"
-                className="filters-sidebar__category-row text-gray-800 hover:bg-gray-50 transition-colors duration-150"
+              <div
+                role="button"
+                tabIndex={0}
+                className="dashboard-sidebar-item dashboard-sidebar-item--logout text-red-600"
+                onClick={handleLogout}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleLogout();
+                  }
+                }}
               >
                 <span className="filters-sidebar__category-icon">
                   <LogOut
-                    className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-gray-800"
+                    className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-red-600"
+                    weight="regular"
                     aria-hidden
                   />
                 </span>
                 <span className="filters-sidebar__category-label">Log out</span>
-              </button>
+              </div>
             </div>
           </aside>
 
             <main
               className={cn(
                 "w-full",
-                isListingsSection
+                isFlatDashboardPage
                   ? "bg-transparent p-0 shadow-none"
                   : "flex-1 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-md sm:p-6"
               )}

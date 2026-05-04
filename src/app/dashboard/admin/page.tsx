@@ -576,26 +576,6 @@ export default async function AdminModerationPage() {
             Review reports, users, and listings in one streamlined moderation hub.
           </p>
         </div>
-
-        <div className="mt-4 grid gap-2 sm:mt-6 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 sm:p-5">
-            <p className="text-xs font-semibold uppercase text-slate-500">Reports pending</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">{data.pendingReportsCount}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 sm:p-5">
-            <p className="text-xs font-semibold uppercase text-slate-500">Active listings</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {data.listings.filter((listing) => listing.status === "active").length}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 sm:p-5">
-            <p className="text-xs font-semibold uppercase text-slate-500">Users</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">{data.profilesCount}</p>
-          </div>
-        </div>
-
-
-
         <AdminModerationClient
           data={{
             reports: data.reports,
@@ -609,6 +589,8 @@ export default async function AdminModerationPage() {
             auditLogs: data.auditLogs,
             currentRole: data.currentRole,
           }}
+          pendingReportsCount={data.pendingReportsCount}
+          activeListingsCount={data.listings.filter((listing) => listing.status === "active").length}
           actions={{
             deleteListingAction,
             deleteReportAction,

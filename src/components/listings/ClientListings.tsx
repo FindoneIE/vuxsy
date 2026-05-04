@@ -323,7 +323,7 @@ export default function ClientListings({
                         headerActions: (
                           <SheetClose asChild>
                             <button type="button" className="app-close-button" aria-label="Close filters">
-                              <XIcon className="app-close-icon" />
+                              <XIcon className="app-close-icon" weight="regular" />
                             </button>
                           </SheetClose>
                         ),

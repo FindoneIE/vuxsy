@@ -10,8 +10,10 @@ import { AuthCard, AuthDivider, AuthError, AuthInput } from "@/components/auth/A
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectParam = searchParams?.get("redirect") || "/dashboard";
-  const safeRedirect = redirectParam.startsWith("/") ? redirectParam : "/dashboard";
+  const redirectParam = searchParams?.get("redirect") || "/dashboard/listings";
+  const safeRedirect = redirectParam.startsWith("/")
+    ? redirectParam
+    : "/dashboard/listings";
 
   const [firstName, setFirstName] = React.useState("");
   const [email, setEmail] = React.useState("");

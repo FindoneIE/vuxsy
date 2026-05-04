@@ -60,11 +60,7 @@ export default function DashboardSavedPage() {
         <ListingViewToggle value={mode} onChange={setMode} />
       </div>
 
-      {loading ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
-          Loading saved listings...
-        </div>
-      ) : error ? (
+      {loading ? null : error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-600">
           {error}
         </div>

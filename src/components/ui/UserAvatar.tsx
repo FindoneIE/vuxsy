@@ -12,6 +12,7 @@ export type UserAvatarProps = {
   size?: number;
   className?: string;
   imageClassName?: string;
+  showFallbackIcon?: boolean;
 };
 
 const getInitials = (displayName?: string | null, email?: string | null) => {
@@ -39,11 +40,16 @@ export default function UserAvatar({
   size = 44,
   className,
   imageClassName,
+  showFallbackIcon = true,
 }: UserAvatarProps) {
   const resolvedUrl = getResolvedAvatarUrl(avatarUrl, googlePhotoUrl);
   const initials = getInitials(displayName, email);
   const textSizeClass = size >= 44 ? "text-base" : size >= 36 ? "text-sm" : "text-xs";
   const iconSize = size >= 44 ? 18 : size >= 36 ? 16 : 14;
+
+  if (!resolvedUrl && !initials && !showFallbackIcon) {
+    return null;
+  }
 
   return (
     <div
@@ -67,11 +73,11 @@ export default function UserAvatar({
         <span className="flex h-full w-full items-center justify-center rounded-full">
           {initials}
         </span>
-      ) : (
+      ) : showFallbackIcon ? (
         <span className="flex h-full w-full items-center justify-center rounded-full text-slate-600">
           <UserIcon size={iconSize} />
         </span>
-      )}
+      ) : null}
     </div>
   );
 }

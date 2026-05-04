@@ -228,9 +228,10 @@ export default function ListingFiltersSidebar({
                 <span className="filters-sidebar__category-icon">
                   <c.Icon
                     className={cn(
-                      "w-5 h-5 sm:w-7 sm:h-7 shrink-0 text-gray-800",
-                      active && "text-primary"
+                      "w-6 h-6 sm:w-7 sm:h-7 shrink-0"
                     )}
+                    color="currentColor"
+                    weight={active ? "fill" : "regular"}
                     aria-hidden
                   />
                 </span>

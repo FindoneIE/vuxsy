@@ -82,7 +82,7 @@ export default function ReportListingModal({
   trigger,
 }: ReportListingModalProps) {
   const modalContainerClassName =
-    "pointer-events-auto z-60 flex w-[calc(100vw-24px)] max-w-140 flex-col rounded-[10px] border border-slate-200 bg-white overflow-hidden shadow-[0_18px_60px_-30px_rgba(15,23,42,0.55)] ring-0 max-h-[calc(100vh-24px)] sm:w-140 sm:max-w-140 sm:max-h-[calc(100vh-48px)] p-0";
+    "pointer-events-auto z-60 flex w-[calc(100vw-24px)] max-w-140 flex-col rounded-lg border border-[#D8DEE8] bg-white overflow-hidden shadow-[0_18px_48px_rgba(15,23,42,0.18)] ring-0 max-h-[calc(100vh-24px)] sm:w-140 sm:max-w-140 sm:max-h-[calc(100vh-48px)] p-0";
   const { user } = useAuth();
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
@@ -235,8 +235,11 @@ export default function ReportListingModal({
       <DialogTrigger asChild disabled={!canReport}>
         {trigger}
       </DialogTrigger>
-  <DialogContent className={modalContainerClassName}>
-  <DialogHeader className="shrink-0 border-b border-slate-100 bg-white px-6 py-5">
+      <DialogContent
+        className={modalContainerClassName}
+        overlayClassName="bg-[rgba(15,23,42,0.35)] backdrop-blur-[4px]"
+      >
+        <DialogHeader className="shrink-0 border-b border-[#E1E6EF] bg-[#F4F6FA] px-6 py-5">
           <DialogTitle className="text-xl font-semibold text-slate-900">
             Report this listing
           </DialogTitle>
@@ -257,10 +260,10 @@ export default function ReportListingModal({
                   return (
                     <label
                       key={option.value}
-                      className={`flex cursor-pointer items-start gap-2 rounded-2xl border px-4 py-4 transition sm:gap-3 sm:px-5 sm:py-4 ${
+                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-4 py-4 transition sm:gap-3 sm:px-5 sm:py-4 ${
                         selected
-                          ? "border-slate-300 bg-slate-50"
-                          : "border-slate-200 bg-white"
+                          ? "border-[#34579B] bg-[#EAF1FB]"
+                          : "border-[#D8DEE8] bg-white hover:border-[#34579B] hover:bg-[#F4F6FA]"
                       }`}
                     >
                       <input
@@ -293,7 +296,7 @@ export default function ReportListingModal({
                 </label>
                 <textarea
                   id="report-details"
-                  className="min-h-28 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                  className="min-h-28 w-full rounded-lg border border-[#D8DEE8] bg-white px-4 py-3 text-sm text-slate-900 shadow-none outline-none transition focus:border-[#34579B] focus:ring-2 focus:ring-[#34579B]/15"
                   value={details}
                   onChange={(event) => setDetails(event.target.value)}
                   placeholder="Share any extra context that helps us review faster"
@@ -313,11 +316,11 @@ export default function ReportListingModal({
             ) : null}
           </div>
 
-          <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-4">
+          <div className="shrink-0 border-t border-[#E1E6EF] bg-white px-6 py-4">
             <div className="flex flex-wrap items-center justify-end gap-3">
               <button
                 type="button"
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+                className="btn btn-outline"
                 onClick={() => setOpen(false)}
                 disabled={submitting}
               >
@@ -325,7 +328,7 @@ export default function ReportListingModal({
               </button>
               <button
                 type="submit"
-                className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
+                className="btn btn-primary shadow-none transition hover:brightness-95 disabled:bg-[#9AA4B2] disabled:text-white disabled:opacity-70"
                 disabled={!reason || submitting}
               >
                 {submitting ? (

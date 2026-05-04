@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import type { ListingType } from "@/types/listing";
 import LocationFields from "@/components/location/LocationFields";
 import PhotoUploadField from "@/components/forms/listing/PhotoUploadField";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "@/components/ui/Icon";
 import ServiceFormFields from "@/components/forms/listing/ServiceFormFields";
@@ -33,6 +34,58 @@ export default function ListingForm({ type, title }: Props) {
     isProfileHydrating,
   } = useListingForm(type);
 
+  const previewPhotos =
+    type === "service"
+      ? formValues.servicePhotos
+      : type === "request"
+        ? formValues.requestPhotos
+        : formValues.marketplacePhotos;
+  const previewImage = previewPhotos?.[0]?.previewUrl ?? null;
+  const previewTitle = formValues.title?.trim() || "Untitled listing";
+  const previewLocation = [formValues.county, formValues.area].filter(Boolean).join(" • ");
+  const previewPrice =
+    type === "service"
+      ? formValues.serviceRate
+      : type === "request"
+        ? formValues.requestBudget
+        : formValues.marketplacePrice;
+  const previewPriceLabel =
+    type === "service" ? "Rate" : type === "request" ? "Budget" : "Price";
+  const previewDetailsRows = [
+    {
+      label:
+        type === "service"
+          ? "Service category"
+          : type === "request"
+            ? "Request category"
+            : "Marketplace category",
+      value:
+        type === "service"
+          ? formValues.serviceCategory
+          : type === "request"
+            ? formValues.requestCategory
+            : formValues.marketplaceCategory,
+    },
+    {
+      label: type === "service" ? "Pricing" : type === "request" ? "Budget" : "Price",
+      value:
+        type === "service"
+          ? formValues.servicePricing
+          : type === "request"
+            ? formValues.requestBudget
+            : formValues.marketplacePrice,
+    },
+    {
+      label: type === "service" ? "Rate" : type === "request" ? "Needed by" : "Quantity",
+      value:
+        type === "service"
+          ? formValues.serviceRate
+          : type === "request"
+            ? formValues.requestNeededBy
+            : formValues.marketplaceQuantity,
+    },
+  ];
+
   const renderTypeFields = () => {
     switch (type) {
       case "service":
@@ -51,54 +104,6 @@ export default function ListingForm({ type, title }: Props) {
         return null;
     }
   };
-
-  const previewDetails = [
-    { label: "Title", value: formValues.title },
-    { label: "Description", value: formValues.description },
-    { label: "County", value: formValues.county },
-    { label: "Area", value: formValues.area },
-    {
-      label: "Contact",
-      value: [formValues.displayName, formValues.contactEmail, formValues.contactPhone]
-        .filter(Boolean)
-        .join(" · "),
-    },
-  ];
-
-  if (formValues.listAsBusiness) {
-    previewDetails.push(
-      { label: "Company", value: formValues.companyName },
-      { label: "Business address", value: formValues.businessAddress },
-      { label: "VAT number", value: formValues.vatNumber },
-      { label: "Website", value: formValues.website },
-      { label: "Registration number", value: formValues.registrationNumber }
-    );
-  }
-
-  if (type === "service") {
-    previewDetails.push(
-      { label: "Service category", value: formValues.serviceCategory },
-      { label: "Pricing", value: formValues.servicePricing },
-      { label: "Rate", value: formValues.serviceRate }
-    );
-  }
-
-  if (type === "request") {
-    previewDetails.push(
-      { label: "Request category", value: formValues.requestCategory },
-      { label: "Budget", value: formValues.requestBudget },
-      { label: "Needed by", value: formValues.requestNeededBy },
-      { label: "Urgency", value: formValues.requestUrgency }
-    );
-  }
-
-  if (type === "marketplace") {
-    previewDetails.push(
-      { label: "Marketplace category", value: formValues.marketplaceCategory },
-      { label: "Quantity", value: formValues.marketplaceQuantity },
-      { label: "Price", value: formValues.marketplacePrice }
-    );
-  }
 
   return (
     <div
@@ -472,75 +477,111 @@ export default function ListingForm({ type, title }: Props) {
                 />
                 <span>Allow phone</span>
               </label>
-              <label className="business-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={formValues.showEmailPublicly}
-                  onChange={(event) => handleChange("showEmailPublicly", event.target.checked)}
-                />
-                <span>Show email publicly</span>
-              </label>
-              <label className="business-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={formValues.showPhonePublicly}
-                  onChange={(event) => handleChange("showPhonePublicly", event.target.checked)}
-                />
-                <span>Show phone publicly</span>
-              </label>
             </div>
           </div>
         </section>
 
         {statusMessage && (
-          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
+          <div className="listing-form__alert">
             {statusMessage}
           </div>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-900"
-              onClick={handlePreview}
-              disabled={isSubmitting || isProfileHydrating}
-            >
-              Preview
-            </Button>
-          </div>
+        <div className="listing-form__actions">
+          <Button
+            type="button"
+            variant="outline"
+            className="btn btn-outline listing-form__preview"
+            onClick={handlePreview}
+            disabled={isSubmitting || isProfileHydrating}
+          >
+            Preview
+          </Button>
 
-          <Button type="submit" disabled={isSubmitting || isProfileHydrating}>
+          <Button
+            type="submit"
+            className="btn btn-primary listing-form__submit"
+            disabled={isSubmitting || isProfileHydrating}
+          >
             {isSubmitting ? "Submitting…" : "Submit listing"}
           </Button>
         </div>
       </form>
 
       {isPreview && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Preview</CardTitle>
-            <CardDescription>Here is how your listing will appear to buyers.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3">
-              {previewDetails
-                .filter((item) => item.value)
-                .map((item) => (
-                  <div key={item.label} className="grid gap-1">
-                    <span className="text-xs text-muted-foreground">{item.label}</span>
-                    <span className="text-sm font-medium text-foreground">{item.value}</span>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-          <CardFooter className="justify-end">
-            <Button type="button" variant="outline" onClick={closePreview}>
-              Close preview
-            </Button>
-          </CardFooter>
-        </Card>
+        <div className="listing-preview-overlay" onClick={closePreview}>
+          <Card
+            className="listing-preview-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <CardContent className="listing-preview-body">
+              <div className="preview-image-frame">
+                {previewImage ? (
+                  <Image
+                    src={previewImage}
+                    alt={previewTitle}
+                    width={760}
+                    height={360}
+                    sizes="(max-width: 768px) 90vw, 720px"
+                    unoptimized
+                    className="preview-modal-image"
+                  />
+                ) : (
+                  <div className="preview-image-frame__empty">No image yet</div>
+                )}
+              </div>
+              <div className="listing-preview-meta">
+                <div className="listing-preview-meta__main">
+                  <CardTitle className="listing-preview-title">{previewTitle}</CardTitle>
+                  {previewLocation && (
+                    <p className="listing-preview-location">{previewLocation}</p>
+                  )}
+                </div>
+                <div className="listing-preview-meta__price">
+                  <span className="listing-preview-price-label">{previewPriceLabel}</span>
+                  <span className="listing-preview-price">{previewPrice || "—"}</span>
+                </div>
+              </div>
+              {formValues.description && (
+                <p className="listing-preview-description">{formValues.description}</p>
+              )}
+              <div className="listing-preview-details">
+                {previewDetailsRows
+                  .filter((item) => item.value)
+                  .map((item) => (
+                    <div key={item.label} className="listing-preview-details__row">
+                      <span className="listing-preview-details__label">{item.label}</span>
+                      <span className="listing-preview-details__value">{item.value}</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="listing-preview-contact">
+                <span className="listing-preview-contact__label">Contact options</span>
+                <div className="listing-preview-contact__badges">
+                  {formValues.allowMessages && (
+                    <span className="listing-preview-contact__badge">Messages</span>
+                  )}
+                  {formValues.allowPhone && (
+                    <span className="listing-preview-contact__badge">Phone</span>
+                  )}
+                  {formValues.allowEmail && (
+                    <span className="listing-preview-contact__badge">Email</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="listing-preview-footer">
+              <Button
+                type="button"
+                variant="outline"
+                className="btn btn-outline"
+                onClick={closePreview}
+              >
+                Close preview
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       )}
     </div>
   );

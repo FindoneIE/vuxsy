@@ -15,15 +15,15 @@ export default function HomePage() {
             </p>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/services" className="btn btn--primary">
+              <Link href="/services" className="btn btn-primary">
                 Browse Services
               </Link>
 
-              <Link href="/requests" className="btn btn--ghost">
+              <Link href="/requests" className="btn btn-outline">
                 Get Help
               </Link>
 
-              <Link href="/marketplace" className="btn btn--ghost">
+              <Link href="/marketplace" className="btn btn-outline">
                 Browse Marketplace
               </Link>
             </div>
@@ -48,7 +48,7 @@ export default function HomePage() {
               <h3 className="quick-card__title">Services</h3>
               <p className="quick-card__text">Find local professionals and freelancers for any job.</p>
               <div style={{ marginTop: 12 }}>
-                <span className="btn btn--ghost">Browse Services</span>
+                <span className="btn btn-outline">Browse Services</span>
               </div>
             </Link>
 
@@ -56,7 +56,7 @@ export default function HomePage() {
               <h3 className="quick-card__title">Get Help</h3>
               <p className="quick-card__text">Post what you need and get offers from local people.</p>
               <div style={{ marginTop: 12 }}>
-                <span className="btn btn--ghost">Get Help</span>
+                <span className="btn btn-outline">Get Help</span>
               </div>
             </Link>
 
@@ -64,7 +64,7 @@ export default function HomePage() {
               <h3 className="quick-card__title">Marketplace</h3>
               <p className="quick-card__text">Shop local products and support small businesses nearby.</p>
               <div style={{ marginTop: 12 }}>
-                <span className="btn btn--ghost">Browse Marketplace</span>
+                <span className="btn btn-outline">Browse Marketplace</span>
               </div>
             </Link>
           </div>

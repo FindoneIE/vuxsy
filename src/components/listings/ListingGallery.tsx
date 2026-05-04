@@ -308,11 +308,6 @@ export default function ListingGallery({
                 onClick={openFullscreen}
               />
             )}
-            {imageCount > 1 ? (
-              <div className="listing-media__counter">
-                {activeIndex + 1} / {imageCount}
-              </div>
-            ) : null}
           </div>
 
           {hasMultipleImages ? (
@@ -426,82 +421,75 @@ export default function ListingGallery({
             </button>
           </div>
           <div
-            className="fullscreen-gallery__main"
+            className="fullscreen-gallery__content"
             onTouchStart={onFullscreenTouchStart}
             onTouchMove={onFullscreenTouchMove}
             onTouchEnd={onFullscreenTouchEnd}
           >
-            <div className="fullscreen-gallery-layout">
-              <div className="fullscreen-main-image-area">
-                <button
-                  type="button"
-                  aria-label="Previous image"
-                  className="fullscreen-gallery__nav fullscreen-gallery__nav--prev"
-                  onClick={fullscreenPrev}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
-                    <path
-                      d="M15 19l-6-7 6-7"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                {imageItems[fullscreenIndex] ? (
-                  <img
-                    src={imageItems[fullscreenIndex].src}
-                    alt={title ?? "Listing image"}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "80vh",
-                      objectFit: "contain",
-                      borderRadius: "18px",
-                      display: "block",
-                    }}
+            <div className="fullscreen-gallery__main fullscreen-main-image-area fullscreen-gallery__image-wrapper fullscreen-gallery__image-frame w-screen max-w-none px-0 mx-0">
+              <button
+                type="button"
+                aria-label="Previous image"
+                className="fullscreen-gallery__nav fullscreen-gallery__nav--prev"
+                onClick={fullscreenPrev}
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+                  <path
+                    d="M15 19l-6-7 6-7"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                ) : null}
-                <button
-                  type="button"
-                  aria-label="Next image"
-                  className="fullscreen-gallery__nav fullscreen-gallery__nav--next"
-                  onClick={fullscreenNext}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
-                    <path
-                      d="M9 5l6 7-6 7"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              {imageItems.length > 1 ? (
-                <div className="fullscreen-thumbnails fullscreen-gallery__thumbnails fullscreen-thumbnail-row">
-                  {imageItems.map((item, index) => (
-                    <button
-                      key={`fullscreen-thumb-${item.src}-${index}`}
-                      type="button"
-                      className={`fullscreen-thumbnail ${index === fullscreenIndex ? "is-active" : ""}`}
-                      onClick={() => setFullscreenIndex(index)}
-                      onMouseEnter={() => setFullscreenIndex(index)}
-                      aria-label={`Show image ${index + 1}`}
-                    >
-                      <Image
-                        src={item.src}
-                        alt={title ?? "Listing thumbnail"}
-                        fill
-                        sizes="120px"
-                        className="fullscreen-thumbnail__image"
-                      />
-                    </button>
-                  ))}
-                </div>
+                </svg>
+              </button>
+              {imageItems[fullscreenIndex] ? (
+                <img
+                  src={imageItems[fullscreenIndex].src}
+                  alt={title ?? "Listing image"}
+                  className="fullscreen-gallery__image fullscreen-gallery__main-image"
+                />
               ) : null}
+              <button
+                type="button"
+                aria-label="Next image"
+                className="fullscreen-gallery__nav fullscreen-gallery__nav--next"
+                onClick={fullscreenNext}
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+                  <path
+                    d="M9 5l6 7-6 7"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
+            {imageItems.length > 1 ? (
+              <div className="fullscreen-gallery__thumbnails">
+                {imageItems.map((item, index) => (
+                  <button
+                    key={`fullscreen-thumb-${item.src}-${index}`}
+                    type="button"
+                    className={`fullscreen-gallery__thumbnail ${
+                      index === fullscreenIndex ? "fullscreen-gallery__thumbnail--active" : ""
+                    }`}
+                    onClick={() => setFullscreenIndex(index)}
+                    onMouseEnter={() => setFullscreenIndex(index)}
+                    aria-label={`Show image ${index + 1}`}
+                  >
+                    <Image
+                      src={item.src}
+                      alt={title ?? "Listing thumbnail"}
+                      fill
+                      sizes="88px"
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

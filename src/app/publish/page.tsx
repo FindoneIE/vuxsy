@@ -33,7 +33,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
             <div className="publish-grid">
               <Link href={{ pathname: '/publish', query: { type: 'service' } }} className="publish-card" aria-label="Offer a Service">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <Wrench size={30} />
+                  <Wrench size={24} weight="regular" className="h-6 w-6 shrink-0" />
                 </div>
 
                 <div className="card-body">
@@ -46,7 +46,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
 
               <Link href={{ pathname: '/publish', query: { type: 'request' } }} className="publish-card" aria-label="Post your job">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <MessageCircleQuestion size={30} />
+                  <MessageCircleQuestion size={24} weight="regular" className="h-6 w-6 shrink-0" />
                 </div>
 
                 <div className="card-body">
@@ -59,7 +59,7 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
 
               <Link href={{ pathname: '/publish', query: { type: 'marketplace' } }} className="publish-card" aria-label="Sell on Marketplace">
                 <div className="card-icon w-10 h-10 rounded-lg flex items-center justify-center" aria-hidden>
-                  <Store size={30} />
+                  <Store size={24} weight="regular" className="h-6 w-6 shrink-0" />
                 </div>
 
                 <div className="card-body">
@@ -101,20 +101,25 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
             gap: 12px;
             padding: 22px;
             border-radius: 12px;
-            border: 1px solid rgba(16,24,40,0.06);
+             border: 1px solid #e2e8f0;
             box-shadow: 0 6px 18px rgba(16,24,40,0.04);
-            background: #fff;
-            text-decoration: none;
-            color: inherit;
-            transition: all 200ms ease;
+             background: #fff;
+             text-decoration: none;
+             color: #334155;
+             transition: all 200ms ease;
             cursor: pointer;
           }
 
           .publish-card:hover{
             transform: translateY(-4px);
-            box-shadow: 0 6px 18px rgba(16,24,40,0.06);
-            border-color: var(--color-accent);
+             box-shadow: 0 8px 22px rgba(15,23,42,0.08);
+             border-color: #cbd5e1;
+             background: #f8fafc;
           }
+
+           .publish-card:active{
+             background: #eff6ff;
+           }
 
           .publish-card .card-icon{
             width: 40px;
@@ -124,6 +129,10 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
             align-items: center;
             justify-content: center;
             background: transparent;
+          }
+
+          .publish-card .card-icon svg{
+            color: #64748b;
           }
 
           .publish-card h3{
@@ -139,8 +148,8 @@ export default async function PublishPage({ searchParams }: PublishPageProps) {
 
           .card-cta{
             margin-top: auto;
-            font-weight: 600;
-            color: #0f172a;
+            font-weight: 500;
+            color: var(--brand);
           }
 
           .form-shell{

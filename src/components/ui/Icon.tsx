@@ -6,7 +6,6 @@ import {
   Archive as ArchiveIcon,
   ArrowUpRight as ArrowUpRightIcon,
   Bell as BellIcon,
-  BookmarkSimple as BookmarkSimpleIcon,
   Briefcase as BriefcaseIcon,
   Buildings as BuildingsIcon,
   Camera as CameraIcon,
@@ -30,7 +29,8 @@ import {
   House as HouseIcon,
   ImageSquare as ImageSquareIcon,
   Laptop as LaptopIcon,
-  List as ListIcon,
+  List as ListLinesIcon,
+  ListBullets as ListBulletsIcon,
   MagnifyingGlass as MagnifyingGlassIcon,
   Megaphone as MegaphoneIcon,
   Palette as PaletteIcon,
@@ -89,7 +89,6 @@ const createIcon = (Component: IconComponent): IconWrapper => {
 export const Archive = createIcon(ArchiveIcon);
 export const ArrowUpRight = createIcon(ArrowUpRightIcon);
 export const Bell = createIcon(BellIcon);
-export const Bookmark = createIcon(BookmarkSimpleIcon);
 export const Briefcase = createIcon(BriefcaseIcon);
 export const Building2 = createIcon(BuildingsIcon);
 export const Camera = createIcon(CameraIcon);
@@ -115,10 +114,11 @@ export const LayoutDashboard = createIcon(SquaresFourIcon);
 export const LayoutGrid = createIcon(SquaresFourIcon);
 export const Layers = createIcon(StackIcon);
 export const Laptop = createIcon(LaptopIcon);
-export const List = createIcon(ListIcon);
+export const List = createIcon(ListBulletsIcon);
+export const ListLines = createIcon(ListLinesIcon);
 export const LogOut = createIcon(SignOutIcon);
 export const Mail = createIcon(EnvelopeIcon);
-export const Menu = createIcon(ListIcon);
+export const Menu = createIcon(ListBulletsIcon);
 export const MessageCircle = createIcon(ChatCircleIcon);
 export const MessageCircleQuestion = createIcon(ChatCircleIcon);
 export const MessageSquare = createIcon(ChatCircleIcon);

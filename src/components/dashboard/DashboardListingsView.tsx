@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClipboardList } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
 import EmptyState from "@/components/listings/EmptyState";
@@ -47,10 +48,41 @@ const getErrorMeta = (error: { message?: string } | null) => {
 
 export default function DashboardListingsView({ title, type }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [items, setItems] = React.useState<DashboardListing[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const typeParam = searchParams?.get("type") ?? "all";
+  const resolvedTypeFromQuery =
+    typeParam === "product"
+      ? "marketplace"
+      : typeParam === "service"
+        ? "service"
+        : typeParam === "request"
+          ? "request"
+          : undefined;
+  const resolvedType = resolvedTypeFromQuery ?? type;
+
+  const tabs = [
+    { label: "All", value: "all", href: pathname ?? "/dashboard/listings" },
+    {
+      label: "Products",
+      value: "product",
+      href: `${pathname ?? "/dashboard/listings"}?type=product`,
+    },
+    {
+      label: "Services",
+      value: "service",
+      href: `${pathname ?? "/dashboard/listings"}?type=service`,
+    },
+    {
+      label: "Requests",
+      value: "request",
+      href: `${pathname ?? "/dashboard/listings"}?type=request`,
+    },
+  ];
 
   const loadListings = React.useCallback(async () => {
     if (!user?.id) {
@@ -62,7 +94,10 @@ export default function DashboardListingsView({ title, type }: Props) {
     setError(null);
 
     try {
-      const listings = await getUserListings({ userId: user.id, listingType: type });
+      const listings = await getUserListings({
+        userId: user.id,
+        listingType: resolvedType,
+      });
       setItems(listings as DashboardListing[]);
     } catch (err) {
       console.error("Failed to load user listings:", err);
@@ -70,7 +105,7 @@ export default function DashboardListingsView({ title, type }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [type, user]);
+  }, [resolvedType, user]);
 
   React.useEffect(() => {
     queueMicrotask(() => {
@@ -171,23 +206,23 @@ export default function DashboardListingsView({ title, type }: Props) {
   };
 
   const handleView = (item: DashboardListing) => {
-    const resolvedType = (type ?? item.listing_type ?? "service") as ListingType;
+    const resolvedTypeForView = (resolvedType ?? item.listing_type ?? "service") as ListingType;
     router.push(
       getListingHref({
         id: item.id,
-        type: resolvedType,
+        type: resolvedTypeForView,
         category: item.category_id ?? undefined,
       })
     );
   };
 
-  const typeLabel = type
-    ? `${type === "marketplace" ? "marketplace" : type}s`
+  const typeLabel = resolvedType
+    ? `${resolvedType === "marketplace" ? "products" : `${resolvedType}s`}`
     : "all listings";
   const countLabel = loading ? "Loading listings" : `${items.length} ${typeLabel}`;
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="w-full max-w-none space-y-4 px-2 sm:space-y-5 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
@@ -202,6 +237,25 @@ export default function DashboardListingsView({ title, type }: Props) {
             Live updates enabled
           </span>
         </div>
+      </div>
+
+  <div className="-mx-2 flex flex-nowrap gap-3 overflow-x-auto px-2 pb-1 scroll-smooth touch-pan-x">
+        {tabs.map((tab) => {
+          const isActive = (typeParam || "all") === tab.value;
+          return (
+            <Link
+              key={tab.value}
+              href={tab.href}
+              className={
+                isActive
+                  ? "inline-flex min-h-10 items-center rounded-full border border-(--brand) bg-(--brand) px-4 py-2.5 text-sm font-medium text-white!"
+                  : "inline-flex min-h-10 items-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-(--brand-light) hover:text-slate-900"
+              }
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
       </div>
 
       {loading ? (
@@ -224,7 +278,7 @@ export default function DashboardListingsView({ title, type }: Props) {
               key={item.id}
               id={item.id}
               title={item.title ?? "Untitled listing"}
-              type={(type ?? item.listing_type ?? "service") as ListingType}
+              type={(resolvedType ?? item.listing_type ?? "service") as ListingType}
               location={item.city ?? null}
               status={(item.status as ListingStatus) ?? "draft"}
               views={0}
@@ -245,7 +299,7 @@ export default function DashboardListingsView({ title, type }: Props) {
               secondaryActions={
                 <UserListingSecondaryActions
                   id={item.id}
-                  type={(type ?? item.listing_type ?? "service") as ListingType}
+                  type={(resolvedType ?? item.listing_type ?? "service") as ListingType}
                   status={(item.status as ListingStatus) ?? "draft"}
                   onView={() => handleView(item)}
                   onMarkSold={handleMarkSold}

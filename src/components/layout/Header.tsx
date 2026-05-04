@@ -5,21 +5,14 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  Bookmark,
-  Building2,
   ClipboardList,
-  CreditCard,
-  FileQuestion,
   Heart,
-  LayoutDashboard,
   LogOut,
-  Megaphone,
-  Menu,
+  ListLines,
   MessageCircle,
   Search,
-  Settings,
-  Store,
-  Wrench,
+  User,
+  UserRound,
   XIcon,
 } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -28,6 +21,7 @@ import AvatarDropdown from "@/components/layout/AvatarDropdown";
 import PageContainer from "@/components/layout/PageContainer";
 import MobileQuickSearchSheet from "@/components/search/MobileQuickSearchSheet";
 import { useSavedListings } from "@/components/listings/SavedListingsProvider";
+import UserAvatar from "@/components/ui/UserAvatar";
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
@@ -40,7 +34,6 @@ export default function Header() {
     ? "/dashboard/saved"
     : `/login?redirect=${encodeURIComponent("/dashboard/saved")}`;
   const pathname = usePathname();
-  const isDashboard = pathname?.startsWith("/dashboard");
   const isAdmin = profile?.role === "admin";
   const [pendingReports, setPendingReports] = useState<number | null>(null);
   const [reportPollingEnabled, setReportPollingEnabled] = useState(true);
@@ -107,54 +100,18 @@ export default function Header() {
       ? "99+"
       : visiblePendingReports?.toString();
 
-  const dashboardSections = [
-    {
-      label: "Primary",
-      items: [
-        { label: "My listings", href: "/dashboard/listings", icon: ClipboardList },
-        { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
-      ],
-    },
-    {
-      label: "Dashboard",
-      items: [
-        { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
-        { label: "Saved", href: "/dashboard/saved", icon: Bookmark },
-        { label: "Settings", href: "/dashboard/settings", icon: Settings },
-      ],
-    },
-    {
-      label: "Business",
-      items: [
-        { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
-        { label: "Promotions", href: "/dashboard/promotions", icon: Megaphone },
-        {
-          label: "Business profile",
-          href: "/dashboard/business-profile",
-          icon: Building2,
-        },
-      ],
-    },
-    {
-      label: "Browse",
-      items: [
-        { label: "Services", href: "/services", icon: Wrench },
-        { label: "Get Help", href: "/requests", icon: FileQuestion },
-        { label: "Marketplace", href: "/marketplace", icon: Store },
-      ],
-    },
-  ];
-
   const accountLinks = [
-    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { label: "My listings", href: "/dashboard/listings", icon: ClipboardList },
+    { label: "My Listings", href: "/dashboard/listings", icon: ClipboardList },
+    { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
+    { label: "Saved", href: "/dashboard/saved", icon: Heart },
+    { label: "Profile", href: "/dashboard/settings", icon: User },
   ];
 
-  const mobileSiteLinks = [
-    { label: "Services", href: "/services", icon: Wrench },
-    { label: "Get Help", href: "/requests", icon: FileQuestion },
-    { label: "Marketplace", href: "/marketplace", icon: Store },
-  ];
+  const displayName =
+    avatarData?.displayName ?? profile?.displayName ?? user?.email ?? null;
+  const displayEmail = avatarData?.email ?? profile?.email ?? user?.email ?? null;
+  const avatarUrl = avatarData?.avatarUrl ?? profile?.avatarUrl ?? null;
+  const googlePhotoUrl = avatarData?.googlePhotoUrl ?? profile?.googlePhotoUrl ?? null;
 
   const handleLogout = async () => {
     await logOut();
@@ -206,13 +163,16 @@ export default function Header() {
             onClick={() => setMobileOpen((prev) => !prev)}
           >
             <span className="sr-only">Menu</span>
-            <Menu className="w-7 h-7" weight="regular" aria-hidden />
+            <ListLines className="w-7 h-7" weight="regular" aria-hidden />
           </button>
         </div>
 
         {/* desktop actions (hidden on small screens) */}
   <div className="site-header__actions flex items-center gap-3">
-          <nav className="site-header__nav" aria-label="Main navigation">
+          <nav
+            className="site-header__nav flex items-center gap-2 overflow-x-auto whitespace-nowrap px-2 -mx-2 scroll-smooth touch-pan-x sm:mx-0 sm:px-0 sm:overflow-visible"
+            aria-label="Main navigation"
+          >
             <Link
               href="/services"
               className={`site-nav__link${pathname?.startsWith("/services") ? " is-active" : ""}`}
@@ -259,13 +219,13 @@ export default function Header() {
           )}
 
           {!loading && !user && (
-            <Link href="/login" className="btn btn--ghost" aria-label="Log in">
+            <Link href="/login" className="btn btn-outline" aria-label="Log in">
               Login
             </Link>
           )}
 
           {!loading && (
-            <Link href={createListingHref} className="btn btn--accent" aria-label="Create listing">
+            <Link href={createListingHref} className="btn btn-primary" aria-label="Create listing">
               Create Listing
             </Link>
           )}
@@ -281,7 +241,7 @@ export default function Header() {
 
       {/* mobile menu drawer */}
       <div
-        className={`mobile-menu mobile-menu--fullscreen fixed inset-0 isolate z-50 bg-primary/10 duration-100 supports-backdrop-filter:backdrop-blur-xs${
+        className={`mobile-menu mobile-menu--fullscreen fixed inset-0 isolate z-50 bg-(--page-bg)/90 duration-100 supports-backdrop-filter:backdrop-blur-xs${
           mobileOpen ? " is-open" : ""
         }`}
         role="dialog"
@@ -311,43 +271,39 @@ export default function Header() {
               onClick={() => setMobileOpen(false)}
               type="button"
             >
-              <XIcon className="app-close-icon" />
+              <XIcon className="app-close-icon" weight="regular" />
             </button>
           </div>
           <nav className="mobile-menu__nav">
-            {isDashboard ? (
+            {!loading && user ? (
               <>
-                {dashboardSections.map((section) => (
-                  <div key={section.label} className="mobile-menu__section">
-                    <p className="mobile-menu__section-title">{section.label}</p>
-                    <div className="mobile-menu__section-links">
-                      {section.items.map((link) => {
-                        const isActive = pathname === link.href;
-                        const Icon = link.icon;
-                        return (
-                          <Link
-                            key={link.href}
-                            href={link.href}
-                            className={`mobile-menu__row menu-item ${isActive ? "is-active" : ""}`}
-                            onClick={() => setMobileOpen(false)}
-                          >
-                            <span className="mobile-menu__icon-wrap menu-item__icon">
-                              <Icon className="mobile-menu__icon" weight="regular" />
-                            </span>
-                            <span className="mobile-menu__row-label">{link.label}</span>
-                          </Link>
-                        );
-                      })}
+                {(displayName || displayEmail) && (
+                  <div className="mobile-menu__section">
+                    <div className="flex items-center gap-3 px-3 py-3">
+                      <UserAvatar
+                        avatarUrl={avatarUrl}
+                        googlePhotoUrl={googlePhotoUrl}
+                        displayName={displayName}
+                        email={displayEmail}
+                        size={40}
+                        showFallbackIcon={false}
+                      />
+                      <div className="min-w-0">
+                        {displayName ? (
+                          <p className="truncate text-[14px] font-medium text-slate-900">
+                            {displayName}
+                          </p>
+                        ) : null}
+                        {displayEmail ? (
+                          <p className="truncate text-[12px] text-slate-500">{displayEmail}</p>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </>
-            ) : (
-              <>
+                )}
                 <div className="mobile-menu__section">
-                  <p className="mobile-menu__section-title">Browse</p>
                   <div className="mobile-menu__section-links">
-                    {mobileSiteLinks.map((link) => {
+                    {accountLinks.map((link) => {
                       const isActive = pathname === link.href;
                       const Icon = link.icon;
                       return (
@@ -358,76 +314,64 @@ export default function Header() {
                           onClick={() => setMobileOpen(false)}
                         >
                           <span className="mobile-menu__icon-wrap menu-item__icon">
-                            <Icon className="mobile-menu__icon" weight="regular" />
+                            <Icon
+                              className="mobile-menu__icon"
+                              weight={isActive ? "fill" : "regular"}
+                            />
                           </span>
                           <span className="mobile-menu__row-label">{link.label}</span>
                         </Link>
                       );
                     })}
+                    <button
+                      type="button"
+                      className="mobile-menu__row menu-item logout"
+                      onClick={async () => {
+                        await handleLogout();
+                        setMobileOpen(false);
+                      }}
+                    >
+                      <span className="mobile-menu__icon-wrap menu-item__icon">
+                        <LogOut className="mobile-menu__icon text-red-600" weight="regular" />
+                      </span>
+                      <span className="mobile-menu__row-label text-red-600">Log out</span>
+                    </button>
                   </div>
                 </div>
-                {!loading && user && (
-                  <div className="mobile-menu__section">
-                    <p className="mobile-menu__section-title">Account</p>
-                    <div className="mobile-menu__section-links">
-                      {accountLinks.map((link) => {
-                        const isActive = pathname === link.href;
-                        const Icon = link.icon;
-                        return (
-                          <Link
-                            key={link.href}
-                            href={link.href}
-                            className={`mobile-menu__row menu-item ${isActive ? "is-active" : ""}`}
-                            onClick={() => setMobileOpen(false)}
-                          >
-                            <span className="mobile-menu__icon-wrap menu-item__icon">
-                              <Icon className="mobile-menu__icon" weight="regular" />
-                            </span>
-                            <span className="mobile-menu__row-label">{link.label}</span>
-                          </Link>
-                        );
-                      })}
-                      {isAdmin ? (
-                        <Link
-                          href="/dashboard/admin"
-                          className="mobile-menu__row menu-item"
-                          onClick={() => setMobileOpen(false)}
-                        >
-                          <span className="mobile-menu__icon-wrap menu-item__icon">
-                            <LayoutDashboard className="mobile-menu__icon" weight="regular" />
-                          </span>
-                          <span className="mobile-menu__row-label">Admin</span>
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
               </>
-            )}
+            ) : !loading ? (
+              <div className="mobile-menu__section">
+                <p className="mobile-menu__section-title">Account</p>
+                <div className="mobile-menu__section-links">
+                  <Link
+                    href="/login"
+                    className="mobile-menu__row menu-item"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <span className="mobile-menu__icon-wrap menu-item__icon">
+                      <User className="mobile-menu__icon" weight="regular" />
+                    </span>
+                    <span className="mobile-menu__row-label">Log in</span>
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="mobile-menu__row menu-item"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <span className="mobile-menu__icon-wrap menu-item__icon">
+                      <UserRound className="mobile-menu__icon" weight="regular" />
+                    </span>
+                    <span className="mobile-menu__row-label">Sign up</span>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </nav>
           <div className="mobile-menu__footer drawer-bottom">
-            {!loading && user ? (
-              <>
-                <div className="menu-divider" />
-                <button
-                  type="button"
-                  className="mobile-menu__row menu-item menu-danger logout"
-                  onClick={async () => {
-                    await handleLogout();
-                    setMobileOpen(false);
-                  }}
-                >
-                  <span className="mobile-menu__icon-wrap menu-item__icon">
-                    <LogOut className="mobile-menu__icon" weight="regular" />
-                  </span>
-                  <span className="mobile-menu__row-label">Log out</span>
-                </button>
-              </>
-            ) : null}
             {!loading && (
               <Link
                 href={createListingHref}
-                className="mobile-menu__cta create-listing-btn primary-action-button drawer-create-button"
+                className="btn btn-primary mobile-menu__cta create-listing-btn primary-action-button drawer-create-button"
                 onClick={() => setMobileOpen(false)}
               >
                 Create listing

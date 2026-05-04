@@ -14,7 +14,7 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
   const createdAt = listing.created_at ?? null;
 
   return (
-    <div className="bg-slate-50/40 listing-detail-page">
+  <div className="listing-detail-page">
       <div className="pb-4 lg:py-10">
         <div className="grid grid-cols-1 gap-3 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-3 lg:space-y-6">
@@ -72,6 +72,10 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
               listingId={listing.id}
               sellerId={listing.user_id ?? null}
               allowMessages={listing.allow_messages ?? null}
+              allowPhone={listing.allow_phone ?? null}
+              allowEmail={listing.allow_email ?? null}
+              showPhonePublicly={listing.show_phone_publicly ?? null}
+              showEmailPublicly={listing.show_email_publicly ?? null}
             />
           </aside>
         </div>

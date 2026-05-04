@@ -136,7 +136,7 @@ export default function HeroSearch() {
 
         <button
           type="submit"
-          className="btn btn--primary"
+          className="btn btn-primary"
           disabled={isLoading || (hasCategorySelection && listingCount === 0)}
           aria-busy={isLoading}
         >

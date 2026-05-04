@@ -53,7 +53,7 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
   if (promotedListings.length === 0) return null;
 
   return (
-    <section className="mb-5 sm:mb-6">
+    <section className="mb-6 sm:mb-8">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-(--text-primary)">Promoted listings</h2>
         <div className="flex items-center gap-2">
@@ -85,9 +85,17 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
           </button>
         </div>
       </div>
-      <div className="grid gap-2 sm:gap-3 grid-cols-1 lg:grid-cols-3">
+  <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-3">
         {visibleListings.map((listing) => (
-          <ListingCard key={`promoted-${listing.id}`} listing={listing} showPromotedBadge />
+          <ListingCard
+            key={`promoted-${listing.id}`}
+            listing={listing}
+            showPromotedBadge
+            className="listing-card--promoted listing-card--square"
+            imageSizes="100vw"
+            imageQuality={100}
+            preferHighResImage
+          />
         ))}
       </div>
     </section>

@@ -93,10 +93,9 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
             aria-label="Close search"
             onClick={onClose}
           >
-            <XIcon size={28} />
+            <XIcon size={28} weight="regular" />
           </button>
         </div>
-
         {/* Quick browse buttons: mirror desktop — heading + 3 shortcuts */}
         <div style={{ width: "100%", textAlign: "left", marginBottom: 6 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>What are you looking for?</div>
@@ -187,7 +186,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
 
           <button
             type="submit"
-            className="btn primary-action-button bg-blue-600 text-white hover:bg-blue-700"
+            className="btn btn-primary primary-action-button"
             disabled={isLoading}
             aria-busy={isLoading}
           >

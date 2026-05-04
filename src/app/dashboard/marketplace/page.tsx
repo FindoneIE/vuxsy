@@ -1,5 +1,5 @@
-import DashboardListingsView from "@/components/dashboard/DashboardListingsView";
+import { redirect } from "next/navigation";
 
 export default function DashboardMarketplacePage() {
-  return <DashboardListingsView title="My marketplace" type="marketplace" />;
+  redirect("/dashboard/listings?type=product");
 }

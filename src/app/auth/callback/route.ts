@@ -4,8 +4,10 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const redirectParam = searchParams.get("redirect") ?? "/dashboard";
-  const safeRedirect = redirectParam.startsWith("/") ? redirectParam : "/dashboard";
+  const redirectParam = searchParams.get("redirect") ?? "/dashboard/listings";
+  const safeRedirect = redirectParam.startsWith("/")
+    ? redirectParam
+    : "/dashboard/listings";
   const response = NextResponse.redirect(new URL(safeRedirect, origin));
 
   if (code) {

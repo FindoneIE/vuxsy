@@ -95,7 +95,7 @@ export default function SavedListingButton({
       className={cn(
         "inline-flex items-center justify-center transition duration-200 ease-out heart-pop",
         withBackground &&
-          "bg-white/60! backdrop-blur-sm shadow-[0_2px_6px_rgba(15,23,42,0.08)]",
+          "bg-white/90! backdrop-blur-sm border border-[#E1E6EF] shadow-[0_4px_12px_rgba(15,23,42,0.08)]",
         "overflow-hidden leading-none",
         "rounded-[9999px]",
         "hover:scale-105 active:scale-95",

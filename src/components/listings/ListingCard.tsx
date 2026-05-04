@@ -44,16 +44,33 @@ type Props = {
   listing: ListingCardItem;
   className?: string;
   showPromotedBadge?: boolean;
+  imageClassName?: string;
+  imageSizes?: string;
+  imageQuality?: number;
+  preferHighResImage?: boolean;
 };
 
-export default function ListingCard({ listing, className, showPromotedBadge = false }: Props) {
+export default function ListingCard({
+  listing,
+  className,
+  showPromotedBadge = false,
+  imageClassName,
+  imageSizes,
+  imageQuality,
+  preferHighResImage = false,
+}: Props) {
   const carouselImages = React.useMemo(() => {
-    const base =
-      listing.images && listing.images.length > 0
-        ? listing.images
-        : listing.images1600 && listing.images1600.length > 0
+    const base = preferHighResImage
+      ? listing.images1600 && listing.images1600.length > 0
         ? listing.images1600
-        : [];
+        : listing.images && listing.images.length > 0
+        ? listing.images
+        : []
+      : listing.images && listing.images.length > 0
+      ? listing.images
+      : listing.images1600 && listing.images1600.length > 0
+      ? listing.images1600
+      : [];
 
     const combined = base.length === 0 && listing.coverImage
       ? [listing.coverImage]
@@ -66,7 +83,7 @@ export default function ListingCard({ listing, className, showPromotedBadge = fa
         )
       )
     );
-  }, [listing.coverImage, listing.images, listing.images1600]);
+  }, [listing.coverImage, listing.images, listing.images1600, preferHighResImage]);
 
   const [activeIndex, setActiveIndex] = React.useState(0);
 
@@ -154,14 +171,13 @@ export default function ListingCard({ listing, className, showPromotedBadge = fa
   }, [promotedUntil, nowMs]);
 
   return (
-    <article className={cn("h-full", className)}>
-  <Link
-    href={href}
-  className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl border border-[#d9dee7] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition-[border-color,box-shadow,transform] duration-200 ease-in-out hover:-translate-y-0.5 hover:border-[#c7d2fe] hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)]"
-  >
+    <article className="h-full">
+      <Link
+        href={href}
+        className={cn("listing-card group flex h-full cursor-pointer flex-col", className)}
+      >
         <div
-          className="relative w-full overflow-hidden bg-slate-100"
-          style={{ aspectRatio: "4 / 3" }}
+          className="listing-card__image-wrapper relative h-47.5 w-full overflow-hidden bg-[#F4F6FA] md:h-55"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
@@ -183,9 +199,16 @@ export default function ListingCard({ listing, className, showPromotedBadge = fa
               src={activeImage}
               alt={title}
               fill
-              sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 28vw, (min-width: 768px) 40vw, 100vw"
+              sizes={
+                imageSizes ??
+                "(min-width: 1280px) 22vw, (min-width: 1024px) 28vw, (min-width: 768px) 40vw, 100vw"
+              }
+              quality={imageQuality}
               loading="lazy"
-              className="object-cover object-center transition-transform duration-200 group-hover:scale-105"
+              className={cn(
+                "object-cover object-center",
+                imageClassName
+              )}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
@@ -213,25 +236,25 @@ export default function ListingCard({ listing, className, showPromotedBadge = fa
           )}
 
           {carouselImages.length > 1 ? (
-            <div className="absolute bottom-2 right-2 z-10 inline-flex items-center rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
+            <div className="listing-card__count absolute bottom-3 right-3 z-10">
               {activeIndex + 1}/{carouselImages.length}
             </div>
           ) : null}
         </div>
 
-  <div className="p-3 md:p-4">
+        <div className="p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:text-base">
+              <h3 className="listing-card__title line-clamp-2">
                 {title}
               </h3>
               {locationLabel ? (
-                <p className="mt-0.5 text-sm text-(--text-primary) opacity-70">
+                <p className="listing-card__meta mt-0.5">
                   {locationLabel}
                 </p>
               ) : null}
               {sellerLabel ? (
-                <p className="mt-1 text-xs text-(--text-primary) opacity-60">
+                <p className="listing-card__meta mt-1 text-xs">
                   {sellerLabel}
                 </p>
               ) : null}
@@ -239,14 +262,14 @@ export default function ListingCard({ listing, className, showPromotedBadge = fa
 
             <div className="shrink-0 text-right">
               {listing.price != null ? (
-                <div className="text-lg font-semibold text-(--text-primary) md:text-xl">
+                <div className="listing-card__price">
                   {listing.currency ?? "€"} {listing.price}
                 </div>
               ) : (
-                <div className="text-sm text-(--text-primary) opacity-60">—</div>
+                <div className="listing-card__meta text-sm">—</div>
               )}
               {dateLabel ? (
-                <div className="mt-1 text-xs text-(--text-primary) opacity-60">
+                <div className="listing-card__meta mt-1 text-xs">
                   {dateLabel}
                 </div>
               ) : null}

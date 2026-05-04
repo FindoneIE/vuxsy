@@ -22,9 +22,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   }, [loading, user, router, pathname, searchParams]);
 
   if (loading) {
-    return (
-      <div className="py-10 text-center text-sm text-slate-500">Loading...</div>
-    );
+    return null;
   }
 
   if (!user) {

@@ -50,7 +50,7 @@ export default function UserListingCard({
   return (
     <div
       className={cn(
-        "group flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-6 hover:border-slate-300 hover:shadow-md",
+        "group flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-0 sm:p-5 shadow-sm transition sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-6 hover:border-slate-300 hover:shadow-md",
         className
       )}
       data-listing-id={id}
@@ -71,42 +71,44 @@ export default function UserListingCard({
         )}
       </div>
 
-      <div className="min-w-0 flex-1 space-y-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <ListingStatusBadge status={status} />
-            <span className="text-xs font-medium text-slate-500">{typeLabel}</span>
+  <div className="w-full p-2 sm:p-5 md:p-0 md:contents">
+        <div className="min-w-0 flex-1 space-y-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ListingStatusBadge status={status} />
+              <span className="text-xs font-medium text-slate-500">{typeLabel}</span>
+            </div>
+            <h3 className="mt-2 text-base font-semibold text-slate-900 line-clamp-2">
+              {title}
+            </h3>
+            {location ? <p className="mt-1 text-sm text-slate-500">{location}</p> : null}
           </div>
-          <h3 className="mt-2 text-base font-semibold text-slate-900 line-clamp-2">
-            {title}
-          </h3>
-          {location ? <p className="mt-1 text-sm text-slate-500">{location}</p> : null}
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{views ?? 0} views</span>
+            {createdLabel && (
+              <>
+                <span aria-hidden>•</span>
+                <span>Created {createdLabel}</span>
+              </>
+            )}
+            {updatedLabel && (
+              <>
+                <span aria-hidden>•</span>
+                <span>Updated {updatedLabel}</span>
+              </>
+            )}
+          </div>
+
+          {secondaryActions ? <div className="w-full">{secondaryActions}</div> : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span>{views ?? 0} views</span>
-          {createdLabel && (
-            <>
-              <span aria-hidden>•</span>
-              <span>Created {createdLabel}</span>
-            </>
-          )}
-          {updatedLabel && (
-            <>
-              <span aria-hidden>•</span>
-              <span>Updated {updatedLabel}</span>
-            </>
-          )}
-        </div>
-
-        {secondaryActions ? <div className="w-full">{secondaryActions}</div> : null}
+        {actions ? (
+          <div className="w-full sm:w-auto sm:min-w-max sm:justify-self-end sm:self-start">
+            {actions}
+          </div>
+        ) : null}
       </div>
-
-      {actions ? (
-        <div className="w-full sm:w-auto sm:min-w-max sm:justify-self-end sm:self-start">
-          {actions}
-        </div>
-      ) : null}
     </div>
   );
 }

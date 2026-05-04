@@ -1,5 +1,5 @@
-import DashboardListingsView from "@/components/dashboard/DashboardListingsView";
+import { redirect } from "next/navigation";
 
 export default function DashboardRequestsPage() {
-  return <DashboardListingsView title="My jobs" type="request" />;
+  redirect("/dashboard/listings?type=request");
 }

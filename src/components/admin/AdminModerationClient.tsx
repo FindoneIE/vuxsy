@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import type { ListingType } from "@/types/listing";
@@ -9,12 +10,16 @@ import ConfirmActionDialog from "@/components/admin/ConfirmActionDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AdminModal,
+  AdminModalBody,
+  AdminModalFooter,
+  AdminModalHeader,
+} from "@/components/admin/AdminModal";
+import SecondaryButton from "@/components/ui/SecondaryButton";
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -85,11 +90,268 @@ const actionBadgeStyles: Record<string, string> = {
 };
 
 const buttonBase =
-  "inline-flex h-7 items-center rounded-md px-2 text-xs font-semibold transition-all duration-150";
-const buttonPrimary = `${buttonBase} bg-blue-600 text-white hover:bg-blue-700`;
+  "inline-flex items-center justify-center rounded-md border border-transparent px-3 py-1.5 text-sm font-semibold leading-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]";
+const buttonPrimary = `${buttonBase} bg-(--primary) text-[var(--white)] hover:bg-(--primary-hover)`;
 const buttonDanger = `${buttonBase} bg-rose-500 text-white hover:bg-rose-600`;
 const buttonWarning = `${buttonBase} bg-amber-500 text-white hover:bg-amber-600`;
-const buttonSecondary = `${buttonBase} bg-slate-200 text-slate-700 hover:bg-slate-300`;
+const buttonSecondary = `${buttonBase} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`;
+const buttonGhost = `${buttonBase} border-transparent bg-transparent text-slate-600 hover:bg-slate-100`;
+const menuContainer =
+  "fixed z-50 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-md";
+const menuItemBase =
+  "flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200";
+const menuItemDanger =
+  "flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-rose-600 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200";
+const menuItemDisabled = "opacity-50 cursor-not-allowed pointer-events-none";
+
+type ActionMenuProps = {
+  label?: string;
+  children: (closeMenu: () => void) => React.ReactNode;
+  disabled?: boolean;
+  ariaLabel?: string;
+};
+
+function ActionMenu({
+  label = "More",
+  children,
+  disabled = false,
+  ariaLabel,
+}: ActionMenuProps) {
+  const [open, setOpen] = React.useState(false);
+  const [position, setPosition] = React.useState({ top: 0, right: 0 });
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  const closeMenu = React.useCallback(() => setOpen(false), []);
+
+  const updatePosition = React.useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const right = Math.max(16, window.innerWidth - rect.right);
+    const top = rect.bottom + 8;
+    setPosition({ top, right });
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    updatePosition();
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        menuRef.current?.contains(event.target as Node) ||
+        buttonRef.current?.contains(event.target as Node)
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+
+    const handleReposition = () => updatePosition();
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [closeMenu, open, updatePosition]);
+
+  const menu = open ? (
+    <div
+      ref={menuRef}
+      className={menuContainer}
+      style={{ top: position.top, right: position.right }}
+      role="menu"
+      aria-orientation="vertical"
+    >
+      {children(closeMenu)}
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={ariaLabel ?? label}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={buttonSecondary}
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled}
+      >
+        {label}
+      </button>
+      {menu && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
+    </>
+  );
+}
+
+type ReportMoreMenuProps = {
+  onDeleteReport: () => Promise<void>;
+  onIgnoreReport: () => Promise<void>;
+  disableDelete: boolean;
+  disableIgnore: boolean;
+};
+
+function ReportMoreMenu({
+  onDeleteReport,
+  onIgnoreReport,
+  disableDelete,
+  disableIgnore,
+}: ReportMoreMenuProps) {
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+
+  return (
+    <>
+      <ActionMenu ariaLabel="More report actions">
+        {(closeMenu) => (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              className={`${menuItemDanger} ${disableDelete ? menuItemDisabled : ""}`}
+              onClick={() => {
+                if (disableDelete) return;
+                closeMenu();
+                setDeleteOpen(true);
+              }}
+              disabled={disableDelete}
+            >
+              Delete Report
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={`${menuItemBase} ${disableIgnore ? menuItemDisabled : ""}`}
+              onClick={async () => {
+                if (disableIgnore) return;
+                closeMenu();
+                await onIgnoreReport();
+              }}
+              disabled={disableIgnore}
+            >
+              Ignore
+            </button>
+          </>
+        )}
+      </ActionMenu>
+      <ConfirmActionDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Report"
+        description="This report will be permanently removed."
+        confirmLabel="Delete Report"
+        confirmTone="danger"
+        onConfirm={onDeleteReport}
+      />
+    </>
+  );
+}
+
+type UserMoreMenuProps = {
+  onDeleteUser: () => Promise<void>;
+  disableDelete: boolean;
+};
+
+function UserMoreMenu({ onDeleteUser, disableDelete }: UserMoreMenuProps) {
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+
+  return (
+    <>
+      <ActionMenu ariaLabel="More user actions">
+        {(closeMenu) => (
+          <button
+            type="button"
+            role="menuitem"
+            className={`${menuItemDanger} ${disableDelete ? menuItemDisabled : ""}`}
+            onClick={() => {
+              if (disableDelete) return;
+              closeMenu();
+              setDeleteOpen(true);
+            }}
+            disabled={disableDelete}
+          >
+            Delete User
+          </button>
+        )}
+      </ActionMenu>
+      <ConfirmActionDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete User"
+        description="This will delete the user and their listings."
+        confirmLabel="Delete User"
+        confirmTone="danger"
+        onConfirm={onDeleteUser}
+      />
+    </>
+  );
+}
+
+type ListingMoreMenuProps = {
+  onDeactivate: () => Promise<void>;
+  onRemovePromo: () => Promise<void>;
+  disableDeactivate: boolean;
+  disableRemovePromo: boolean;
+};
+
+function ListingMoreMenu({
+  onDeactivate,
+  onRemovePromo,
+  disableDeactivate,
+  disableRemovePromo,
+}: ListingMoreMenuProps) {
+  return (
+    <ActionMenu ariaLabel="More listing actions">
+      {(closeMenu) => (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${menuItemBase} ${disableDeactivate ? menuItemDisabled : ""}`}
+            onClick={async () => {
+              if (disableDeactivate) return;
+              closeMenu();
+              await onDeactivate();
+            }}
+            disabled={disableDeactivate}
+          >
+            Deactivate
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${menuItemBase} ${disableRemovePromo ? menuItemDisabled : ""}`}
+            onClick={async () => {
+              if (disableRemovePromo) return;
+              closeMenu();
+              await onRemovePromo();
+            }}
+            disabled={disableRemovePromo}
+          >
+            Remove Promo
+          </button>
+        </>
+      )}
+    </ActionMenu>
+  );
+}
+const inputBase =
+  "rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus-visible:border-slate-300";
+const selectBase =
+  "rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus-visible:border-slate-300";
 
 
 
@@ -126,6 +388,8 @@ type AdminModerationActions = {
 type AdminModerationClientProps = {
   data: AdminModerationData;
   actions: AdminModerationActions;
+  pendingReportsCount: number;
+  activeListingsCount: number;
 };
 
 const normalizeStatus = (status?: string | null) => {
@@ -138,6 +402,11 @@ const normalizeStatus = (status?: string | null) => {
   return "pending";
 };
 
+const toTitleCase = (value: string) =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const buildFormData = (entries: Array<[string, string]>) => {
   const formData = new FormData();
   entries.forEach(([key, value]) => {
@@ -146,7 +415,12 @@ const buildFormData = (entries: Array<[string, string]>) => {
   return formData;
 };
 
-export default function AdminModerationClient({ data, actions }: AdminModerationClientProps) {
+export default function AdminModerationClient({
+  data,
+  actions,
+  pendingReportsCount,
+  activeListingsCount,
+}: AdminModerationClientProps) {
   const { addToast } = useToast();
   const [reportSearch, setReportSearch] = React.useState("");
   const [reportStatus, setReportStatus] = React.useState("pending");
@@ -171,6 +445,22 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
   const [auditPage, setAuditPage] = React.useState(1);
   const [expandedAuditIds, setExpandedAuditIds] = React.useState<Set<string>>(new Set());
   const [isActionPending, setIsActionPending] = React.useState(false);
+
+  const reportsRef = React.useRef<HTMLElement | null>(null);
+  const usersRef = React.useRef<HTMLElement | null>(null);
+  const listingsRef = React.useRef<HTMLElement | null>(null);
+
+  const handleScrollToReports = React.useCallback(() => {
+    reportsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const handleScrollToUsers = React.useCallback(() => {
+    usersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const handleScrollToListings = React.useCallback(() => {
+    listingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
 
   const reportSearchValue = reportSearch.trim().toLowerCase();
@@ -452,8 +742,61 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
   const isAdmin = data.currentRole === "admin";
 
   return (
-    <div className="mt-4 space-y-6 sm:mt-6 sm:space-y-10">
-      <section id="reports" className="w-full space-y-2 sm:space-y-4">
+  <div className="mt-4 space-y-5 sm:mt-6 sm:space-y-8">
+      <div className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            aria-label="Scroll to Reports section"
+            onClick={handleScrollToReports}
+            className="group cursor-pointer rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 text-left transition-all duration-150 sm:p-5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Reports Pending</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{pendingReportsCount}</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                View →
+              </span>
+            </div>
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll to Listings section"
+            onClick={handleScrollToListings}
+            className="group cursor-pointer rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 text-left transition-all duration-150 sm:p-5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Active Listings</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{activeListingsCount}</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                View →
+              </span>
+            </div>
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll to Users section"
+            onClick={handleScrollToUsers}
+            className="group cursor-pointer rounded-2xl border border-slate-200/70 bg-[#f7f9fb] p-3 text-left transition-all duration-150 sm:p-5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Users</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{data.profilesCount}</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                View →
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+  <section id="reports" ref={reportsRef} className="w-full space-y-2 sm:space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Reports</h2>
@@ -488,7 +831,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase text-slate-400">Status</span>
             <select
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700 font-normal"
+              className={selectBase}
               value={reportStatus || "pending"}
               onChange={(event) => {
                 setReportStatus(event.target.value || "pending");
@@ -503,9 +846,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase text-slate-400">Reporter email</span>
+            <span className="text-xs font-semibold uppercase text-slate-400">Reporter Email</span>
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
+              className={inputBase}
               placeholder="Filter by email"
               value={reportEmailFilter}
               onChange={(event) => {
@@ -518,7 +861,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase text-slate-400">Listing</span>
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
+              className={inputBase}
               placeholder="Filter by listing"
               value={reportListingFilter}
               onChange={(event) => {
@@ -529,10 +872,10 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase text-slate-400">Search reports</span>
+            <span className="text-xs font-semibold uppercase text-slate-400">Search Reports</span>
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
-              placeholder="Search reports"
+              className={inputBase}
+              placeholder="Search Reports"
               value={reportSearch}
               onChange={(event) => {
                 setReportSearch(event.target.value);
@@ -560,7 +903,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
               }
               disabled={isPending || isActionPending}
             >
-              Mark resolved
+              Mark Resolved
             </button>
             <button
               className={buttonSecondary}
@@ -618,7 +961,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                             statusStyles[normalizedStatus]
                           }`}
                         >
-                          {normalizedStatus}
+                          {toTitleCase(normalizedStatus)}
                         </span>
                       </div>
                       <div>
@@ -657,9 +1000,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                     </div>
                     <div className="mt-3 flex flex-row flex-wrap items-center gap-2">
                       <ConfirmActionDialog
-                        title="Delete listing"
+                        title="Delete Listing"
                         description="This listing will be permanently removed."
-                        confirmLabel="Delete listing"
+                        confirmLabel="Delete Listing"
                         confirmTone="danger"
                         onConfirm={() =>
                           runFormAction(actions.deleteListingAction, [
@@ -667,32 +1010,11 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                           ], "Listing deleted successfully")
                         }
                         trigger={
-                          <button className={buttonDanger}>
-                            Delete
-                          </button>
+                          <button className={buttonDanger}>Delete</button>
                         }
                         disabled={!isAdmin || isActionPending}
                       />
-                      <ConfirmActionDialog
-                        title="Delete report"
-                        description="This report will be permanently removed."
-                        confirmLabel="Delete report"
-                        confirmTone="danger"
-                        onConfirm={() =>
-                          runFormAction(
-                            actions.deleteReportAction,
-                            [["reportId", report.id]],
-                            "Report deleted"
-                          )
-                        }
-                        trigger={
-                          <button className={buttonDanger}>
-                            Delete report
-                          </button>
-                        }
-                        disabled={!isAdmin || isActionPending}
-                      />
-                        <AdminReportActionForm
+                      <AdminReportActionForm
                         action={actions.warnUserAction}
                         successToast={{ title: "Success", message: "User warned" }}
                         errorToast={{ title: "Action failed", message: "Action failed" }}
@@ -704,28 +1026,34 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                           name="reason"
                           value={`Report on listing ${report.listing_id}`}
                         />
-                        <button className={buttonWarning}>
-                          Warn
-                        </button>
+                        <button className={buttonWarning}>Warn</button>
                       </AdminReportActionForm>
-                      <AdminReportActionForm
-                        action={actions.ignoreReportAction}
-                        successToast={{ title: "Success", message: "Report ignored" }}
-                        errorToast={{ title: "Action failed", message: "Action failed" }}
-                      >
-                        <input type="hidden" name="reportId" value={report.id} />
-                        <button className={buttonSecondary}>
-                          Ignore
-                        </button>
-                      </AdminReportActionForm>
+                      <ReportMoreMenu
+                        onDeleteReport={() =>
+                          runFormAction(
+                            actions.deleteReportAction,
+                            [["reportId", report.id]],
+                            "Report deleted"
+                          )
+                        }
+                        onIgnoreReport={() =>
+                          runFormAction(
+                            actions.ignoreReportAction,
+                            [["reportId", report.id]],
+                            "Report ignored"
+                          )
+                        }
+                        disableDelete={!isAdmin || isActionPending}
+                        disableIgnore={isActionPending}
+                      />
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="hidden md:block">
-              <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
-                <table className="min-w-225 w-full text-sm">
+              <div className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
+                <table className="min-w-275 w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                     <tr className="text-left">
                       <th className="px-4 py-2">
@@ -801,15 +1129,15 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                                 statusStyles[normalizedStatus]
                               }`}
                             >
-                              {normalizedStatus}
+                              {toTitleCase(normalizedStatus)}
                             </span>
                           </td>
                           <td className="px-4 py-2">
-                            <div className="flex flex-row flex-wrap items-center gap-2 md:flex-nowrap">
+                            <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                               <ConfirmActionDialog
-                                title="Delete listing"
+                                title="Delete Listing"
                                 description="This listing will be permanently removed."
-                                confirmLabel="Delete listing"
+                                confirmLabel="Delete Listing"
                                 confirmTone="danger"
                                 onConfirm={() =>
                                   runFormAction(actions.deleteListingAction, [
@@ -819,25 +1147,6 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                                 trigger={
                                   <button className={buttonDanger}>
                                     Delete
-                                  </button>
-                                }
-                                disabled={!isAdmin}
-                              />
-                              <ConfirmActionDialog
-                                title="Delete report"
-                                description="This report will be permanently removed."
-                                confirmLabel="Delete report"
-                                confirmTone="danger"
-                                onConfirm={() =>
-                                  runFormAction(
-                                    actions.deleteReportAction,
-                                    [["reportId", report.id]],
-                                    "Report deleted"
-                                  )
-                                }
-                                trigger={
-                                  <button className={buttonDanger}>
-                                    Delete report
                                   </button>
                                 }
                                 disabled={!isAdmin}
@@ -858,16 +1167,24 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                                   Warn
                                 </button>
                               </AdminReportActionForm>
-                              <AdminReportActionForm
-                                action={actions.ignoreReportAction}
-                                successToast={{ title: "Success", message: "Report ignored" }}
-                                errorToast={{ title: "Action failed", message: "Action failed" }}
-                              >
-                                <input type="hidden" name="reportId" value={report.id} />
-                                <button className={buttonSecondary}>
-                                  Ignore
-                                </button>
-                              </AdminReportActionForm>
+                              <ReportMoreMenu
+                                onDeleteReport={() =>
+                                  runFormAction(
+                                    actions.deleteReportAction,
+                                    [["reportId", report.id]],
+                                    "Report deleted"
+                                  )
+                                }
+                                onIgnoreReport={() =>
+                                  runFormAction(
+                                    actions.ignoreReportAction,
+                                    [["reportId", report.id]],
+                                    "Report ignored"
+                                  )
+                                }
+                                disableDelete={!isAdmin}
+                                disableIgnore={isActionPending}
+                              />
                             </div>
                           </td>
                         </tr>
@@ -881,7 +1198,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
         )}
       </section>
 
-      <section id="users" className="space-y-3 sm:space-y-4">
+  <section id="users" ref={usersRef} className="space-y-2 sm:space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Users</h2>
@@ -914,9 +1231,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
 
   <div className="grid gap-2 rounded-2xl border border-slate-200/70 bg-white p-3 text-sm transition-all duration-200 sm:p-4 md:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase text-slate-400">Search users</span>
+            <span className="text-xs font-semibold uppercase text-slate-400">Search Users</span>
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
+              className={inputBase}
               placeholder="Search by email"
               value={userSearch}
               onChange={(event) => {
@@ -948,9 +1265,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                   Warn
                 </button>
                 <ConfirmActionDialog
-                  title="Ban users"
+                  title="Ban Users"
                   description="Selected users will be banned."
-                  confirmLabel="Ban users"
+                  confirmLabel="Ban Users"
                   confirmTone="danger"
                   onConfirm={() =>
                     runBulkAction(
@@ -993,7 +1310,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                       Select
                     </label>
                     <button
-                      className="text-xs font-semibold text-slate-600"
+                      className={buttonGhost}
                       onClick={() => setActiveUserId(profile.id)}
                     >
                       View
@@ -1025,9 +1342,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                   </div>
                   <div className="mt-3 flex flex-row flex-wrap items-center gap-2">
                     <ConfirmActionDialog
-                      title="Ban user"
+                      title="Ban User"
                       description="This user will be banned from the platform."
-                      confirmLabel="Ban user"
+                      confirmLabel="Ban User"
                       confirmTone="danger"
                       onConfirm={() =>
                         runFormAction(actions.banUserAction, [["userId", profile.id]], "User banned successfully")
@@ -1037,7 +1354,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                           className={buttonDanger}
                           disabled={!isAdmin}
                         >
-                          {profile.is_banned ? "Banned" : "Ban user"}
+                          {profile.is_banned ? "Banned" : "Ban User"}
                         </button>
                       }
                       disabled={!isAdmin || isActionPending}
@@ -1053,28 +1370,19 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                         Warn
                       </button>
                     </AdminReportActionForm>
-                    <ConfirmActionDialog
-                      title="Delete user"
-                      description="This will delete the user and their listings."
-                      confirmLabel="Delete user"
-                      confirmTone="danger"
-                      onConfirm={() =>
+                    <UserMoreMenu
+                      onDeleteUser={() =>
                         runFormAction(actions.deleteUserAction, [["userId", profile.id]], "User deleted successfully")
                       }
-                      trigger={
-                        <button className={buttonDanger}>
-                          Delete user
-                        </button>
-                      }
-                      disabled={!isAdmin || isActionPending}
+                      disableDelete={!isAdmin || isActionPending}
                     />
                   </div>
                 </div>
               ))}
             </div>
             <div className="hidden md:block">
-              <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
-                <table className="min-w-225 w-full text-sm">
+              <div className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
+                <table className="min-w-275 w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                     <tr className="text-left">
                       <th className="px-4 py-2">
@@ -1118,17 +1426,17 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                         <td className="px-4 py-2">{data.listingCounts[profile.id] ?? 0}</td>
                         <td className="px-4 py-2">{profile.role ?? "user"}</td>
                         <td className="px-4 py-2">
-                          <div className="flex flex-row flex-wrap items-center gap-2 md:flex-nowrap">
+                          <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                             <button
-                              className={buttonSecondary}
+                              className={buttonGhost}
                               onClick={() => setActiveUserId(profile.id)}
                             >
                               View
                             </button>
                             <ConfirmActionDialog
-                              title="Ban user"
+                              title="Ban User"
                               description="This user will be banned from the platform."
-                              confirmLabel="Ban user"
+                              confirmLabel="Ban User"
                               confirmTone="danger"
                               onConfirm={() =>
                                 runFormAction(
@@ -1142,7 +1450,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                                   className={buttonDanger}
                                   disabled={!isAdmin}
                                 >
-                                  {profile.is_banned ? "Banned" : "Ban user"}
+                                  {profile.is_banned ? "Banned" : "Ban User"}
                                 </button>
                               }
                               disabled={!isAdmin}
@@ -1158,24 +1466,15 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                                 Warn
                               </button>
                             </AdminReportActionForm>
-                            <ConfirmActionDialog
-                              title="Delete user"
-                              description="This will delete the user and their listings."
-                              confirmLabel="Delete user"
-                              confirmTone="danger"
-                              onConfirm={() =>
+                            <UserMoreMenu
+                              onDeleteUser={() =>
                                 runFormAction(
                                   actions.deleteUserAction,
                                   [["userId", profile.id]],
                                   "User deleted successfully"
                                 )
                               }
-                              trigger={
-                                <button className={buttonDanger}>
-                                  Delete user
-                                </button>
-                              }
-                              disabled={!isAdmin}
+                              disableDelete={!isAdmin}
                             />
                           </div>
                         </td>
@@ -1189,7 +1488,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
         )}
       </section>
 
-      <section id="listings" className="space-y-3 sm:space-y-4">
+  <section id="listings" ref={listingsRef} className="space-y-2 sm:space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Listings</h2>
@@ -1222,9 +1521,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
 
   <div className="grid gap-2 rounded-2xl border border-slate-200/70 bg-white p-3 text-sm transition-all duration-200 sm:p-4 md:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase text-slate-400">Search listings</span>
+            <span className="text-xs font-semibold uppercase text-slate-400">Search Listings</span>
             <input
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
+              className={inputBase}
               placeholder="Search by title or user"
               value={listingSearch}
               onChange={(event) => {
@@ -1267,7 +1566,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                   }
                   disabled={isPending || isActionPending}
                 >
-                  Remove promo
+                  Remove Promo
                 </button>
               </div>
             ) : null}
@@ -1319,7 +1618,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                   </div>
                   <div className="mt-3 flex flex-row flex-wrap items-center gap-2">
                     <ConfirmActionDialog
-                      title="Delete listing"
+                      title="Delete Listing"
                       description="This listing will be permanently removed."
                       confirmLabel="Delete"
                       confirmTone="danger"
@@ -1333,33 +1632,31 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                       }
                       disabled={!isAdmin || isActionPending}
                     />
-                    <AdminReportActionForm
-                      action={actions.deactivateListingAction}
-                      successToast={{ title: "Success", message: "Listing deactivated" }}
-                      errorToast={{ title: "Action failed", message: "Action failed" }}
-                    >
-                      <input type="hidden" name="listingId" value={listing.id} />
-                      <button className={buttonSecondary}>
-                        Deactivate
-                      </button>
-                    </AdminReportActionForm>
-                    <AdminReportActionForm
-                      action={actions.removePromotionAction}
-                      successToast={{ title: "Success", message: "Promotion removed" }}
-                      errorToast={{ title: "Action failed", message: "Action failed" }}
-                    >
-                      <input type="hidden" name="listingId" value={listing.id} />
-                      <button className={buttonSecondary}>
-                        Remove promo
-                      </button>
-                    </AdminReportActionForm>
+                    <ListingMoreMenu
+                      onDeactivate={() =>
+                        runFormAction(
+                          actions.deactivateListingAction,
+                          [["listingId", listing.id]],
+                          "Listing deactivated"
+                        )
+                      }
+                      onRemovePromo={() =>
+                        runFormAction(
+                          actions.removePromotionAction,
+                          [["listingId", listing.id]],
+                          "Promotion removed"
+                        )
+                      }
+                      disableDeactivate={isActionPending}
+                      disableRemovePromo={isActionPending}
+                    />
                   </div>
                 </div>
               ))}
             </div>
             <div className="hidden md:block">
-              <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
-                <table className="min-w-225 w-full text-sm">
+              <div className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
+                <table className="min-w-275 w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                     <tr className="text-left">
                       <th className="px-4 py-2">
@@ -1403,9 +1700,9 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                         </td>
                         <td className="px-4 py-2">{listing.promotion_status ?? "—"}</td>
                         <td className="px-4 py-2">
-                          <div className="flex flex-row flex-wrap items-center gap-2 md:flex-nowrap">
+                          <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                             <ConfirmActionDialog
-                              title="Delete listing"
+                              title="Delete Listing"
                               description="This listing will be permanently removed."
                               confirmLabel="Delete"
                               confirmTone="danger"
@@ -1423,26 +1720,24 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                               }
                               disabled={!isAdmin || isActionPending}
                             />
-                            <AdminReportActionForm
-                              action={actions.deactivateListingAction}
-                              successToast={{ title: "Success", message: "Listing deactivated" }}
-                              errorToast={{ title: "Action failed", message: "Action failed" }}
-                            >
-                              <input type="hidden" name="listingId" value={listing.id} />
-                              <button className={buttonSecondary}>
-                                Deactivate
-                              </button>
-                            </AdminReportActionForm>
-                            <AdminReportActionForm
-                              action={actions.removePromotionAction}
-                              successToast={{ title: "Success", message: "Promotion removed" }}
-                              errorToast={{ title: "Action failed", message: "Action failed" }}
-                            >
-                              <input type="hidden" name="listingId" value={listing.id} />
-                              <button className={buttonSecondary}>
-                                Remove promo
-                              </button>
-                            </AdminReportActionForm>
+                            <ListingMoreMenu
+                              onDeactivate={() =>
+                                runFormAction(
+                                  actions.deactivateListingAction,
+                                  [["listingId", listing.id]],
+                                  "Listing deactivated"
+                                )
+                              }
+                              onRemovePromo={() =>
+                                runFormAction(
+                                  actions.removePromotionAction,
+                                  [["listingId", listing.id]],
+                                  "Promotion removed"
+                                )
+                              }
+                              disableDeactivate={isActionPending}
+                              disableRemovePromo={isActionPending}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -1455,13 +1750,13 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
         )}
       </section>
 
-      <section id="audit-logs" className="space-y-3 sm:space-y-4">
+  <section id="audit-logs" className="space-y-2 sm:space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Audit Logs</h2>
             <p className="text-sm text-slate-500">Track admin activity and changes.</p>
           </div>
-          <div className="flex items-center gap-3 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
             <span>{filteredAuditLogs.length} entries</span>
             <button
               className={buttonSecondary}
@@ -1499,17 +1794,17 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase text-slate-400">Action</span>
             <select
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700 font-normal"
+              className={selectBase}
               value={auditActionFilter}
               onChange={(event) => {
                 setAuditActionFilter(event.target.value || "all");
                 setAuditPage(1);
               }}
             >
-              <option value="all">All actions</option>
+              <option value="all">All Actions</option>
               {auditActions.map((action) => (
                 <option key={action} value={action}>
-                  {action}
+                  {toTitleCase(action)}
                 </option>
               ))}
             </select>
@@ -1518,7 +1813,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
             <span className="text-xs font-semibold uppercase text-slate-400">Date</span>
             <input
               type="date"
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700"
+              className={inputBase}
               value={auditDateFilter}
               onChange={(event) => {
                 setAuditDateFilter(event.target.value);
@@ -1529,16 +1824,18 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
         </div>
 
         {filteredAuditLogs.length === 0 ? (
-          <p className="text-sm text-slate-500">No audit entries found.</p>
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-500">
+            No audit entries found.
+          </div>
         ) : (
-          <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
-            <table className="min-w-225 w-full text-sm">
+          <div className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200/70 bg-white transition-all duration-200">
+            <table className="min-w-275 w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                 <tr className="text-left">
                   <th className="px-4 py-2">Action</th>
-                  <th className="px-4 py-2">Target type</th>
+                  <th className="px-4 py-2">Target Type</th>
                   <th className="px-4 py-2">Target</th>
-                  <th className="px-4 py-2">Actor email</th>
+                  <th className="px-4 py-2">Actor Email</th>
                   <th className="px-4 py-2">Created</th>
                   <th className="px-4 py-2 text-right">Details</th>
                 </tr>
@@ -1549,11 +1846,11 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                     <tr className="text-slate-600 transition-colors duration-200 hover:bg-slate-50">
                       <td className="px-4 py-2">
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[0.7rem] font-semibold uppercase ${
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${
                             actionBadgeStyles[getAuditCategory(log.action)]
                           }`}
                         >
-                          {getAuditCategory(log.action)}
+                          {toTitleCase(getAuditCategory(log.action))}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-slate-500">{log.target_type ?? "—"}</td>
@@ -1590,7 +1887,7 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
                       <td className="px-4 py-2 text-right">
                         {log.details ? (
                           <button
-                            className="text-xs text-slate-500 hover:text-slate-700"
+                            className={buttonGhost}
                             onClick={() => toggleAuditDetails(log.id)}
                           >
                             {expandedAuditIds.has(log.id) ? "Hide" : "Details"}
@@ -1623,51 +1920,55 @@ export default function AdminModerationClient({ data, actions }: AdminModeration
           }
         }}
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>User details</DialogTitle>
+        <AdminModal maxWidthClassName="sm:max-w-md">
+          <AdminModalHeader>
+            <DialogTitle>User Details</DialogTitle>
             <DialogDescription>Snapshot of the selected user.</DialogDescription>
-          </DialogHeader>
-          {activeUser ? (
-            <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-sm text-slate-700">
-              <div className="space-y-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Email</p>
-                <p className="text-sm font-medium text-slate-900">{activeUser.email ?? "—"}</p>
+          </AdminModalHeader>
+          <AdminModalBody>
+            {activeUser ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-400">Email</p>
+                    <p className="text-sm font-medium text-slate-900">{activeUser.email ?? "—"}</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">Role</p>
+                      <p className="text-sm text-slate-700">{activeUser.role ?? "user"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">Listings</p>
+                      <p className="text-sm text-slate-700">
+                        {data.listingCounts[activeUser.id] ?? 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">Created</p>
+                      <p className="text-sm text-slate-700">
+                        {activeUser.created_at
+                          ? new Date(activeUser.created_at).toLocaleDateString()
+                          : ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">Status</p>
+                      <p className="text-sm text-slate-700">
+                        {activeUser.is_banned ? "Banned" : "Active"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">Role</p>
-                  <p className="text-sm text-slate-700">{activeUser.role ?? "user"}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">Listings</p>
-                  <p className="text-sm text-slate-700">
-                    {data.listingCounts[activeUser.id] ?? 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">Created</p>
-                  <p className="text-sm text-slate-700">
-                    {activeUser.created_at ? new Date(activeUser.created_at).toLocaleDateString() : ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">Status</p>
-                  <p className="text-sm text-slate-700">
-                    {activeUser.is_banned ? "Banned" : "Active"}
-                  </p>
-                </div>
-              </div>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter className="mt-2">
-            <button className={buttonSecondary} onClick={() => setActiveUserId(null)}>
+            ) : null}
+          </AdminModalBody>
+          <AdminModalFooter>
+            <SecondaryButton onClick={() => setActiveUserId(null)}>
               Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
+            </SecondaryButton>
+          </AdminModalFooter>
+        </AdminModal>
       </Dialog>
     </div>
   );

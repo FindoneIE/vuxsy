@@ -19,9 +19,14 @@ export default function ListingsGrid({ items, className }: Props) {
   }
 
   return (
-  <div className={className ?? "grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"}>
+    <div
+      className={
+        className ??
+        "grid gap-4 sm:gap-5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
+      }
+    >
       {items.map((it) => (
-        <ListingCard key={it.id} listing={it} />
+        <ListingCard key={it.id} listing={it} className="listing-card--square" />
       ))}
     </div>
   );

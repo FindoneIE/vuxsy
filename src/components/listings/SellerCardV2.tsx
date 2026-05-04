@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Listing } from "@/types/listing";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getOrCreateConversation, sendMessage } from "@/lib/messages/actions";
@@ -46,6 +46,10 @@ type SellerCardV2Props = {
   listingId?: string | null;
   sellerId?: string | null;
   allowMessages?: boolean | null;
+  allowPhone?: boolean | null;
+  allowEmail?: boolean | null;
+  showPhonePublicly?: boolean | null;
+  showEmailPublicly?: boolean | null;
 };
 
 const cleanValue = (value?: string | null) =>
@@ -69,8 +73,14 @@ export default function SellerCardV2({
   listingId,
   sellerId,
   allowMessages,
+  allowPhone,
+  allowEmail,
+  showPhonePublicly,
+  showEmailPublicly,
 }: SellerCardV2Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [contactLoading, setContactLoading] = React.useState(false);
   const [contactError, setContactError] = React.useState<string | null>(null);
@@ -168,8 +178,12 @@ export default function SellerCardV2({
     sellerProfile.createdAt ?? sellerProfile.created_at ?? createdAt ?? null;
 
   const [daysOnPlatform, setDaysOnPlatform] = React.useState<number>(0);
-  const [showPhone, setShowPhone] = React.useState(false);
-  const isMessagingDisabled = allowMessages === false;
+  const [showPhone, setShowPhone] = React.useState(Boolean(showPhonePublicly));
+  const canMessage = allowMessages === true;
+  const canPhone = allowPhone === true;
+  const canEmail = allowEmail === true;
+  const phoneAlwaysVisible = showPhonePublicly === true;
+  const emailAlwaysVisible = showEmailPublicly === true;
   const isSeller = Boolean(user?.id && sellerId && user?.id === sellerId);
 
   React.useEffect(() => {
@@ -202,8 +216,13 @@ export default function SellerCardV2({
     }
   }, [isModalOpen]);
 
+
   const handleContactSeller = () => {
-    if (isMessagingDisabled || isSeller) {
+    if (!user) {
+  redirectToLogin();
+      return;
+    }
+    if (!canMessage || isSeller) {
       setContactError(
         isSeller ? "You can’t message your own listing." : "Messaging unavailable"
       );
@@ -221,7 +240,9 @@ export default function SellerCardV2({
       return;
     }
     if (!user) {
-      setSendError("Not authenticated");
+      setSendError("Please log in to contact this seller.");
+      setIsModalOpen(false);
+  redirectToLogin();
       return;
     }
     if (isSeller) {
@@ -280,6 +301,25 @@ export default function SellerCardV2({
     cleanValue(sellerProfile.contact_email) ||
     cleanValue(sellerProfile.email) ||
     "";
+
+  const hasPhoneOption = canPhone && Boolean(phoneLabel);
+  const hasEmailOption = canEmail && Boolean(emailLabel);
+  const hasMessageOption = canMessage;
+  const hasContactOptions = hasMessageOption || hasPhoneOption || hasEmailOption;
+  const phoneVisible = Boolean(user) && (phoneAlwaysVisible || showPhone);
+  const emailButtonLabel = Boolean(user) && emailAlwaysVisible ? emailLabel : "Email seller";
+
+
+  const buildRedirectPath = React.useCallback(() => {
+    const search = searchParams?.toString();
+    return search ? `${pathname}?${search}` : pathname;
+  }, [pathname, searchParams]);
+
+  const redirectToLogin = React.useCallback(() => {
+    const redirectPath = buildRedirectPath();
+    setContactError("Please log in to contact this seller.");
+    router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
+  }, [buildRedirectPath, router]);
 
   return (
     <>
@@ -362,48 +402,80 @@ export default function SellerCardV2({
           </div>
 
           <div className="space-y-2">
-            <button
-              className="btn btn--primary w-full rounded-xl"
-              type="button"
-              onClick={handleContactSeller}
-              disabled={contactLoading || isMessagingDisabled || isSeller}
-            >
-              {isSeller
-                ? "Your listing"
-                : isMessagingDisabled
-                ? "Messaging unavailable"
-                : contactLoading
-                ? "Starting chat…"
-                : "Contact seller"}
-            </button>
+            {hasMessageOption ? (
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={handleContactSeller}
+                disabled={contactLoading || isSeller}
+              >
+                {isSeller
+                  ? "Your listing"
+                  : contactLoading
+                  ? "Starting chat…"
+                  : "Contact seller"}
+              </button>
+            ) : null}
 
             {contactError ? (
               <p className="text-xs text-rose-600">{contactError}</p>
             ) : null}
 
-            {phoneLabel ? (
-              <button
-                className="btn btn--ghost w-full rounded-xl"
-                type="button"
-                onClick={() => setShowPhone((prev) => !prev)}
-              >
-                {showPhone ? `Call ${phoneLabel}` : "Show contact number"}
-              </button>
+            {hasPhoneOption ? (
+              phoneVisible ? (
+                <a
+                  className="btn btn-outline"
+                  href={`tel:${phoneLabel}`}
+                >
+                  Call {phoneLabel}
+                </a>
+              ) : (
+                <button
+                  className="btn btn-outline"
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      redirectToLogin();
+                      return;
+                    }
+                    if (phoneAlwaysVisible) return;
+                    setShowPhone(true);
+                  }}
+                >
+                  Show contact number
+                </button>
+              )
             ) : null}
 
-            {emailLabel ? (
-              <a
-                className="btn btn--secondary w-full rounded-xl"
-                href={`mailto:${emailLabel}`}
-              >
-                Email seller
-              </a>
+            {hasEmailOption ? (
+              user ? (
+                <a
+                  className="btn btn-outline btn-outline-muted"
+                  href={`mailto:${emailLabel}`}
+                >
+                  {emailButtonLabel}
+                </a>
+              ) : (
+                <button
+                  className="btn btn-outline btn-outline-muted"
+                  type="button"
+                  onClick={() => redirectToLogin()}
+                >
+                  {emailButtonLabel}
+                </button>
+              )
+            ) : null}
+
+            {!hasContactOptions ? (
+              <p className="text-xs text-slate-500">
+                This seller has not enabled contact options.
+              </p>
             ) : null}
           </div>
         </div>
 
           <div className="mt-auto flex justify-start">
-            <button className="btn btn--secondary rounded-xl px-4 text-slate-400 hover:text-slate-500">
+            <button className="seller-link" type="button">
               View all ads
             </button>
           </div>
@@ -476,7 +548,9 @@ export default function SellerCardV2({
                 placeholder="Write your message…"
               />
               {!user ? (
-                <p className="mt-2 text-xs text-rose-600">Not authenticated</p>
+                <p className="mt-2 text-xs text-rose-600">
+                  Please log in to contact this seller.
+                </p>
               ) : null}
               {sendError ? (
                 <p className="mt-2 text-xs text-rose-600">{sendError}</p>
@@ -488,8 +562,7 @@ export default function SellerCardV2({
               type="button"
               onClick={handleSendMessage}
               disabled={contactLoading || !user}
-              className="rounded-xl bg-(--color-primary) px-4 py-2 text-sm font-semibold text-white transition hover:bg-(--color-primary-hover) disabled:cursor-not-allowed disabled:bg-gray-300"
-              style={{ backgroundColor: "var(--color-primary)" }}
+              className="btn btn-primary transition hover:bg-(--color-primary-hover) disabled:cursor-not-allowed disabled:bg-gray-300"
             >
               {contactLoading ? "Sending…" : "Send message"}
             </button>
