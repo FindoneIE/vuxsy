@@ -389,7 +389,7 @@ export default function Header() {
             <div className="site-header__actions site-header__actions-wrapper" data-ls="actions-wrapper">
               <div className="site-header__actions-group">
                 <div className="site-header__auth" data-ls="auth">
-                  <div className="site-header__avatar-slot" data-ls="avatar-slot">
+                  <div className="site-header__auth-slot" data-ls="auth-slot">
                     {isAuthReady && user ? (
                       <AvatarDropdown
                         avatarData={avatarData}
@@ -397,6 +397,14 @@ export default function Header() {
                         data-ls="avatar-real"
                         className="avatar-circle"
                       />
+                    ) : isAuthReady ? (
+                      <Link
+                        href="/login"
+                        className="site-header__auth-link"
+                        aria-label="Log in"
+                      >
+                        Login
+                      </Link>
                     ) : (
                       <div
                         className="avatar-circle site-header__auth-spacer"
@@ -406,12 +414,6 @@ export default function Header() {
                     )}
                   </div>
                 </div>
-
-                {isAuthReady && !user && (
-                  <Link href="/login" className="btn btn-outline" aria-label="Log in">
-                    Login
-                  </Link>
-                )}
 
                 <div className="site-header__cta" data-ls="cta">
                   {isAuthReady ? (
