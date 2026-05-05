@@ -15,6 +15,7 @@ export type UserListingCardProps = {
   updatedAt?: Date | string | number | null;
   actions?: React.ReactNode;
   secondaryActions?: React.ReactNode;
+  mobileActions?: React.ReactNode;
   className?: string;
 };
 
@@ -41,6 +42,7 @@ export default function UserListingCard({
   updatedAt,
   actions,
   secondaryActions,
+  mobileActions,
   className,
 }: UserListingCardProps) {
   const createdLabel = formatDate(createdAt);
@@ -109,9 +111,12 @@ export default function UserListingCard({
         </div>
       </div>
 
-  <div className="max-sm:h-15 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:bg-slate-50 max-sm:border-t max-sm:border-slate-200 max-sm:px-4 max-sm:py-3 max-sm:gap-2 max-sm:overflow-x-auto max-sm:whitespace-nowrap sm:col-start-2 sm:row-start-2 sm:flex sm:flex-wrap sm:items-center sm:gap-5 sm:pt-4 sm:px-5 sm:pb-5">
-        {secondaryActions}
-        {actions}
+  <div className="max-sm:flex max-sm:items-center max-sm:justify-center max-sm:bg-slate-50 max-sm:border-t max-sm:border-slate-200 max-sm:px-4 max-sm:py-2 sm:col-start-2 sm:row-start-2 sm:flex sm:flex-wrap sm:items-center sm:gap-5 sm:pt-4 sm:px-5 sm:pb-5">
+        <div className="w-full sm:hidden">{mobileActions}</div>
+        <div className="hidden w-full items-center gap-5 sm:flex">
+          {secondaryActions}
+          {actions}
+        </div>
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export default function SavedListingButton({
 
   const saved = isSaved(listingId, initialSaved);
   const isPending = pendingIds.has(listingId);
-  const resolvedSize = size === "sm" ? 28 : 32;
+  const resolvedSize = size === "sm" ? 32 : 36;
   const iconClass = size === "sm" ? "h-3.5 w-3.5 shrink-0" : "h-4 w-4 shrink-0";
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -95,7 +95,7 @@ export default function SavedListingButton({
       className={cn(
         "inline-flex items-center justify-center transition duration-200 ease-out heart-pop",
         withBackground &&
-          "bg-white/90! backdrop-blur-sm border border-[#E1E6EF] shadow-[0_4px_12px_rgba(15,23,42,0.08)]",
+          "bg-white/90! backdrop-blur-sm",
         "overflow-hidden leading-none",
         "rounded-[9999px]",
         "hover:scale-105 active:scale-95",

@@ -12,43 +12,14 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type ReportReason = {
-  value: string;
-  description: string;
-  requiresDetails?: boolean;
-};
-
-const REPORT_REASONS: ReportReason[] = [
-  {
-    value: "Spam or misleading",
-    description: "Fake or incorrect information",
-  },
-  {
-    value: "Scam or fraud",
-    description: "Requests for payment outside the platform",
-    requiresDetails: true,
-  },
-  {
-    value: "Inappropriate content",
-    description: "Violates content guidelines",
-  },
-  {
-    value: "Duplicate listing",
-    description: "Same listing posted multiple times",
-  },
-  {
-    value: "Wrong category",
-    description: "Incorrect category selected",
-  },
-  {
-    value: "Offensive or abusive",
-    description: "Hate, harassment, or abuse",
-  },
-  {
-    value: "Other",
-    description: "Something else not listed",
-    requiresDetails: true,
-  },
+const REPORT_REASONS = [
+  "Spam or misleading",
+  "Scam or fraud",
+  "Inappropriate content",
+  "Duplicate listing",
+  "Wrong category",
+  "Offensive or abusive",
+  "Other",
 ] as const;
 
 const RATE_LIMIT_MINUTES = 5;
@@ -82,7 +53,7 @@ export default function ReportListingModal({
   trigger,
 }: ReportListingModalProps) {
   const modalContainerClassName =
-    "pointer-events-auto z-60 flex w-[calc(100vw-24px)] max-w-140 flex-col rounded-lg border border-[#D8DEE8] bg-white overflow-hidden shadow-[0_18px_48px_rgba(15,23,42,0.18)] ring-0 max-h-[calc(100vh-24px)] sm:w-140 sm:max-w-140 sm:max-h-[calc(100vh-48px)] p-0";
+    "pointer-events-auto z-60 flex w-[calc(100vw-16px)] max-w-md flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-[0_18px_48px_rgba(15,23,42,0.18)] ring-0 max-h-[calc(100vh-24px)] sm:w-full sm:max-w-md sm:max-h-[calc(100vh-48px)] p-0";
   const { user } = useAuth();
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
@@ -244,70 +215,50 @@ export default function ReportListingModal({
             Report this listing
           </DialogTitle>
           <p className="text-sm text-slate-500">
-            Help us keep the marketplace safe and trustworthy.
+            Help us keep the marketplace safe.
           </p>
         </DialogHeader>
 
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6 pt-5">
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-semibold text-slate-700">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6 pt-5">
+            <div className="space-y-2">
+              <label htmlFor="report-reason" className="text-sm font-medium text-gray-900">
                 Reason
-              </legend>
-              <div className="space-y-3">
-                {REPORT_REASONS.map((option) => {
-                  const selected = reason === option.value;
-                  return (
-                    <label
-                      key={option.value}
-                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-4 py-4 transition sm:gap-3 sm:px-5 sm:py-4 ${
-                        selected
-                          ? "border-[#34579B] bg-[#EAF1FB]"
-                          : "border-[#D8DEE8] bg-white hover:border-[#34579B] hover:bg-[#F4F6FA]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="report-reason"
-                        className="mt-1 h-5 w-5 text-primary accent-primary focus:ring-primary/40"
-                        value={option.value}
-                        checked={selected}
-                        onChange={(event) => setReason(event.target.value)}
-                      />
-                      <div className="min-w-0 space-y-1">
-                        <div className="text-sm font-semibold text-slate-900">
-                          {option.value}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {option.description}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
+              </label>
+              <select
+                id="report-reason"
+                className={`h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20 ${
+                  reason ? "text-gray-900" : "text-gray-500"
+                }`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              >
+                <option value="" disabled>
+                  Select a reason
+                </option>
+                {REPORT_REASONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {reason &&
-            REPORT_REASONS.find((option) => option.value === reason)?.requiresDetails ? (
-              <div className="space-y-2">
-                <label htmlFor="report-details" className="text-sm font-semibold text-slate-700">
-                  Additional details (optional)
-                </label>
-                <textarea
-                  id="report-details"
-                  className="min-h-28 w-full rounded-lg border border-[#D8DEE8] bg-white px-4 py-3 text-sm text-slate-900 shadow-none outline-none transition focus:border-[#34579B] focus:ring-2 focus:ring-[#34579B]/15"
-                  value={details}
-                  onChange={(event) => setDetails(event.target.value)}
-                  placeholder="Share any extra context that helps us review faster"
-                />
-              </div>
-            ) : null}
-
-            <p className="text-xs text-slate-500">
-              Reports are reviewed by our moderation team. False reports may lead to
-              account restriction.
-            </p>
+            <div className="space-y-2">
+              <label htmlFor="report-details" className="text-sm font-medium text-gray-900">
+                Details
+              </label>
+              <textarea
+                id="report-details"
+                className="min-h-24 w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20"
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                placeholder="Add more information if needed"
+              />
+              <p className="text-xs text-gray-500">
+                Reports are reviewed by our moderation team.
+              </p>
+            </div>
 
             {error ? (
               <p className="text-xs text-rose-600" role="status" aria-live="polite">
@@ -316,11 +267,11 @@ export default function ReportListingModal({
             ) : null}
           </div>
 
-          <div className="shrink-0 border-t border-[#E1E6EF] bg-white px-6 py-4">
-            <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="shrink-0 border-t border-[#E1E6EF] bg-[#F4F6FA] px-6 py-4">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="btn btn-outline"
+                className="btn btn-outline border-gray-200 text-gray-900"
                 onClick={() => setOpen(false)}
                 disabled={submitting}
               >
@@ -328,7 +279,7 @@ export default function ReportListingModal({
               </button>
               <button
                 type="submit"
-                className="btn btn-primary shadow-none transition hover:brightness-95 disabled:bg-[#9AA4B2] disabled:text-white disabled:opacity-70"
+                className="btn btn-primary shadow-none transition hover:brightness-95 disabled:bg-gray-300 disabled:text-gray-500 disabled:opacity-100"
                 disabled={!reason || submitting}
               >
                 {submitting ? (

@@ -357,7 +357,7 @@ export default function ClientListings({
       ) : null}
 
       {filteredListings.length === 0 ? null : viewMode === "grid" ? (
-        <ListingsGrid items={filteredListings} />
+        <ListingsGrid items={filteredListings} wrap={false} />
       ) : (
         <ListingsList items={filteredListings} />
       )}

@@ -7,6 +7,7 @@ import { ClipboardList } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
 import EmptyState from "@/components/listings/EmptyState";
 import UserListingCard from "@/components/listings/UserListingCard";
+import UserListingMobileActions from "@/components/listings/UserListingMobileActions";
 import UserListingActions from "@/components/listings/UserListingActions";
 import UserListingSecondaryActions from "@/components/listings/UserListingSecondaryActions";
 import { type ListingStatus } from "@/components/listings/ListingStatusBadge";
@@ -386,28 +387,12 @@ export default function DashboardListingsView({ title, type }: Props) {
     );
   };
 
-  const typeLabel = resolvedType
-    ? `${resolvedType === "marketplace" ? "products" : `${resolvedType}s`}`
-    : "all listings";
-  const countLabel = loading
-    ? "Loading listings"
-    : `${filteredItems.length} ${typeLabel}`;
-
   return (
     <div className="w-full max-w-none space-y-4 px-2 sm:space-y-5 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
           <p className="text-sm text-slate-500">Manage your listings and status.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-            <span className="size-2 rounded-full bg-(--color-accent)" />
-            {countLabel}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-            Live updates enabled
-          </span>
         </div>
       </div>
 
@@ -459,7 +444,7 @@ export default function DashboardListingsView({ title, type }: Props) {
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-600">
           {error}
         </div>
-  ) : filteredItems.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <EmptyState
           icon={<ClipboardList className="size-6" />}
           title="No listings yet"
@@ -467,7 +452,7 @@ export default function DashboardListingsView({ title, type }: Props) {
           action={{ label: "Create listing", href: "/publish" }}
         />
       ) : (
-        <div className="space-y-2 md:space-y-3 lg:space-y-4">
+        <div className="space-y-2 md:space-y-3">
           {filteredItems.map((item) => {
             const itemStatus = (item.status as ListingStatus) ?? "draft";
             const isPendingAction = pendingAction?.id === item.id ? pendingAction.action : null;
@@ -492,6 +477,21 @@ export default function DashboardListingsView({ title, type }: Props) {
                     onEdit={handleEdit}
                     onToggleStatus={handleToggleStatus}
                     onBump={handleBump}
+                    pendingAction={isPendingAction}
+                  />
+                }
+                mobileActions={
+                  <UserListingMobileActions
+                    id={item.id}
+                    status={itemStatus}
+                    createdAt={item.created_at ?? null}
+                    lastPromotedAt={item.last_promoted_at ?? null}
+                    onView={() => handleView(item)}
+                    onEdit={handleEdit}
+                    onToggleStatus={handleToggleStatus}
+                    onBump={handleBump}
+                    onDelete={() => setPendingDeleteId(item.id)}
+                    isDeleting={deletingId === item.id}
                     pendingAction={isPendingAction}
                   />
                 }

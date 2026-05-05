@@ -22,6 +22,8 @@ type GalleryItem =
   | { type: "image"; src: string }
   | { type: "video"; id: string; thumbnail: string };
 
+const THUMB_SIZE = 112;
+
 const extractYouTubeId = (value?: string | null) => {
   const url = value?.trim();
   if (!url) return null;
@@ -88,16 +90,15 @@ export default function ListingGallery({
   );
   const imageCount = imageItems.length;
   const hasMultipleImages = imageCount > 1;
-  const maxThumbnailSlots = 3;
-  const visibleThumbnails = React.useMemo(
-    () => imageItemsWithIndex.slice(0, maxThumbnailSlots),
+  const SLOT_COUNT = 5;
+  const visibleImages = React.useMemo(
+    () =>
+      imageItemsWithIndex.length > SLOT_COUNT
+        ? imageItemsWithIndex.slice(0, SLOT_COUNT)
+        : imageItemsWithIndex,
     [imageItemsWithIndex]
   );
-  const extraThumbnailCount = Math.max(imageItemsWithIndex.length - maxThumbnailSlots, 0);
-  const placeholderSlots = React.useMemo(
-    () => Array.from({ length: Math.max(maxThumbnailSlots - visibleThumbnails.length, 0) }),
-    [maxThumbnailSlots, visibleThumbnails.length]
-  );
+  const extraCount = Math.max(imageCount - SLOT_COUNT, 0);
   const [isFullscreenOpen, setIsFullscreenOpen] = React.useState(false);
   const [fullscreenIndex, setFullscreenIndex] = React.useState(0);
 
@@ -282,9 +283,9 @@ export default function ListingGallery({
   return (
     <div className="listing-media-wrapper listing-media-wrapper--bleed listing-gallery-mobile-fullbleed">
       <div className="listing-media">
-  <div className={`listing-media__layout ${hasMultipleImages ? "" : "is-single"}`}>
+    <div className="listing-media__layout">
           <div
-            className="listing-media__frame mobile-listing-image"
+            className="relative aspect-square w-full overflow-hidden rounded-lg"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -303,7 +304,7 @@ export default function ListingGallery({
                 alt={title ?? "Listing image"}
                 fill
                 sizes="(min-width: 1024px) 60vw, 100vw"
-                className="listing-media__image cursor-zoom-in"
+                className="object-cover"
                 priority
                 onClick={openFullscreen}
               />
@@ -311,17 +312,31 @@ export default function ListingGallery({
           </div>
 
           {hasMultipleImages ? (
-            <div className="listing-media__thumbnails" aria-label="Listing thumbnails">
-              {visibleThumbnails.map(({ item, index: itemIndex }, thumbIndex) => {
+            <div
+              className="listing-media__thumbnails flex flex-col gap-3"
+              aria-label="Listing thumbnails"
+            >
+              {visibleImages.map((slot, slotIndex) => {
+                const { item, index: itemIndex } = slot;
                 const isActive = activeIndex === itemIndex;
-                const showOverlay =
-                  thumbIndex === maxThumbnailSlots - 1 && extraThumbnailCount > 0;
+                const showExtraOverlay =
+                  extraCount > 0 && slotIndex === SLOT_COUNT - 1;
 
                 return (
                   <button
-                    key={`thumb-${item.src}-${itemIndex}-${thumbIndex}`}
+                    key={`thumb-${item.src}-${itemIndex}-${slotIndex}`}
                     type="button"
-                    className={`listing-media__thumb ${isActive ? "is-active" : ""}`}
+                    className={`listing-media__thumb relative flex-none shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 ${
+                      isActive ? "is-active" : ""
+                    }`}
+                    style={{
+                      width: THUMB_SIZE,
+                      height: THUMB_SIZE,
+                      minWidth: THUMB_SIZE,
+                      minHeight: THUMB_SIZE,
+                      maxWidth: THUMB_SIZE,
+                      maxHeight: THUMB_SIZE,
+                    }}
                     onClick={() => {
                       setActiveFromThumbnail(itemIndex);
                       openFullscreenAt(itemIndex);
@@ -331,49 +346,23 @@ export default function ListingGallery({
                         setActiveFromThumbnail(itemIndex);
                       }
                     }}
-                    aria-label={`Show image ${thumbIndex + 1}`}
+                    aria-label={`Show image ${slotIndex + 1}`}
                   >
                     <Image
                       src={item.src}
                       alt={title ?? "Listing thumbnail"}
                       fill
-                      sizes="180px"
-                      className="listing-media__thumb-image"
+                      sizes="112px"
+                      className="object-cover"
                     />
-                    {showOverlay ? (
-                      <span className="listing-media__thumb-overlay">+{extraThumbnailCount}</span>
+                    {showExtraOverlay ? (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60 text-sm font-semibold text-white">
+                        +{extraCount}
+                      </div>
                     ) : null}
                   </button>
                 );
               })}
-              {placeholderSlots.map((_, placeholderIndex) => (
-                <div
-                  key={`placeholder-${placeholderIndex}`}
-                  className="listing-media__thumb listing-media__thumb--placeholder"
-                  aria-hidden
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    className="listing-media__thumb-icon"
-                  >
-                    <path
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"
-                    />
-                    <path
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 11l2.5 3 3.5-4.5L18 17H6l2-6z"
-                    />
-                  </svg>
-                </div>
-              ))}
             </div>
           ) : null}
         </div>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import ListingCard from "@/components/listings/ListingCard";
+import { CaretLeft, CaretRight } from "@/components/ui/Icon";
 import type { Listing } from "@/types/listing";
 import {
   PROMOTED_DESKTOP_ROTATE_MS,
@@ -54,12 +55,12 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
 
   return (
     <section className="mb-6 sm:mb-8">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-(--text-primary)">Promoted listings</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Promoted listings</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-sm text-(--text-primary) transition hover:bg-gray-50"
+            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100"
             aria-label="Previous promoted listing"
             onClick={() =>
               setIndex((prev) =>
@@ -69,11 +70,11 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
               )
             }
           >
-            ‹
+            <CaretLeft className="h-4 w-4" weight="regular" aria-hidden />
           </button>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-sm text-(--text-primary) transition hover:bg-gray-50"
+            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100"
             aria-label="Next promoted listing"
             onClick={() =>
               setIndex((prev) =>
@@ -81,7 +82,7 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
               )
             }
           >
-            ›
+            <CaretRight className="h-4 w-4" weight="regular" aria-hidden />
           </button>
         </div>
       </div>

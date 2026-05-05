@@ -4,9 +4,10 @@ import ListingCard, { type ListingCardItem } from "@/components/listings/Listing
 type Props = {
   items: ListingCardItem[];
   className?: string;
+  wrap?: boolean;
 };
 
-export default function ListingsGrid({ items, className }: Props) {
+export default function ListingsGrid({ items, className, wrap = true }: Props) {
   const debugLogs =
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_DEBUG_LOGS === "true";
@@ -18,11 +19,11 @@ export default function ListingsGrid({ items, className }: Props) {
     console.log("LISTINGS GRID RENDER:", { count: items.length });
   }
 
-  return (
+  const grid = (
     <div
       className={
         className ??
-        "grid gap-4 sm:gap-5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
+        "grid grid-cols-2 gap-2 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
       }
     >
       {items.map((it) => (
@@ -30,4 +31,10 @@ export default function ListingsGrid({ items, className }: Props) {
       ))}
     </div>
   );
+
+  if (!wrap) {
+    return grid;
+  }
+
+  return <div className="px-2">{grid}</div>;
 }

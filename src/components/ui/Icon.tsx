@@ -11,6 +11,7 @@ import {
   Camera as CameraIcon,
   Car as CarIcon,
   CaretDown as CaretDownIcon,
+  CaretLeft as CaretLeftIcon,
   CaretRight as CaretRightIcon,
   CaretUp as CaretUpIcon,
   ChatCircle as ChatCircleIcon,
@@ -95,6 +96,8 @@ export const Camera = createIcon(CameraIcon);
 export const Car = createIcon(CarIcon);
 export const CheckCircle2 = createIcon(CheckCircleIcon);
 export const CheckIcon = createIcon(CheckBase);
+export const CaretLeft = createIcon(CaretLeftIcon);
+export const CaretRight = createIcon(CaretRightIcon);
 export const ChevronDown = createIcon(CaretDownIcon);
 export const ChevronDownIcon = createIcon(CaretDownIcon);
 export const ChevronRightIcon = createIcon(CaretRightIcon);

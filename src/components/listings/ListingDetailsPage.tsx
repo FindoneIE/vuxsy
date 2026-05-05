@@ -1,6 +1,9 @@
 import ListingGallery from "@/components/listings/ListingGallery";
 import ListingInfo from "@/components/listings/ListingInfo";
 import SellerCardV2 from "@/components/listings/SellerCardV2";
+import SavedListingButton from "@/components/listings/SavedListingButton";
+import ReportListingButton from "@/components/listings/ReportListingButton";
+import ShareListingPopover from "@/components/listings/ShareListingPopover";
 import type { Listing } from "@/types/listing";
 
 type ListingDetailsPageProps = {
@@ -27,15 +30,35 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
               />
             </div>
 
-            <div className="listing-media rounded-2xl border border-gray-200 bg-white p-3 lg:p-5 shadow-sm listing-detail-card">
+            <div className="listing-media listing-detail-card">
               <div className="space-y-2 lg:space-y-3 listing-detail-card-inner">
-                <div>
-                  <h1 className="text-2xl font-semibold text-foreground md:text-3xl">
-                    {title}
-                  </h1>
-                  {categoryLabel ? (
-                    <p className="mt-1 text-sm text-muted-foreground">{categoryLabel}</p>
-                  ) : null}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h1 className="text-lg font-semibold">
+                      {title}
+                    </h1>
+                    {categoryLabel ? (
+                      <p className="mt-1 text-sm text-gray-500">{categoryLabel}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-3 -mt-2 text-gray-400">
+                    <ShareListingPopover
+                      title={title}
+                      triggerClassName="text-gray-400 hover:text-gray-700"
+                    />
+                    <SavedListingButton
+                      listingId={listing.id}
+                      initialSaved={listing.savedByCurrentUser}
+                      title="Save"
+                      className="text-gray-400 hover:text-gray-700"
+                      withBackground={false}
+                    />
+                    <ReportListingButton
+                      listingId={listing.id}
+                      sellerId={listing.user_id ?? null}
+                      className="text-gray-400 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
 
                 <ListingInfo
@@ -49,15 +72,19 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
                   savedByCurrentUser={listing.savedByCurrentUser}
                 />
 
-                {listing.description ? (
-                  <div className="pt-2 lg:pt-3 text-sm leading-6 text-slate-700 md:text-base listing-description-card">
-                    {listing.description}
+                <div className="mt-4">
+                  <div className="max-w-(--media-max-width)">
+                    {listing.description ? (
+                      <p className="text-sm text-gray-700 leading-relaxed listing-description-card">
+                        {listing.description}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-500 leading-relaxed listing-description-card">
+                        Description coming soon.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <div className="pt-2 lg:pt-3 text-sm text-muted-foreground listing-description-card">
-                    Description coming soon.
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
