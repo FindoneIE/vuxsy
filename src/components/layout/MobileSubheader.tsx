@@ -26,7 +26,7 @@ export default function MobileSubheader() {
   };
 
   if (isDetailPage) {
-    return null;
+    return <div className="mobile-subheader-spacer" aria-hidden />;
   }
 
   return (

@@ -16,9 +16,16 @@ import type { AvatarData } from "@/types/user";
 type AvatarDropdownProps = {
   avatarData: AvatarData | null;
   onLogout: () => Promise<void> | void;
+  "data-ls"?: string;
+  className?: string;
 };
 
-export default function AvatarDropdown({ avatarData, onLogout }: AvatarDropdownProps) {
+export default function AvatarDropdown({
+  avatarData,
+  onLogout,
+  "data-ls": dataLs,
+  className,
+}: AvatarDropdownProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -57,21 +64,20 @@ export default function AvatarDropdown({ avatarData, onLogout }: AvatarDropdownP
     "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ease-in-out hover:bg-[rgba(0,102,255,0.06)] active:bg-[rgba(0,102,255,0.1)]";
 
   return (
-    <div className="avatar-dropdown" ref={containerRef}>
+  <div className="avatar-dropdown" ref={containerRef} data-ls={dataLs}>
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="p-0 border-0 bg-transparent appearance-none"
+        className={className ? `avatar-dropdown__trigger ${className}` : "avatar-dropdown__trigger"}
       >
         <UserAvatar
           avatarUrl={avatarUrl}
           googlePhotoUrl={googlePhotoUrl}
           displayName={displayName}
           email={email}
-          size={44}
-          className="translate-y-0.5"
+          size={40}
           showFallbackIcon={false}
         />
       </button>

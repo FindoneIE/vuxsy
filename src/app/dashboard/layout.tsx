@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSelectedLayoutSegments } from "next/navigation";
 import {
   ClipboardList,
   Heart,
@@ -34,6 +34,7 @@ type Props = {
 
 export default function DashboardLayout({ children }: Props) {
   const pathname = usePathname();
+  const segments = useSelectedLayoutSegments();
   const { user, profile, loading, profileLoading } = useAuth();
   const handleLogout = async () => {
     await logOut();
@@ -53,15 +54,17 @@ export default function DashboardLayout({ children }: Props) {
   const isProfileSection = pathname === "/dashboard/settings";
   const isEditListingPage = pathname?.startsWith("/dashboard/listings/") &&
     pathname?.endsWith("/edit");
+  const isAdminSection = segments?.includes("admin");
   const isFlatDashboardPage =
-    isListingsSection || isProfileSection || isEditListingPage;
+    isListingsSection || isProfileSection || isEditListingPage || isAdminSection;
+  const flatMainClass = "bg-transparent p-0 shadow-none";
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-(--bg-page)">
         <div className="pt-4 pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
-          <aside className="hidden w-60 shrink-0 p-5 lg:block">
+          <aside className="hidden w-60 shrink-0 p-5 lg:block" data-ls="dashboard-sidebar">
             <div className="mb-5 flex items-center gap-3">
               <UserAvatar
                 avatarUrl={isProfileReady ? profile?.avatarUrl ?? null : null}
@@ -90,7 +93,9 @@ export default function DashboardLayout({ children }: Props) {
                             </span>
                           )}
                         </p>
-                      ) : null}
+                      ) : (
+                        <span className="block h-4 w-32 bg-slate-100" aria-hidden />
+                      )}
                       <p
                         className={
                           resolvedDisplayName
@@ -101,7 +106,12 @@ export default function DashboardLayout({ children }: Props) {
                         {resolvedEmail ?? ""}
                       </p>
                     </>
-                  ) : null}
+                  ) : (
+                    <div className="space-y-2" aria-hidden>
+                      <div className="h-4 w-28 bg-slate-100" />
+                      <div className="h-3 w-32 bg-slate-100" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -169,9 +179,10 @@ export default function DashboardLayout({ children }: Props) {
               className={cn(
                 "w-full",
                 isFlatDashboardPage
-                  ? "bg-transparent p-0 shadow-none"
+                  ? flatMainClass
                   : "flex-1 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-md sm:p-6"
               )}
+              data-ls="dashboard-main"
             >
               {children}
             </main>

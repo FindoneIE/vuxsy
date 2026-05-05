@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import type { ListingType } from "@/types/listing";
 import AdminReportActionForm from "@/components/admin/AdminReportActionForm";
@@ -421,6 +422,7 @@ export default function AdminModerationClient({
   pendingReportsCount,
   activeListingsCount,
 }: AdminModerationClientProps) {
+  const router = useRouter();
   const { addToast } = useToast();
   const [reportSearch, setReportSearch] = React.useState("");
   const [reportStatus, setReportStatus] = React.useState("pending");
@@ -645,6 +647,9 @@ export default function AdminModerationClient({
           message: successMessage,
           type: "success",
         });
+        startTransition(() => {
+          router.refresh();
+        });
       } catch (error) {
         addToast({
           title: "Action failed",
@@ -656,7 +661,7 @@ export default function AdminModerationClient({
         setIsActionPending(false);
       }
     },
-    [addToast, isActionPending]
+    [addToast, isActionPending, router, startTransition]
   );
 
   const toggleSelection = (setState: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) => {
@@ -698,6 +703,7 @@ export default function AdminModerationClient({
           message: successMessage,
           type: "success",
         });
+        router.refresh();
       } catch (error) {
         addToast({
           title: "Action failed",
@@ -726,6 +732,9 @@ export default function AdminModerationClient({
         title: "Success",
         message: successMessage,
         type: "success",
+      });
+      startTransition(() => {
+        router.refresh();
       });
     } catch (error) {
       addToast({

@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -156,12 +156,9 @@ async function logAdminAction(
   }
 }
 
-async function loadAdminData() {
-  const adminUser = await getModeratorUser();
-  if (!adminUser) {
-    redirect("/dashboard");
-  }
-  const adminClient = createSupabaseAdminClient();
+const loadAdminDataCached = unstable_cache(
+  async (adminUserId: string, currentRole: "admin" | "moderator") => {
+    const adminClient = createSupabaseAdminClient();
   const debugLogs =
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_DEBUG_LOGS === "true";
@@ -284,7 +281,7 @@ async function loadAdminData() {
     console.error("ADMIN AUDIT LOG FETCH ERROR", auditLogsError);
   }
 
-  return {
+    return {
     reports: normalizedReports as ListingReport[],
   pendingReportsCount,
     profiles: (profiles ?? []) as ProfileRow[],
@@ -297,8 +294,19 @@ async function loadAdminData() {
     reporterEmailById,
     profileEmailById,
     auditLogs: (auditLogs ?? []) as AdminAuditLog[],
-    currentRole: adminUser.role,
-  };
+      currentRole,
+    };
+  },
+  ["admin-dashboard-data"],
+  { revalidate: 30 }
+);
+
+async function loadAdminData() {
+  const adminUser = await getModeratorUser();
+  if (!adminUser) {
+    redirect("/dashboard");
+  }
+  return loadAdminDataCached(adminUser.user.id, adminUser.role);
 }
 
 async function deleteListingAction(formData: FormData) {
@@ -568,47 +576,45 @@ export default async function AdminModerationPage() {
   }
 
   return (
-  <div className="w-full bg-white">
-      <div className="w-full">
-        <div className="mb-4 flex flex-col gap-2 sm:mb-6">
+    <div className="w-full">
+      <div className="mb-4 flex flex-col gap-2 sm:mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">Admin moderation</h1>
           <p className="text-sm text-slate-500">
             Review reports, users, and listings in one streamlined moderation hub.
           </p>
         </div>
-        <AdminModerationClient
-          data={{
-            reports: data.reports,
-            profiles: data.profiles,
-            profilesCount: data.profilesCount,
-            listings: data.listings,
-            listingCounts: data.listingCounts,
-            listingMetaById: data.listingMetaById,
-            reporterEmailById: data.reporterEmailById,
-            profileEmailById: data.profileEmailById,
-            auditLogs: data.auditLogs,
-            currentRole: data.currentRole,
-          }}
-          pendingReportsCount={data.pendingReportsCount}
-          activeListingsCount={data.listings.filter((listing) => listing.status === "active").length}
-          actions={{
-            deleteListingAction,
-            deleteReportAction,
-            ignoreReportAction,
-            warnUserAction,
-            banUserAction,
-            deleteUserAction,
-            deactivateListingAction,
-            removePromotionAction,
-            bulkResolveReportsAction,
-            bulkIgnoreReportsAction,
-            bulkWarnUsersAction,
-            bulkBanUsersAction,
-            bulkDeactivateListingsAction,
-            bulkRemovePromotionsAction,
-          }}
-        />
-      </div>
+      <AdminModerationClient
+        data={{
+          reports: data.reports,
+          profiles: data.profiles,
+          profilesCount: data.profilesCount,
+          listings: data.listings,
+          listingCounts: data.listingCounts,
+          listingMetaById: data.listingMetaById,
+          reporterEmailById: data.reporterEmailById,
+          profileEmailById: data.profileEmailById,
+          auditLogs: data.auditLogs,
+          currentRole: data.currentRole,
+        }}
+        pendingReportsCount={data.pendingReportsCount}
+        activeListingsCount={data.listings.filter((listing) => listing.status === "active").length}
+        actions={{
+          deleteListingAction,
+          deleteReportAction,
+          ignoreReportAction,
+          warnUserAction,
+          banUserAction,
+          deleteUserAction,
+          deactivateListingAction,
+          removePromotionAction,
+          bulkResolveReportsAction,
+          bulkIgnoreReportsAction,
+          bulkWarnUsersAction,
+          bulkBanUsersAction,
+          bulkDeactivateListingsAction,
+          bulkRemovePromotionsAction,
+        }}
+      />
     </div>
   );
 }

@@ -235,8 +235,12 @@ export default function ListingFiltersSidebar({
                     aria-hidden
                   />
                 </span>
-                <span className="filters-sidebar__category-label">{c.label}</span>
-                <span className="filters-sidebar__category-count">{count}</span>
+                <span className="filters-sidebar__category-label">
+                  {c.label}
+                </span>
+                <span className="filters-sidebar__category-count">
+                  {count}
+                </span>
               </div>
             );
           })}

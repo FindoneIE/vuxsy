@@ -11,13 +11,13 @@ type Props = {
 
 export default function AppShell({ children }: Props) {
   return (
-    <div className="page-shell__root">
+    <div className="page-shell__root" data-ls="content-wrapper">
       <Header />
       <MobileSubheader />
 
       {/* Main content area: PageContainer already applies the .page-shell class
           and the global tokens. Pages should render inside this area. */}
-      <PageContainer as="main">{children}</PageContainer>
+      <PageContainer as="main" data-ls="page-shell">{children}</PageContainer>
     </div>
   );
 }
