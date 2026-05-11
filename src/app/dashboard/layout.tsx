@@ -19,11 +19,11 @@ import { logOut } from "@/lib/auth";
 
 const navSections = [
   [
-    { label: "My Listings", href: "/dashboard/listings", icon: ClipboardList },
+    { label: "My listings", href: "/dashboard/listings", icon: ClipboardList },
   ],
   [{ label: "Messages", href: "/dashboard/messages", icon: MessageCircle }],
   [
-    { label: "Saved", href: "/dashboard/saved", icon: Heart },
+    { label: "Saved listings", href: "/dashboard/saved", icon: Heart },
     { label: "Profile", href: "/dashboard/settings", icon: User },
   ],
 ];
@@ -51,12 +51,17 @@ export default function DashboardLayout({ children }: Props) {
   const isOfficialVuxsy = resolvedDisplayName === "VUXSY";
   const isListingsSection =
     pathname === "/dashboard/listings" || pathname === "/dashboard/saved";
+  const isMessagesSection = pathname?.startsWith("/dashboard/messages");
   const isProfileSection = pathname === "/dashboard/settings";
   const isEditListingPage = pathname?.startsWith("/dashboard/listings/") &&
     pathname?.endsWith("/edit");
   const isAdminSection = segments?.includes("admin");
   const isFlatDashboardPage =
-    isListingsSection || isProfileSection || isEditListingPage || isAdminSection;
+    isListingsSection ||
+    isMessagesSection ||
+    isProfileSection ||
+    isEditListingPage ||
+    isAdminSection;
   const flatMainClass = "bg-transparent p-0 shadow-none";
 
   return (
@@ -64,7 +69,7 @@ export default function DashboardLayout({ children }: Props) {
       <div className="min-h-screen bg-(--bg-page)">
         <div className="pt-4 pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
-          <aside className="hidden w-60 shrink-0 p-5 lg:block" data-ls="dashboard-sidebar">
+          <aside className="hidden w-60 shrink-0 py-5 pr-5 pl-0 lg:block" data-ls="dashboard-sidebar">
             <div className="mb-5 flex items-center gap-3">
               <UserAvatar
                 avatarUrl={isProfileReady ? profile?.avatarUrl ?? null : null}
@@ -72,6 +77,7 @@ export default function DashboardLayout({ children }: Props) {
                 displayName={resolvedDisplayName}
                 email={resolvedEmail}
                 size={40}
+                showFallbackIcon={false}
               />
               <div className="min-w-0 flex-1">
                 <div className="mt-1 min-h-10">
@@ -123,7 +129,21 @@ export default function DashboardLayout({ children }: Props) {
                   className={cn("flex flex-col gap-4", index > 0 && "mt-2")}
                 >
                   {section.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = (() => {
+                      if (item.href === "/dashboard/messages") {
+                        return pathname?.startsWith("/dashboard/messages") ?? false;
+                      }
+                      if (item.href === "/dashboard/listings") {
+                        return pathname === "/dashboard/listings" || pathname?.startsWith("/dashboard/listings/");
+                      }
+                      if (item.href === "/dashboard/saved") {
+                        return pathname === "/dashboard/saved";
+                      }
+                      if (item.href === "/dashboard/settings") {
+                        return pathname === "/dashboard/settings";
+                      }
+                      return pathname === item.href;
+                    })();
                     return (
                       <Link
                         key={item.href}
@@ -143,7 +163,7 @@ export default function DashboardLayout({ children }: Props) {
                             />
                           </span>
                         ) : null}
-                        <span className="filters-sidebar__category-label">{item.label}</span>
+                        <span className="filters-sidebar__category-label text-sm">{item.label}</span>
                       </Link>
                     );
                   })}
@@ -180,7 +200,7 @@ export default function DashboardLayout({ children }: Props) {
                 "w-full",
                 isFlatDashboardPage
                   ? flatMainClass
-                  : "flex-1 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-md sm:p-6"
+                  : "flex-1 rounded-2xl border border-slate-200/70 bg-white p-2 shadow-md sm:p-4 lg:p-6"
               )}
               data-ls="dashboard-main"
             >

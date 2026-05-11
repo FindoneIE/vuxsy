@@ -55,6 +55,7 @@ import {
   Wrench as WrenchIcon,
   X as XIconBase,
   Envelope as EnvelopeIcon,
+  EnvelopeSimple as EnvelopeSimpleIcon,
 } from "@phosphor-icons/react";
 
 type AppIconProps = IconProps;
@@ -121,6 +122,7 @@ export const List = createIcon(ListBulletsIcon);
 export const ListLines = createIcon(ListLinesIcon);
 export const LogOut = createIcon(SignOutIcon);
 export const Mail = createIcon(EnvelopeIcon);
+export const EnvelopeSimple = createIcon(EnvelopeSimpleIcon);
 export const Menu = createIcon(ListBulletsIcon);
 export const MessageCircle = createIcon(ChatCircleIcon);
 export const MessageCircleQuestion = createIcon(ChatCircleIcon);

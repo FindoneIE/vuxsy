@@ -12,6 +12,18 @@ export type UploadImageResult = {
   imageId?: string;
 };
 
+export async function removeAvatar(): Promise<void> {
+  const response = await fetch("/api/uploads/avatar", {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    console.error("PROFILE_AVATAR_UPLOAD_ERROR", message || response.status);
+    throw new Error(message || "Avatar remove failed");
+  }
+}
+
 export async function uploadImage(
   file: File,
   options: UploadImageOptions
@@ -48,7 +60,7 @@ export async function uploadImage(
 
   if (!response.ok) {
     const message = await response.text();
-    console.error("LISTING_UPLOAD_ERROR", message || response.status);
+    console.error("PROFILE_AVATAR_UPLOAD_ERROR", message || response.status);
     throw new Error(message || "Avatar upload failed");
   }
 

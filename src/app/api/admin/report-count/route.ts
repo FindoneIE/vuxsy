@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+const ADMIN_EMAIL = "info@vuxsy.com";
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
@@ -9,16 +11,8 @@ export async function GET() {
     return NextResponse.json({ count: 0 }, { status: 401 });
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    console.error("ADMIN REPORT COUNT PROFILE ERROR", profileError);
-  }
-  if (profileError || profile?.role !== "admin") {
+  const normalizedEmail = data.user.email?.trim().toLowerCase();
+  if (normalizedEmail !== ADMIN_EMAIL) {
     return NextResponse.json({ count: 0 }, { status: 403 });
   }
 

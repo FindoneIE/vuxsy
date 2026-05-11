@@ -1,4 +1,5 @@
 import type { Listing } from "@/types/listing";
+import { resolveDisplayNameValue } from "@/lib/display-name";
 
 type SellerSnapshot = NonNullable<Listing["seller"]> & Record<string, unknown>;
 
@@ -75,26 +76,28 @@ export const buildSellerSnapshotFromProfile = (
   const profileCounty = getString(profileRecord.county);
   const profileArea = getString(profileRecord.area);
 
-  const profileDisplayName =
-    getString(profileRecord.display_name) ||
-    getString(profileRecord.displayName) ||
-    getString(profileRecord.full_name) ||
-    getString(profileRecord.fullName) ||
-    getString(profileRecord.name) ||
-    getString(profileRecord.username) ||
-    getString(profileRecord.contact_name) ||
-    getString(profileRecord.email);
+  const profileDisplayName = resolveDisplayNameValue(
+    getString(profileRecord.display_name),
+    getString(profileRecord.displayName),
+    getString(profileRecord.full_name),
+    getString(profileRecord.fullName),
+    getString(profileRecord.name),
+    getString(profileRecord.username),
+    getString(profileRecord.contact_name),
+    getString(profileRecord.email)
+  );
 
   const fallbackDisplayName =
-    getString(existingSellerRecord.displayName) ||
-    getString(existingSellerRecord.display_name) ||
-    getString(existingSellerRecord.fullName) ||
-    getString(existingSellerRecord.full_name) ||
-    getString(existingSellerRecord.name) ||
-    getString(existingSellerRecord.username) ||
-    getString(existingSellerRecord.email) ||
-    profileDisplayName ||
-    "User";
+    resolveDisplayNameValue(
+      profileDisplayName,
+      getString(existingSellerRecord.displayName),
+      getString(existingSellerRecord.display_name),
+      getString(existingSellerRecord.fullName),
+      getString(existingSellerRecord.full_name),
+      getString(existingSellerRecord.name),
+      getString(existingSellerRecord.username),
+      getString(existingSellerRecord.email)
+    ) ?? "User";
 
   const resolvedSellerType = resolveSellerTypeFromSnapshot(
     options.sellerType ?? null,
@@ -121,13 +124,44 @@ export const buildSellerSnapshotFromProfile = (
       profileCompanyName
     : null;
 
-  const displayName = getString(options.displayName) || fallbackDisplayName;
+  const displayName =
+    resolveDisplayNameValue(getString(options.displayName), profileDisplayName, fallbackDisplayName) ??
+    "User";
 
   const createdAt =
     (options.createdAt ? new Date(options.createdAt).toISOString() : null) ||
     getString(profileRecord.created_at) ||
     getString(existingSellerRecord.created_at) ||
     null;
+
+  const hasExplicitAvatarOption = Object.prototype.hasOwnProperty.call(options, "avatarUrl");
+  const hasExplicitGooglePhotoOption = Object.prototype.hasOwnProperty.call(
+    options,
+    "googlePhotoUrl"
+  );
+
+  const explicitAvatarValue = hasExplicitAvatarOption ? getString(options.avatarUrl) : null;
+  const explicitGooglePhotoValue = hasExplicitGooglePhotoOption
+    ? getString(options.googlePhotoUrl)
+    : null;
+
+  const resolvedGooglePhotoUrl = hasExplicitGooglePhotoOption
+    ? explicitGooglePhotoValue
+    : getString(profileRecord.google_photo_url) ||
+      getString(existingSellerRecord.googlePhotoUrl) ||
+      getString(existingSellerRecord.google_photo_url) ||
+      null;
+
+  const resolvedAvatarUrl = hasExplicitAvatarOption
+    ? explicitAvatarValue
+    : getString(options.avatarUrl) ||
+      getString(profileRecord.avatar_url) ||
+      getString(profileRecord.google_photo_url) ||
+      getString(existingSellerRecord.avatarUrl) ||
+      getString(existingSellerRecord.avatar_url) ||
+      getString(existingSellerRecord.googlePhotoUrl) ||
+      getString(existingSellerRecord.google_photo_url) ||
+      null;
 
   const contactEmail =
     getString(options.contactEmail) ||
@@ -219,32 +253,10 @@ export const buildSellerSnapshotFromProfile = (
         profileWebsite ||
         null
       : null,
-    avatarUrl:
-      getString(options.avatarUrl) ||
-      getString(existingSellerRecord.avatarUrl) ||
-      getString(existingSellerRecord.avatar_url) ||
-      getString(profileRecord.avatar_url) ||
-      getString(profileRecord.google_photo_url) ||
-      null,
-    avatar_url:
-      getString(options.avatarUrl) ||
-      getString(existingSellerRecord.avatarUrl) ||
-      getString(existingSellerRecord.avatar_url) ||
-      getString(profileRecord.avatar_url) ||
-      getString(profileRecord.google_photo_url) ||
-      null,
-    googlePhotoUrl:
-      getString(options.googlePhotoUrl) ||
-      getString(existingSellerRecord.googlePhotoUrl) ||
-      getString(existingSellerRecord.google_photo_url) ||
-      getString(profileRecord.google_photo_url) ||
-      null,
-    google_photo_url:
-      getString(options.googlePhotoUrl) ||
-      getString(existingSellerRecord.googlePhotoUrl) ||
-      getString(existingSellerRecord.google_photo_url) ||
-      getString(profileRecord.google_photo_url) ||
-      null,
+    avatarUrl: resolvedAvatarUrl,
+    avatar_url: resolvedAvatarUrl,
+    googlePhotoUrl: resolvedGooglePhotoUrl,
+    google_photo_url: resolvedGooglePhotoUrl,
     created_at: createdAt,
     createdAt,
     type: sellerType,

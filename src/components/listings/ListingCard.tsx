@@ -171,7 +171,7 @@ export default function ListingCard({
   }, [promotedUntil, nowMs]);
 
   return (
-    <article className="h-full">
+    <article className="h-full w-full">
       <Link
         href={href}
         className={cn("listing-card group flex h-full cursor-pointer flex-col", className)}

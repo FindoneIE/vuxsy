@@ -3,11 +3,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const resolveGooglePhotoUrl = (user: User) => {
   const metadata = user.user_metadata as Record<string, unknown> | undefined;
-  return (
-    (metadata?.avatar_url as string | undefined) ??
-    (metadata?.picture as string | undefined) ??
-    null
-  );
+  return (metadata?.picture as string | undefined) ?? null;
 };
 
 const resolveDisplayName = (user: User, fallback?: string | null) => {

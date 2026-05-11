@@ -1,11 +1,12 @@
 import DashboardMessages from "@/components/messages/DashboardMessages";
 
 type DashboardMessagesConversationPageProps = {
-  params: { conversationId: string };
+  params: Promise<{ conversationId: string }>;
 };
 
-export default function DashboardMessagesConversationPage({
+export default async function DashboardMessagesConversationPage({
   params,
 }: DashboardMessagesConversationPageProps) {
-  return <DashboardMessages conversationId={params.conversationId} />;
+  const { conversationId } = await params;
+  return <DashboardMessages conversationId={conversationId} />;
 }

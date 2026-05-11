@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Listing } from "@/types/listing";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { runtimeLog } from "@/lib/diagnostics/runtimeLog";
 import { getOrCreateConversation, sendMessage } from "@/lib/messages/actions";
 import VuxsyVerifiedBadge from "@/components/ui/VuxsyVerifiedBadge";
 import {
@@ -15,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 
 type SellerProfileSource = NonNullable<Listing["seller"]> & {
   company_name?: string | null;
@@ -64,6 +64,17 @@ const capitalizeWords = (value?: string | null) =>
         .join(" ")
     : "";
 
+const getMemberSinceLabel = (daysOnPlatform: number) => {
+  if (!Number.isFinite(daysOnPlatform) || daysOnPlatform < 30) return "New";
+  if (daysOnPlatform < 90) return "1 mo";
+  if (daysOnPlatform < 180) return "3 mo";
+  if (daysOnPlatform < 365) return "6 mo";
+  if (daysOnPlatform < 3 * 365) return "1 yr";
+  if (daysOnPlatform < 5 * 365) return "3 yrs";
+  if (daysOnPlatform < 12 * 365) return "5 yrs";
+  return "12 yrs";
+};
+
 export default function SellerCardV2({
   seller,
   sellerType,
@@ -81,7 +92,7 @@ export default function SellerCardV2({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [contactLoading, setContactLoading] = React.useState(false);
   const [contactError, setContactError] = React.useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -89,6 +100,7 @@ export default function SellerCardV2({
     "Hi, is this still available?"
   );
   const [sendError, setSendError] = React.useState<string | null>(null);
+  const messageTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const presetMessages = React.useMemo(
     () => [
       "Hi, is this still available?",
@@ -166,6 +178,70 @@ export default function SellerCardV2({
     cleanValue(sellerProfile.avatar_url) ||
     cleanValue(sellerProfile.google_photo_url);
 
+  const avatarFieldUsed: "avatarUrl" | "googlePhotoUrl" | "avatar_url" | "google_photo_url" | "fallback" =
+    cleanValue(sellerProfile.avatarUrl)
+      ? "avatarUrl"
+      : cleanValue(sellerProfile.googlePhotoUrl)
+        ? "googlePhotoUrl"
+        : cleanValue(sellerProfile.avatar_url)
+          ? "avatar_url"
+          : cleanValue(sellerProfile.google_photo_url)
+            ? "google_photo_url"
+            : "fallback";
+
+  const sellerAvatarFieldValues = React.useMemo(
+    () => ({
+      avatarUrl: cleanValue(sellerProfile.avatarUrl) || null,
+      googlePhotoUrl: cleanValue(sellerProfile.googlePhotoUrl) || null,
+      avatar_url: cleanValue(sellerProfile.avatar_url) || null,
+      google_photo_url: cleanValue(sellerProfile.google_photo_url) || null,
+    }),
+    [
+      sellerProfile.avatarUrl,
+      sellerProfile.googlePhotoUrl,
+      sellerProfile.avatar_url,
+      sellerProfile.google_photo_url,
+    ]
+  );
+
+  const currentProfileAvatarUrl = user?.id
+    ? cleanValue(profile?.avatarUrl) || cleanValue(profile?.googlePhotoUrl)
+    : "";
+
+  const avatarSourceUsed: "sellerProfile" | "fallback" | "WRONG_currentUser" =
+    avatarUrl.length === 0
+      ? "fallback"
+      : currentProfileAvatarUrl.length > 0 &&
+          avatarUrl === currentProfileAvatarUrl &&
+          Boolean(user?.id) &&
+          Boolean(sellerId) &&
+          user?.id !== sellerId
+        ? "WRONG_currentUser"
+        : "sellerProfile";
+
+  React.useEffect(() => {
+    runtimeLog("SELLER CARD DATA", {
+      listingId: listingId ?? null,
+      listingOwnerId: sellerId ?? null,
+      authUserId: user?.id ?? null,
+      sellerAvatarFields: sellerAvatarFieldValues,
+      avatarFieldUsed,
+      finalResolvedAvatarUrl: avatarUrl || null,
+      sellerAvatarUrl: avatarUrl || null,
+      currentProfileAvatarUrl: currentProfileAvatarUrl || null,
+      avatarSourceUsed,
+    });
+  }, [
+    listingId,
+    sellerId,
+    user?.id,
+    avatarUrl,
+    avatarFieldUsed,
+    sellerAvatarFieldValues,
+    currentProfileAvatarUrl,
+    avatarSourceUsed,
+  ]);
+
   const areaLabel = capitalizeWords(sellerProfile.area);
   const countyLabel = capitalizeWords(sellerProfile.county);
 
@@ -215,6 +291,31 @@ export default function SellerCardV2({
       });
     }
   }, [isModalOpen]);
+
+  const resizeMessageTextarea = React.useCallback(
+    (target?: HTMLTextAreaElement | null) => {
+      const textarea = target ?? messageTextareaRef.current;
+      if (!textarea) return;
+
+      const minHeight = 44;
+      const maxHeight = 116;
+
+      textarea.style.height = `${minHeight}px`;
+      const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${Math.max(minHeight, nextHeight)}px`;
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    },
+    []
+  );
+
+  React.useEffect(() => {
+    if (!isModalOpen) return;
+    if (typeof window === "undefined") return;
+
+    window.requestAnimationFrame(() => {
+      resizeMessageTextarea();
+    });
+  }, [isModalOpen, messageDraft, resizeMessageTextarea]);
 
 
   const handleContactSeller = () => {
@@ -289,6 +390,7 @@ export default function SellerCardV2({
 
   const ratingLabel = typeof ratingAverage === "number" ? ratingAverage : 0;
   const reviewsLabel = typeof reviewCount === "number" ? reviewCount : 0;
+  const memberSinceLabel = getMemberSinceLabel(daysOnPlatform);
 
   const phoneLabel =
     cleanValue(contactPhone) ||
@@ -396,7 +498,7 @@ export default function SellerCardV2({
             <div className="border-l border-gray-100 pl-3">
               <p className="text-xs text-muted-foreground">On Vuxsy</p>
               <p className="text-base font-semibold text-slate-700">
-                {daysOnPlatform}
+                {memberSinceLabel}
               </p>
             </div>
           </div>
@@ -482,15 +584,15 @@ export default function SellerCardV2({
         </div>
       </div>
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="top-0 left-0 h-full w-full max-w-none translate-x-0 translate-y-0 rounded-none bg-(--bg-page) ring-0 shadow-none sm:top-1/2 sm:left-1/2 sm:h-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl">
-          <DialogHeader>
+        <DialogContent className="max-h-[calc(100vh-16px)] max-w-115 overflow-hidden bg-(--bg-page) p-2">
+          <DialogHeader className="mb-2 gap-2 rounded-xl p-2">
             <DialogTitle>Send message</DialogTitle>
             <DialogDescription>
               Contact {sellerName} about this listing.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-(--bg-card) p-3">
+          <div className="mb-2 space-y-2">
+            <div className="mb-2 rounded-xl border border-slate-200 bg-(--bg-card) p-2">
               <p className="text-xs uppercase tracking-wide text-slate-400">Seller</p>
               <div className="mt-1 text-sm font-semibold text-slate-900">
                 {isOfficialVuxsy ? (
@@ -520,12 +622,12 @@ export default function SellerCardV2({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="mb-2 space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Quick message
               </label>
               <select
-                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                className="w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
                 onChange={(event) => {
                   const nextValue = event.target.value;
                   if (nextValue) {
@@ -541,28 +643,41 @@ export default function SellerCardV2({
                 ))}
               </select>
 
-              <Textarea
+              <textarea
+                ref={messageTextareaRef}
                 value={messageDraft}
-                onChange={(event) => setMessageDraft(event.target.value)}
-                rows={5}
+                onChange={(event) => {
+                  setMessageDraft(event.target.value);
+                  resizeMessageTextarea(event.currentTarget);
+                }}
+                onInput={(event) => resizeMessageTextarea(event.currentTarget)}
+                rows={1}
                 placeholder="Write your message…"
+                className="w-full resize-none rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20"
+                style={{
+                  height: "44px",
+                  minHeight: "44px",
+                  maxHeight: "116px",
+                  overflowY: "hidden",
+                  resize: "none",
+                }}
               />
               {!user ? (
-                <p className="mt-2 text-xs text-rose-600">
+                <p className="text-xs text-rose-600">
                   Please log in to contact this seller.
                 </p>
               ) : null}
               {sendError ? (
-                <p className="mt-2 text-xs text-rose-600">{sendError}</p>
+                <p className="text-xs text-rose-600">{sendError}</p>
               ) : null}
             </div>
           </div>
-          <DialogFooter className="border-t-0 bg-transparent">
+          <DialogFooter className="mt-2 border-t-0 bg-transparent p-2">
             <button
               type="button"
               onClick={handleSendMessage}
               disabled={contactLoading || !user}
-              className="btn btn-primary transition hover:bg-(--color-primary-hover) disabled:cursor-not-allowed disabled:bg-gray-300"
+              className="btn btn-primary min-h-11 transition hover:bg-(--color-primary-hover) disabled:cursor-not-allowed disabled:bg-gray-300"
             >
               {contactLoading ? "Sending…" : "Send message"}
             </button>

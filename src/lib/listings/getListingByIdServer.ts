@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Listing } from "@/types/listing";
+import { buildListingImageMap } from "@/lib/listings/listingImages";
 
 function toDate(value: unknown): Date | null {
   if (!value) return null;
@@ -37,7 +38,7 @@ export async function getListingByIdServer(listingId: string): Promise<Listing |
 
   const { data: imageRows, error: imageError } = await supabase
     .from("listing_images")
-    .select("listing_id, storage_path_600, storage_path_1800, sort_order")
+    .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
     .eq("listing_id", listingId)
     .order("sort_order", { ascending: true });
 
@@ -45,30 +46,27 @@ export async function getListingByIdServer(listingId: string): Promise<Listing |
     console.error("Failed to load listing images:", imageError);
   }
 
-  const images = (imageRows ?? [])
-    .map((row) =>
-      row.storage_path_600
-        ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_600).data
-            ?.publicUrl ?? null
-        : null
-    )
-    .filter((value): value is string => Boolean(value));
-  const images1600 = (imageRows ?? [])
-    .map((row) =>
-      row.storage_path_1800
-        ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_1800).data
-            ?.publicUrl ?? null
-        : null
-    )
-    .filter((value): value is string => Boolean(value));
+  const imageMap = buildListingImageMap(
+    supabase,
+    (imageRows ?? []) as {
+      listing_id?: string | null;
+      image_url?: string | null;
+      storage_path_600?: string | null;
+      storage_path_1800?: string | null;
+      sort_order?: number | null;
+    }[]
+  );
+  const imageData = imageMap.get(listingId) ?? null;
 
   return {
     id: data.id,
     ...(data as Omit<Listing, "id">),
-    images: images.length > 0 ? images : (data as Listing).images,
-    images1600: images1600.length > 0 ? images1600 : (data as Listing).images1600,
-    coverImage: images[0] ?? (data as Listing).coverImage ?? null,
-    photoCount: images.length || (data as Listing).photoCount,
+    images: imageData?.images.length ? imageData.images : (data as Listing).images,
+    images1600: imageData?.images1600.length
+      ? imageData.images1600
+      : (data as Listing).images1600,
+    coverImage: imageData?.coverImage ?? (data as Listing).coverImage ?? null,
+    photoCount: imageData?.photoCount || (data as Listing).photoCount,
     created_at: toDate(data.created_at),
     updated_at: toDate(data.updated_at),
   } as Listing;

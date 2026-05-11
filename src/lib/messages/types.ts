@@ -32,6 +32,8 @@ export type ConversationSummary = {
   listing: ConversationListing | null;
   otherParticipant: ConversationParticipant;
   unreadCount: number;
+  isBlocked: boolean;
+  blockedByMe: boolean;
 };
 
 export type MessageItem = {

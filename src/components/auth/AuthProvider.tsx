@@ -4,6 +4,7 @@ import * as React from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { runtimeLog } from "@/lib/diagnostics/runtimeLog";
 import type { AvatarData, UserProfile } from "@/types/user";
 
 type AuthContextValue = {
@@ -43,6 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = React.useState(true);
   const [profileLoading, setProfileLoading] = React.useState(true);
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
+  const latestProfileRef = React.useRef<UserProfile | null>(null);
+  const latestAvatarDataRef = React.useRef<AvatarData | null>(null);
+
+  React.useEffect(() => {
+    latestProfileRef.current = profile;
+  }, [profile]);
+
+  React.useEffect(() => {
+    latestAvatarDataRef.current = avatarData;
+  }, [avatarData]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -56,6 +67,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data } = supabase.auth.onAuthStateChange(
       (_event: string, session: Session | null) => {
         if (!isMounted) return;
+        runtimeLog("AUTH STATE CHANGE", {
+          event: _event,
+          nextUserId: session?.user?.id ?? null,
+        });
+
+        if (!session?.user) {
+          runtimeLog("LOGOUT CACHE CLEAR", {
+            userId: null,
+            previousProfileAvatarUrl: latestProfileRef.current?.avatarUrl ?? null,
+            previousAvatarDataUrl: latestAvatarDataRef.current?.avatarUrl ?? null,
+            profileCleared: true,
+            avatarCleared: true,
+          });
+          setProfile(null);
+          setAvatarData(null);
+          setProfileLoading(false);
+        }
+
         setUser(session?.user ?? null);
         setLoading(false);
       }
@@ -77,7 +106,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const metadata = user.user_metadata as Record<string, unknown> | undefined;
     const fallbackGooglePhotoUrl =
-      (metadata?.avatar_url as string | undefined) ??
       (metadata?.picture as string | undefined) ??
       null;
 
@@ -141,21 +169,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let isMounted = true;
-    if (!user) {
-      queueMicrotask(() => {
-        if (!isMounted) return;
-        setProfile(null);
-        setAvatarData(null);
-        setProfileLoading(false);
-      });
-      return () => {
-        isMounted = false;
-      };
-    }
+    if (!user) return;
 
     queueMicrotask(() => {
       if (!isMounted) return;
-      refreshProfile();
+      void refreshProfile();
     });
 
     return () => {

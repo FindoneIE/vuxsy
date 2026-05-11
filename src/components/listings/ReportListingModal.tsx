@@ -11,6 +11,8 @@ import {
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+import { dialogPadding } from "@/lib/layout/constants";
 
 const REPORT_REASONS = [
   "Spam or misleading",
@@ -43,7 +45,9 @@ type ReportListingModalProps = {
   listingId: string;
   sellerId?: string | null;
   disabled?: boolean;
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function ReportListingModal({
@@ -51,11 +55,24 @@ export default function ReportListingModal({
   sellerId,
   disabled = false,
   trigger,
+  open,
+  onOpenChange,
 }: ReportListingModalProps) {
-  const modalContainerClassName =
-    "pointer-events-auto z-60 flex w-[calc(100vw-16px)] max-w-md flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-[0_18px_48px_rgba(15,23,42,0.18)] ring-0 max-h-[calc(100vh-24px)] sm:w-full sm:max-w-md sm:max-h-[calc(100vh-48px)] p-0";
   const { user } = useAuth();
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = typeof open === "boolean";
+  const resolvedOpen = isControlled ? open : internalOpen;
+
+  const setResolvedOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange]
+  );
+
   const [reason, setReason] = React.useState("");
   const [details, setDetails] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -77,7 +94,7 @@ export default function ReportListingModal({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
+    setResolvedOpen(nextOpen);
     if (!nextOpen) {
       resetState();
     }
@@ -178,7 +195,7 @@ export default function ReportListingModal({
       }
 
       setSubmitting(false);
-      setOpen(false);
+      setResolvedOpen(false);
       addToast({
         title: "Report submitted",
         message: "Report submitted",
@@ -202,32 +219,34 @@ export default function ReportListingModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild disabled={!canReport}>
-        {trigger}
-      </DialogTrigger>
+    <Dialog open={resolvedOpen} onOpenChange={handleOpenChange}>
+      {trigger ? (
+        <DialogTrigger asChild disabled={!canReport}>
+          {trigger}
+        </DialogTrigger>
+      ) : null}
       <DialogContent
-        className={modalContainerClassName}
-        overlayClassName="bg-[rgba(15,23,42,0.35)] backdrop-blur-[4px]"
+        className="max-h-[calc(100vh-16px)] max-w-115 overflow-hidden"
+        overlayClassName="bg-white/40 backdrop-blur-sm"
       >
-        <DialogHeader className="shrink-0 border-b border-[#E1E6EF] bg-[#F4F6FA] px-6 py-5">
-          <DialogTitle className="text-xl font-semibold text-slate-900">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="pr-8 text-lg font-semibold text-slate-900">
             Report this listing
           </DialogTitle>
-          <p className="text-sm text-slate-500">
+          <p className="pr-8 text-sm text-slate-500">
             Help us keep the marketplace safe.
           </p>
         </DialogHeader>
 
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6 pt-5">
+          <div className={cn("min-h-0 flex-1 space-y-4 overflow-y-auto bg-white", dialogPadding)}>
             <div className="space-y-2">
               <label htmlFor="report-reason" className="text-sm font-medium text-gray-900">
                 Reason
               </label>
               <select
                 id="report-reason"
-                className={`h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20 ${
+                className={`h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20 ${
                   reason ? "text-gray-900" : "text-gray-500"
                 }`}
                 value={reason}
@@ -250,7 +269,7 @@ export default function ReportListingModal({
               </label>
               <textarea
                 id="report-details"
-                className="min-h-24 w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20"
+                className="min-h-24 w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-none outline-none transition focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-primary)/20"
                 value={details}
                 onChange={(event) => setDetails(event.target.value)}
                 placeholder="Add more information if needed"
@@ -267,12 +286,17 @@ export default function ReportListingModal({
             ) : null}
           </div>
 
-          <div className="shrink-0 border-t border-[#E1E6EF] bg-[#F4F6FA] px-6 py-4">
+          <div
+            className={cn(
+              "shrink-0 border-t border-slate-200/70 bg-slate-50/80",
+              dialogPadding
+            )}
+          >
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="btn btn-outline border-gray-200 text-gray-900"
-                onClick={() => setOpen(false)}
+                className="btn btn-outline border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                onClick={() => setResolvedOpen(false)}
                 disabled={submitting}
               >
                 Cancel

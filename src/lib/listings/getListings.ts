@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ListingType } from "@/types/listing";
+import { buildListingImageMap } from "@/lib/listings/listingImages";
 
 export type GetListingsParams = {
   categoryId?: string;
@@ -45,6 +46,7 @@ const MAX_PAGE_SIZE = 50;
 
 type ListingImageRow = {
   listing_id?: string | null;
+  image_url?: string | null;
   storage_path_600?: string | null;
   storage_path_1800?: string | null;
   sort_order?: number | null;
@@ -177,45 +179,23 @@ export async function getListings({
 
     const { data: imageRows, error: imageError } = await supabase
       .from("listing_images")
-      .select("listing_id, storage_path_600, storage_path_1800, sort_order")
+      .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
       .in("listing_id", listingIds)
       .order("sort_order", { ascending: true });
 
     if (imageError) {
       console.error("Failed to load listing images:", imageError);
     } else if (imageRows && imageRows.length > 0) {
-      const imageMap = new Map<string, ListingImageRow[]>();
-      (imageRows as ListingImageRow[]).forEach((row) => {
-        if (!row.listing_id) return;
-        const existing = imageMap.get(row.listing_id) ?? [];
-        existing.push(row);
-        imageMap.set(row.listing_id, existing);
-      });
+      const imageMap = buildListingImageMap(supabase, imageRows as ListingImageRow[]);
 
       items.forEach((item) => {
-        const rows = imageMap.get(item.id) ?? [];
-        if (rows.length === 0) return;
-        const images = rows
-          .map((row) =>
-            row.storage_path_600
-              ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_600).data
-                  ?.publicUrl ?? null
-              : null
-          )
-          .filter((value): value is string => Boolean(value));
-        const images1600 = rows
-          .map((row) =>
-            row.storage_path_1800
-              ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_1800).data
-                  ?.publicUrl ?? null
-              : null
-          )
-          .filter((value): value is string => Boolean(value));
-
-        item.images = images.length > 0 ? images : item.images;
-        item.images1600 = images1600.length > 0 ? images1600 : item.images1600;
-        item.coverImage = images[0] ?? item.coverImage ?? null;
-        item.photoCount = rows.length;
+        const imageData = imageMap.get(item.id);
+        if (!imageData) return;
+        item.images = imageData.images.length > 0 ? imageData.images : item.images;
+        item.images1600 =
+          imageData.images1600.length > 0 ? imageData.images1600 : item.images1600;
+        item.coverImage = imageData.coverImage ?? item.coverImage ?? null;
+        item.photoCount = imageData.photoCount;
       });
     }
   }

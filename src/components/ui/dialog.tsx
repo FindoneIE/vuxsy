@@ -6,6 +6,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "@/components/ui/Icon"
+import { dialogPadding, mobileDialogWidth } from "@/lib/layout/constants"
 
 function Dialog({
   ...props
@@ -39,7 +40,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-  "fixed inset-0 isolate z-50 bg-primary/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-white/40 backdrop-blur-sm duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -59,11 +60,12 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-  <DialogOverlay className={overlayClassName} />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-background p-4 text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid -translate-x-1/2 -translate-y-1/2 gap-0 rounded-2xl border border-slate-200 bg-white p-0 text-sm shadow-[0_18px_48px_rgba(15,23,42,0.14)] duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          mobileDialogWidth,
           className
         )}
         {...props}
@@ -71,8 +73,11 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <button className="app-close-button absolute top-2 right-2" type="button">
-              <XIcon className="app-close-icon" weight="regular" />
+            <button
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#34579B]/40"
+              type="button"
+            >
+              <XIcon className="h-4 w-4" weight="regular" />
               <span className="sr-only">Close</span>
             </button>
           </DialogPrimitive.Close>
@@ -86,7 +91,11 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn(
+        "flex flex-col gap-2 border-b border-slate-200/70 bg-slate-50/80",
+        dialogPadding,
+        className
+      )}
       {...props}
     />
   )
@@ -104,7 +113,8 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "flex flex-col gap-2 border-t border-slate-200/70 bg-slate-50/80 sm:flex-row sm:justify-end",
+        dialogPadding,
         className
       )}
       {...props}

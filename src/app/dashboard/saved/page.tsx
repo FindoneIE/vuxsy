@@ -52,10 +52,9 @@ export default function DashboardSavedPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+  <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Saved listings</h1>
-          <p className="text-sm text-slate-500">Quick access to your favorites.</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Saved listings</h1>
         </div>
         <ListingViewToggle value={mode} onChange={setMode} />
       </div>
@@ -74,7 +73,7 @@ export default function DashboardSavedPage() {
       ) : mode === "list" ? (
         <ListingsList items={visibleItems} />
       ) : (
-        <ListingsGrid items={visibleItems} />
+        <ListingsGrid items={visibleItems} wrap={false} />
       )}
     </div>
   );

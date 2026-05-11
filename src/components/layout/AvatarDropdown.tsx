@@ -7,7 +7,7 @@ import {
   ClipboardList,
   Heart,
   LogOut,
-  MessageSquare,
+  MessageCircle,
   User,
 } from "@/components/ui/Icon";
 import UserAvatar from "@/components/ui/UserAvatar";
@@ -111,7 +111,7 @@ export default function AvatarDropdown({
               color={isListingsActive ? activeIconColor : inactiveIconColor}
               aria-hidden
             />
-            My Listings
+            My listings
           </Link>
           <Link
             href="/dashboard/messages"
@@ -119,7 +119,7 @@ export default function AvatarDropdown({
               isMessagesActive ? "bg-blue-50 text-blue-600" : "text-gray-700"
             }`}
           >
-            <MessageSquare
+            <MessageCircle
               className="h-4.5 w-4.5"
               weight={isMessagesActive ? "fill" : "regular"}
               color={isMessagesActive ? activeIconColor : inactiveIconColor}
@@ -139,7 +139,7 @@ export default function AvatarDropdown({
               color={isSavedActive ? activeIconColor : inactiveIconColor}
               aria-hidden
             />
-            Saved
+            Saved listings
           </Link>
           <Link
             href="/dashboard/settings"

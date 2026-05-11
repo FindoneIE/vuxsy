@@ -105,8 +105,8 @@
   --media-gap: 16px;
 
   /* PAGE LAYOUT TOKENS (SaaS-style spacing system) */
-  --page-max-width: 1280px; /* centered content width */
-  --page-padding-x: 24px; /* horizontal padding for pages */
+  --page-max-width: 1400px; /* centered content width */
+  --page-padding-x: 8px; /* horizontal padding for pages */
   --page-padding-y-top: 32px; /* top padding below header */
   --page-padding-y-bottom: 40px; /* bottom page padding */
   --section-gap: 24px; /* gap between vertical sections */
@@ -338,7 +338,7 @@ img {
 /* small responsive adjustments (tablet / desktop) */
 @media (min-width: 640px) {
   :root {
-    --page-padding-x: 24px;
+    --page-padding-x: 16px;
     --page-padding-y-top: 36px;
     --page-padding-y-bottom: 48px;
   }
@@ -349,7 +349,7 @@ img {
 
 @media (min-width: 1024px) {
   :root {
-    --page-padding-x: 40px;
+    --page-padding-x: 24px;
     --page-padding-y-top: 44px;
     --page-padding-y-bottom: 56px;
     --grid-gap: 28px;
@@ -448,11 +448,12 @@ header {
 
 
 .site-header__inner {
-  max-width: 1240px;
+  max-width: var(--page-max-width);
+  width: 100%;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0;
   display: grid;
-  grid-template-columns: 160px 1fr auto;
+  grid-template-columns: 160px minmax(0, 1fr) 260px;
   align-items: center;
   column-gap: 16px;
   overflow: visible;
@@ -538,6 +539,25 @@ header {
   text-decoration: underline;
 }
 
+.site-header__unread-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .avatar-circle {
   width: 40px;
   height: 40px;
@@ -587,7 +607,8 @@ header {
   /* keep the centered container for alignment, but let the header itself provide
      the full-bleed white background; reduce vertical padding for a compact header */
   margin: 0 auto;
-  padding: 0 16px; /* remove top padding that adds a visible wrapper */
+  max-width: var(--page-max-width);
+  padding: 0 var(--page-padding-x);
   background: transparent;
 }
 
@@ -600,8 +621,28 @@ header {
 
 @media (min-width: 768px) {
   .site-header .page-shell {
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: var(--page-padding-x);
+    padding-right: var(--page-padding-x);
+  }
+}
+
+/* Dashboard messages layout column widths */
+.messages-inbox-column,
+.messages-chat-column {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .messages-inbox-column {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .messages-chat-column {
+    width: 620px;
+    max-width: 620px;
+    flex: 0 0 620px;
   }
 }
 
@@ -627,17 +668,16 @@ header {
 }
 
 .site-header__logo .logo-img {
-  /* Smaller logo image that stays within the existing header height.
-     Do NOT change header sizing or use overflow/transform tricks. */
-  height: 32px; /* desktop/medium: reduced */
-  width: auto; /* preserve aspect ratio */
+  /* Balanced logo size for header visibility. */
+  height: 48px;
+  width: auto;
   display: block;
   flex-shrink: 0;
   transform: none;
 }
 
 .mobile-menu__logo .logo-img {
-  height: 32px;
+  height: 48px;
   width: auto;
 }
 
@@ -652,8 +692,7 @@ header {
 /* Medium screens: keep the logo balanced */
 @media (max-width: 960px) {
   .site-header__logo .logo-img {
-    /* Keep full size on medium screens as well */
-    height: 32px;
+    height: 44px;
   }
 }
 
@@ -661,8 +700,7 @@ header {
    header control height so the header block doesn't grow. */
 @media (max-width: 520px) {
   .site-header__logo .logo-img {
-    /* Small screens: match desktop logo size */
-    height: 32px;
+    height: 44px;
   }
 }
 
@@ -1430,8 +1468,8 @@ header {
   .listing-detail-page .page-container,
   .listing-detail-page .container,
   .listing-detail-page .page-shell {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
     max-width: 100% !important;
   }
 
@@ -1466,10 +1504,10 @@ header {
   .listing-main-card,
   .listing-seller-card,
   .listing-description-card {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    margin-left: calc(50% - 50vw) !important;
-    margin-right: calc(50% - 50vw) !important;
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     border: none !important;
@@ -1481,8 +1519,8 @@ header {
 
   .listing-detail-card,
   .listing-detail-card-inner {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
   }
 
   .listing-seller-card {
@@ -2475,7 +2513,9 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   display: flex;
   align-items: center;
   justify-self: center;
-  gap: 16px;
+  justify-content: center;
+  width: min(100%, 520px);
+  gap: 8px;
   transform: none;
 }
 
@@ -2485,7 +2525,8 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   gap: 24px;
   justify-self: end;
   justify-content: flex-end;
-  min-width: max-content;
+  width: 260px;
+  min-width: 260px;
 }
 
 .site-header__actions-group {
@@ -2494,12 +2535,54 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   gap: 12px;
 }
 
+.site-header__auth-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-header__message-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--text-primary);
+  position: relative;
+  transition: none;
+}
+
+.site-header__message-icon:hover,
+.site-header__message-icon:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.site-header__message-icon:visited,
+.site-header__message-icon:active {
+  color: var(--text-primary);
+}
+
+.site-header__message-icon svg {
+  color: inherit;
+}
+
+.site-header__message-icon--placeholder,
+.mobile-icon--placeholder,
+.site-header__cta-link--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .site-nav__link {
   display: inline-flex;
   align-items: center;
   height: 40px;
-  min-width: 110px;
+  min-width: 116px;
   justify-content: center;
+  line-height: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .site-header .btn {
@@ -2561,11 +2644,56 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   color: var(--text-secondary);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  transition: 0.2s ease;
+  transition: none;
   font-size: 14px;
   font-weight: 600;
+  line-height: 20px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.site-nav__link,
+.site-nav__link:hover,
+.site-nav__link:focus-visible,
+.site-nav__link.is-active {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.site-nav__admin-slot {
+  flex: 0 0 116px;
+  justify-content: center;
+}
+
+.site-nav__admin-badge {
+  position: absolute;
+  right: -12px;
+  top: -8px;
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #ffffff;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.site-nav__admin-badge--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.site-nav__link--placeholder {
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .site-nav__link:hover {
@@ -3037,6 +3165,39 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 /* Ensure the label text sits with the checkbox and spacing stays intact */
 .filters-sidebar__checkbox-row input[type="checkbox"] + span {
   line-height: 18px;
+}
+
+.messages-checkbox {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  margin: 0;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+
+.messages-checkbox:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.messages-checkbox:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 7 L9 18 L4 13' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  box-shadow: none;
 }
 
 .filters-sidebar__divider {

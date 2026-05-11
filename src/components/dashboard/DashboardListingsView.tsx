@@ -388,11 +388,10 @@ export default function DashboardListingsView({ title, type }: Props) {
   };
 
   return (
-    <div className="w-full max-w-none space-y-4 px-2 sm:space-y-5 sm:px-6">
+    <div className="w-full max-w-none space-y-4 sm:space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-          <p className="text-sm text-slate-500">Manage your listings and status.</p>
         </div>
       </div>
 
@@ -452,7 +451,7 @@ export default function DashboardListingsView({ title, type }: Props) {
           action={{ label: "Create listing", href: "/publish" }}
         />
       ) : (
-        <div className="space-y-2 md:space-y-3">
+  <div className="space-y-2.5 lg:space-y-4">
           {filteredItems.map((item) => {
             const itemStatus = (item.status as ListingStatus) ?? "draft";
             const isPendingAction = pendingAction?.id === item.id ? pendingAction.action : null;

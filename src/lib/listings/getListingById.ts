@@ -1,5 +1,8 @@
 import type { Listing } from "@/types/listing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { buildListingImageMap } from "@/lib/listings/listingImages";
+import { resolveDisplayNameValue } from "@/lib/display-name";
+import { runtimeLog } from "@/lib/diagnostics/runtimeLog";
 
 function hasValidSellerSnapshot(seller: Listing["seller"] | null) {
   if (!seller) return false;
@@ -17,6 +20,12 @@ function hasValidSellerSnapshot(seller: Listing["seller"] | null) {
       s.company_name
   );
 }
+
+const asTrimmedString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
 
 type GetListingByIdOptions = {
   includeSavedStatus?: boolean;
@@ -47,77 +56,123 @@ export async function getListingById(
 
   const sellerId = (data as Listing).user_id;
 
-  // ✅ tikai fallback, ja snapshot NAV derīgs
-  const needsProfileFallback = !hasValidSellerSnapshot(seller);
-
-  if (sellerId && needsProfileFallback) {
-    const { data: profile } = await supabase
+  if (sellerId) {
+    const { data: ownerProfile } = await supabase
       .from("profiles")
-      .select("*")
+      .select("display_name, avatar_url, google_photo_url, county, area, is_business_seller")
       .eq("id", sellerId)
       .maybeSingle();
 
-    if (profile) {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const isBusiness = Boolean(
-        (profile as { is_business_seller?: boolean | null }).is_business_seller
-      );
+    runtimeLog("PUBLIC LISTING FETCH", {
+      listingId,
+      listingOwnerId: sellerId,
+      sellerProfileLoaded: Boolean(ownerProfile),
+      sellerProfileAvatarUrl: ownerProfile?.avatar_url ?? null,
+    });
 
-      sellerType = isBusiness ? "business" : "private";
-      const fallbackProfileName = profile.id
-        ? `User-${String(profile.id).slice(0, 6)}`
-        : "User";
-      const normalizedSeller = {
-        ...profile,
-        displayName:
-          (profile as any).displayName ||
-          (profile as any).display_name ||
-          (profile as any).fullName ||
-          (profile as any).full_name ||
-          (profile as any).name ||
-          (profile as any).username ||
-          (profile as any).email ||
-          fallbackProfileName,
+    if (ownerProfile) {
+      const sellerRecord = ((seller ?? {}) as Record<string, unknown>);
+
+      const resolvedDisplayName =
+        resolveDisplayNameValue(
+          asTrimmedString(sellerRecord.displayName),
+          asTrimmedString(sellerRecord.display_name),
+          asTrimmedString(sellerRecord.fullName),
+          asTrimmedString(sellerRecord.full_name),
+          asTrimmedString(sellerRecord.name),
+          asTrimmedString(sellerRecord.username),
+          asTrimmedString(sellerRecord.email),
+          ownerProfile.display_name ?? null
+        ) ?? "User";
+
+      const resolvedAvatarUrl =
+        asTrimmedString(ownerProfile.avatar_url) ??
+        asTrimmedString(sellerRecord.avatarUrl) ??
+        asTrimmedString(sellerRecord.avatar_url) ??
+        null;
+
+      const avatarSourceUsed = asTrimmedString(ownerProfile.avatar_url)
+        ? "ownerProfile"
+        : asTrimmedString(sellerRecord.avatarUrl) || asTrimmedString(sellerRecord.avatar_url)
+          ? "listingSellerSnapshot"
+          : "fallback";
+
+      const resolvedGooglePhotoUrl =
+        asTrimmedString(ownerProfile.google_photo_url) ??
+        asTrimmedString(sellerRecord.googlePhotoUrl) ??
+        asTrimmedString(sellerRecord.google_photo_url) ??
+        null;
+
+      const resolvedCounty =
+        asTrimmedString(sellerRecord.county) ??
+        asTrimmedString(ownerProfile.county) ??
+        null;
+
+      const resolvedArea =
+        asTrimmedString(sellerRecord.area) ??
+        asTrimmedString(ownerProfile.area) ??
+        null;
+
+      const needsProfileFallback = !hasValidSellerSnapshot(seller);
+      if (needsProfileFallback) {
+        const isBusiness = Boolean(ownerProfile.is_business_seller);
+        sellerType = isBusiness ? "business" : "private";
+      }
+
+      seller = {
+        ...sellerRecord,
+        displayName: resolvedDisplayName,
+        display_name: resolvedDisplayName,
         name:
-          (profile as any).name ||
-          (profile as any).username ||
-          (profile as any).email ||
-          fallbackProfileName,
-      };
+          resolveDisplayNameValue(
+            asTrimmedString(sellerRecord.name),
+            asTrimmedString(sellerRecord.username),
+            asTrimmedString(sellerRecord.email),
+            resolvedDisplayName
+          ) ?? resolvedDisplayName,
+        avatarUrl: resolvedAvatarUrl,
+        avatar_url: resolvedAvatarUrl,
+        googlePhotoUrl: resolvedGooglePhotoUrl,
+        google_photo_url: resolvedGooglePhotoUrl,
+        county: resolvedCounty,
+        area: resolvedArea,
+      } as Listing["seller"];
 
-      seller = normalizedSeller as Listing["seller"];
-      /* eslint-enable @typescript-eslint/no-explicit-any */
+      runtimeLog("GET LISTING SELLER AVATAR MAP", {
+        listingId,
+        listingOwnerId: sellerId,
+        authUserId: currentUserId,
+        sellerSnapshotRaw: sellerRecord,
+        ownerProfileAvatarUrl: ownerProfile.avatar_url ?? null,
+        sellerSnapshotAvatarUrl:
+          asTrimmedString(sellerRecord.avatarUrl) ?? asTrimmedString(sellerRecord.avatar_url),
+        sellerSnapshotGooglePhotoUrl:
+          asTrimmedString(sellerRecord.googlePhotoUrl) ??
+          asTrimmedString(sellerRecord.google_photo_url),
+        resolvedAvatarUrl,
+        avatarSourceUsed,
+      });
     }
   }
 
   // 🔽 images
   const { data: imageRows } = await supabase
     .from("listing_images")
-    .select(
-      "listing_id, storage_path_600, storage_path_1800, sort_order"
-    )
+    .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
     .eq("listing_id", listingId)
     .order("sort_order", { ascending: true });
 
-  const images = (imageRows ?? [])
-    .map((row) =>
-      row.storage_path_600
-        ? supabase.storage
-            .from("uploads")
-            .getPublicUrl(row.storage_path_600).data?.publicUrl ?? null
-        : null
-    )
-    .filter((v): v is string => Boolean(v));
-
-  const images1600 = (imageRows ?? [])
-    .map((row) =>
-      row.storage_path_1800
-        ? supabase.storage
-            .from("uploads")
-            .getPublicUrl(row.storage_path_1800).data?.publicUrl ?? null
-        : null
-    )
-    .filter((v): v is string => Boolean(v));
+  const imageMap = buildListingImageMap(
+    supabase,
+    (imageRows ?? []) as {
+      listing_id?: string | null;
+      image_url?: string | null;
+      storage_path_600?: string | null;
+      storage_path_1800?: string | null;
+      sort_order?: number | null;
+    }[]
+  );
+  const imageData = imageMap.get(listingId) ?? null;
 
   let savedByCurrentUser = false;
 
@@ -147,16 +202,13 @@ export async function getListingById(
     seller: seller as Listing["seller"],
     sellerType,
 
-    images: images.length > 0 ? images : (data as Listing).images,
-    images1600:
-      images1600.length > 0
-        ? images1600
-        : (data as Listing).images1600,
+    images: imageData?.images.length ? imageData.images : (data as Listing).images,
+    images1600: imageData?.images1600.length
+      ? imageData.images1600
+      : (data as Listing).images1600,
 
-    coverImage:
-      images[0] ?? (data as Listing).coverImage ?? null,
+    coverImage: imageData?.coverImage ?? (data as Listing).coverImage ?? null,
 
-    photoCount:
-      images.length || (data as Listing).photoCount,
+    photoCount: imageData?.photoCount || (data as Listing).photoCount,
   } as Listing;
 }

@@ -78,15 +78,25 @@ export async function POST(request: Request) {
       sortOrder = latestImage.sort_order + 1;
     }
 
+    const { data: largeUrl } = supabase.storage
+      .from("uploads")
+      .getPublicUrl(largePath);
+    const { data: mediumUrl } = supabase.storage
+      .from("uploads")
+      .getPublicUrl(mediumPath);
+
     const { data: listingImage, error: listingImageError } = await supabase
       .from("listing_images")
       .insert({
         listing_id: listingId,
-        storage_path_1800: largePath,
+        image_url: mediumUrl?.publicUrl ?? largeUrl?.publicUrl ?? null,
         storage_path_600: mediumPath,
+        storage_path_1800: largePath,
         sort_order: sortOrder,
       })
-      .select("id, listing_id, storage_path_1800, storage_path_600, sort_order, created_at")
+      .select(
+        "id, listing_id, image_url, storage_path_600, storage_path_1800, sort_order, created_at"
+      )
       .maybeSingle();
 
     if (listingImageError) {
@@ -99,13 +109,6 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-
-    const { data: largeUrl } = supabase.storage
-      .from("uploads")
-      .getPublicUrl(largePath);
-    const { data: mediumUrl } = supabase.storage
-      .from("uploads")
-      .getPublicUrl(mediumPath);
 
     return NextResponse.json({
       imageId,

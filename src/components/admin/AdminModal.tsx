@@ -4,9 +4,10 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { DialogContent } from "@/components/ui/dialog";
+import { dialogPadding, mobileDialogWidth } from "@/lib/layout/constants";
 
 const adminModalBaseClassName =
-  "w-full max-w-[calc(100%-2rem)] rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden p-0 gap-0 ring-0";
+  "w-full rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden p-0 gap-0 ring-0";
 
 const adminModalOverlayClassName =
   "fixed inset-0 bg-slate-900/20 backdrop-blur-sm supports-backdrop-filter:backdrop-blur-sm";
@@ -30,7 +31,7 @@ export function AdminModal({
     <DialogContent
       showCloseButton={showCloseButton}
       overlayClassName={adminModalOverlayClassName}
-      className={cn(adminModalBaseClassName, maxWidthClassName, className)}
+      className={cn(adminModalBaseClassName, mobileDialogWidth, maxWidthClassName, className)}
       onOpenAutoFocus={onOpenAutoFocus}
     >
       {children}
@@ -43,21 +44,22 @@ type AdminModalSectionProps = React.ComponentProps<"div">;
 export function AdminModalHeader({ className, ...props }: AdminModalSectionProps) {
   return (
     <div
-      className={cn("px-6 py-5 border-b border-slate-200", className)}
+      className={cn("border-b border-slate-200", dialogPadding, className)}
       {...props}
     />
   );
 }
 
 export function AdminModalBody({ className, ...props }: AdminModalSectionProps) {
-  return <div className={cn("px-6 py-5", className)} {...props} />;
+  return <div className={cn(dialogPadding, className)} {...props} />;
 }
 
 export function AdminModalFooter({ className, ...props }: AdminModalSectionProps) {
   return (
     <div
       className={cn(
-        "px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3",
+        "border-t border-slate-200 bg-white flex justify-end gap-3",
+        dialogPadding,
         className
       )}
       {...props}

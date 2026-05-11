@@ -5,6 +5,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { ListingType } from "@/types/listing";
 import AdminModerationClient from "@/components/admin/AdminModerationClient";
 
+const ADMIN_EMAIL = "info@vuxsy.com";
+
 type ListingReport = {
   id: string;
   listing_id: string;
@@ -76,13 +78,8 @@ async function getAdminUser() {
     return null;
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-  if (profileError || profile?.role !== "admin") {
+  const normalizedEmail = data.user.email?.trim().toLowerCase();
+  if (normalizedEmail !== ADMIN_EMAIL) {
     return null;
   }
 
@@ -96,27 +93,18 @@ async function getModeratorUser() {
     return null;
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-  if (profileError || !profile?.role) {
+  const normalizedEmail = data.user.email?.trim().toLowerCase();
+  if (normalizedEmail !== ADMIN_EMAIL) {
     return null;
   }
 
-  if (profile.role !== "admin" && profile.role !== "moderator") {
-    return null;
-  }
-
-  return { user: data.user, role: profile.role as "admin" | "moderator" };
+  return { user: data.user, role: "admin" as const };
 }
 
 async function requireAdmin() {
   const user = await getAdminUser();
   if (!user) {
-    redirect("/dashboard");
+    redirect("/dashboard/listings");
   }
   return user;
 }
@@ -124,7 +112,7 @@ async function requireAdmin() {
 async function requireModerator() {
   const user = await getModeratorUser();
   if (!user) {
-    redirect("/dashboard");
+    redirect("/dashboard/listings");
   }
   return user;
 }

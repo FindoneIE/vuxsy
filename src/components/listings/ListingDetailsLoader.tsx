@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import ListingDetailsPage from "@/components/listings/ListingDetailsPage";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { runtimeLog } from "@/lib/diagnostics/runtimeLog";
 import { getListingById } from "@/lib/listings/getListingById";
 import type { Listing } from "@/types/listing";
 
@@ -11,10 +13,14 @@ type ListingDetailsLoaderProps = {
 };
 
 export default function ListingDetailsLoader({ listingId }: ListingDetailsLoaderProps) {
+  const { user, loading: authLoading } = useAuth();
+  const authUserId = user?.id ?? null;
   const [listing, setListing] = React.useState<Listing | null>(null);
+  const [listingAuthUserId, setListingAuthUserId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [processing, setProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const previousAuthUserIdRef = React.useRef<string | null>(null);
 
   const hasProcessedImages = React.useCallback((nextListing: Listing | null) => {
     if (!nextListing) return false;
@@ -36,28 +42,73 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     [hasProcessedImages, isListingActive]
   );
 
+  React.useLayoutEffect(() => {
+    const nextAuthUserId = authUserId;
+    const previousAuthUserId = previousAuthUserIdRef.current;
+
+    if (previousAuthUserId !== nextAuthUserId) {
+      setListing(null);
+      setListingAuthUserId(nextAuthUserId);
+      setProcessing(false);
+      setError(null);
+      setLoading(Boolean(listingId));
+    }
+
+    previousAuthUserIdRef.current = nextAuthUserId;
+  }, [listingId, authUserId]);
+
   React.useEffect(() => {
     let mounted = true;
 
+    runtimeLog("LISTING LOADER EFFECT", {
+      listingId: listingId ?? null,
+      authLoading,
+      authUserId,
+      reason: "effect-triggered",
+    });
+
     async function fetchListing() {
+      const fetchAuthUserId = authUserId;
+
       if (!listingId) {
         setListing(null);
+        setListingAuthUserId(fetchAuthUserId);
         setLoading(false);
         return;
       }
 
       try {
+        runtimeLog("LISTING LOADER FETCH START", {
+          listingId: listingId ?? null,
+          authLoading,
+          authUserId: fetchAuthUserId,
+        });
         setLoading(true);
         setProcessing(false);
         setError(null);
 
         const maxAttempts = 60;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-          const data = await getListingById(listingId);
+          const data = await getListingById(listingId, {
+            currentUserId: fetchAuthUserId,
+          });
           if (!mounted) return;
+
+          runtimeLog("PUBLIC LISTING FETCH", {
+            listingId,
+            authUserId: fetchAuthUserId,
+            sellerProfileLoaded: Boolean(data?.seller),
+            sellerPayload: data?.seller ?? null,
+            sellerAvatarUrl:
+              (data?.seller as { avatarUrl?: string | null; avatar_url?: string | null } | null)
+                ?.avatarUrl ??
+              (data?.seller as { avatar_url?: string | null } | null)?.avatar_url ??
+              null,
+          });
 
           if (!data) {
             setListing(null);
+            setListingAuthUserId(fetchAuthUserId);
             setLoading(false);
             setError("This listing no longer exists (deleted)");
             return;
@@ -65,25 +116,36 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
 
           if (!isListingActive(data)) {
             setListing(null);
+            setListingAuthUserId(fetchAuthUserId);
             setLoading(false);
             setError("This listing is not available.");
             return;
           }
 
           if (isListingReady(data)) {
+            runtimeLog("LISTING LOADER FETCH READY", {
+              listingId,
+              authUserId: fetchAuthUserId,
+            });
             setListing(data);
+            setListingAuthUserId(fetchAuthUserId);
             setProcessing(false);
             setLoading(false);
             return;
           }
 
           setListing(data);
+          setListingAuthUserId(fetchAuthUserId);
           setProcessing(true);
           setLoading(false);
           await new Promise((resolve) => setTimeout(resolve, 3000));
         }
       } catch {
         if (!mounted) return;
+        runtimeLog("LISTING LOADER FETCH ERROR", {
+          listingId: listingId ?? null,
+          authUserId: fetchAuthUserId,
+        });
         setError("Failed to load listing details.");
       } finally {
         if (!mounted) return;
@@ -96,7 +158,18 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     return () => {
       mounted = false;
     };
-  }, [listingId, hasProcessedImages, isListingActive, isListingReady]);
+  }, [
+    listingId,
+    hasProcessedImages,
+    isListingActive,
+    isListingReady,
+    authUserId,
+    authLoading,
+  ]);
+
+  if (listing && listingAuthUserId !== authUserId) {
+    return null;
+  }
 
   if (loading) {
     return null;

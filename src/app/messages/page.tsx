@@ -14,8 +14,8 @@ export default function MessagesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="py-8">
-        <div className="flex items-center gap-3">
+      <div className="py-2 sm:py-4">
+        <div className="flex items-center gap-2.5">
           {user ? (
             <UserAvatar
               avatarUrl={profile?.avatarUrl ?? null}
@@ -23,11 +23,12 @@ export default function MessagesPage() {
               displayName={resolvedDisplayName}
               email={resolvedEmail}
               size={36}
+              showFallbackIcon={false}
             />
           ) : null}
           <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
         </div>
-        <p className="mt-2 text-sm text-slate-500">Your conversations will appear here.</p>
+        <p className="mt-1.5 text-sm text-slate-500">Your conversations will appear here.</p>
       </div>
     </ProtectedRoute>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   ClipboardList,
@@ -22,13 +22,23 @@ import PageContainer from "@/components/layout/PageContainer";
 import MobileQuickSearchSheet from "@/components/search/MobileQuickSearchSheet";
 import { useSavedListings } from "@/components/listings/SavedListingsProvider";
 import UserAvatar from "@/components/ui/UserAvatar";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  getVisibleUnreadMessageCountForCurrentUser,
+  markConversationRead,
+  restoreConversationVisibilityForCurrentUser,
+} from "@/lib/messages/actions";
 import useMediaQuery from "../../hooks/useMediaQuery";
+
+const MESSAGES_UNREAD_UPDATED_EVENT = "messages:unread-updated";
+const ADMIN_EMAIL = "info@vuxsy.com";
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { user, loading, avatarData, profile } = useAuth();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { count: savedCount, isLoaded: savedLoaded } = useSavedListings();
   const createListingHref = user ? "/publish" : "/login?redirect=/publish";
   const showSavedBadge = profile?.showSavedBadge ?? true;
@@ -36,10 +46,29 @@ export default function Header() {
     ? "/dashboard/saved"
     : `/login?redirect=${encodeURIComponent("/dashboard/saved")}`;
   const pathname = usePathname();
-  const isAdmin = profile?.role === "admin";
+  const activeConversationId = useMemo(() => {
+    if (!pathname) return null;
+    const match = pathname.match(/^\/dashboard\/messages\/([^/?#]+)/);
+    if (!match?.[1]) return null;
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }, [pathname]);
+  const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
   const [pendingReports, setPendingReports] = useState<number | null>(null);
   const [reportPollingEnabled, setReportPollingEnabled] = useState(true);
   const canPollAdminReports = Boolean(user) && isAdmin;
+  const userId = user?.id ?? null;
+  const [unreadCount, setUnreadCount] = useState(0);
+  const activeConversationIdRef = useRef<string | null>(activeConversationId);
+  const fetchUnreadCountRef = useRef<() => Promise<void>>(async () => {});
+  const unreadFetchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
 
   const fetchReportCount = useMemo(
     () => async () => {
@@ -86,6 +115,159 @@ export default function Header() {
     return () => window.clearTimeout(id);
   }, [canPollAdminReports]);
 
+  const fetchUnreadCount = useCallback(async () => {
+    if (!userId) return;
+
+    const requestId = unreadFetchRequestIdRef.current + 1;
+    unreadFetchRequestIdRef.current = requestId;
+
+    try {
+      const count = await getVisibleUnreadMessageCountForCurrentUser(activeConversationId);
+      if (requestId !== unreadFetchRequestIdRef.current) return;
+      setUnreadCount(count);
+    } catch (error) {
+      if (requestId !== unreadFetchRequestIdRef.current) return;
+      console.error("Failed to load unread conversation count", error);
+      setUnreadCount(0);
+    }
+  }, [activeConversationId, userId]);
+
+  useEffect(() => {
+    fetchUnreadCountRef.current = fetchUnreadCount;
+  }, [fetchUnreadCount]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const id = window.setTimeout(() => {
+      void fetchUnreadCountRef.current();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      const resetId = window.setTimeout(() => {
+        setUnreadCount(0);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(resetId);
+      };
+    }
+
+    void fetchUnreadCountRef.current();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    void fetchUnreadCountRef.current();
+  }, [activeConversationId, userId]);
+
+  useEffect(() => {
+    if (!user || !activeConversationId) return;
+
+    void (async () => {
+      try {
+        await markConversationRead(activeConversationId);
+        await fetchUnreadCountRef.current();
+      } catch (error) {
+        console.error("Failed to mark active conversation as read", error);
+      }
+    })();
+  }, [activeConversationId, user]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const handleUnreadUpdated = () => {
+      void fetchUnreadCountRef.current();
+    };
+
+    window.addEventListener(MESSAGES_UNREAD_UPDATED_EVENT, handleUnreadUpdated);
+    return () => {
+      window.removeEventListener(MESSAGES_UNREAD_UPDATED_EVENT, handleUnreadUpdated);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    const currentUserId = userId;
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel(`header-messages-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `recipient_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            conversation_id?: string;
+            sender_id?: string;
+            recipient_id?: string;
+            read_at?: string | null;
+          };
+
+          const conversationId = row.conversation_id ?? null;
+          const recipientId = row.recipient_id ?? null;
+          const senderId = row.sender_id ?? null;
+
+          if (!conversationId) return;
+          if (recipientId !== currentUserId) return;
+          if (senderId === currentUserId) return;
+
+          void (async () => {
+            const activeId = activeConversationIdRef.current;
+            const isActiveConversation = Boolean(activeId) && conversationId === activeId;
+
+            if (isActiveConversation) {
+              try {
+                await markConversationRead(conversationId);
+              } catch (error) {
+                console.error(
+                  "Failed to mark active incoming conversation as read from header realtime",
+                  error
+                );
+              }
+              await fetchUnreadCountRef.current();
+              return;
+            }
+
+            try {
+              await restoreConversationVisibilityForCurrentUser(conversationId);
+            } catch (error) {
+              console.error(
+                "Failed to restore conversation visibility for incoming message",
+                error
+              );
+            }
+            await fetchUnreadCountRef.current();
+          })();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `recipient_id=eq.${currentUserId}`,
+        },
+        () => {
+          void fetchUnreadCountRef.current();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, userId]);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.classList.toggle("drawer-open", mobileOpen);
@@ -101,11 +283,13 @@ export default function Header() {
     visiblePendingReports && visiblePendingReports > 99
       ? "99+"
       : visiblePendingReports?.toString();
+  const unreadBadgeLabel = unreadCount > 99 ? "99+" : unreadCount.toString();
+  const showUnreadBadge = Boolean(userId) && unreadCount > 0;
 
   const accountLinks = [
-    { label: "My Listings", href: "/dashboard/listings", icon: ClipboardList },
+    { label: "My listings", href: "/dashboard/listings", icon: ClipboardList },
     { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
-    { label: "Saved", href: "/dashboard/saved", icon: Heart },
+    { label: "Saved listings", href: "/dashboard/saved", icon: Heart },
     { label: "Profile", href: "/dashboard/settings", icon: User },
   ];
 
@@ -115,6 +299,12 @@ export default function Header() {
   const avatarUrl = avatarData?.avatarUrl ?? profile?.avatarUrl ?? null;
   const googlePhotoUrl = avatarData?.googlePhotoUrl ?? profile?.googlePhotoUrl ?? null;
   const isAuthReady = !loading;
+  const onAdminRoute = pathname?.startsWith("/dashboard/admin") ?? false;
+  const showAdminLink = (isAuthReady && isAdmin) || (!isAuthReady && onAdminRoute);
+  const canAccessAdminLink = (isAuthReady && isAdmin) || (!isAuthReady && onAdminRoute);
+  const showAdminBadge = Boolean(showAdminLink && visiblePendingReports && visiblePendingReports > 0);
+  const showMessageIcon = isAuthReady ? Boolean(userId) : true;
+  const messageHref = userId ? "/dashboard/messages" : "/login";
 
   const handleLogout = async () => {
     await logOut();
@@ -131,9 +321,9 @@ export default function Header() {
                   <Image
                     src="/logo.svg"
                     alt="Findone"
-                    className="logo-img"
-                    width={120}
-                    height={40}
+                    className="logo-img h-16 w-auto"
+                    width={210}
+                    height={70}
                     priority
                   />
                 </Link>
@@ -148,6 +338,33 @@ export default function Header() {
                 >
                   <Search className="w-7 h-7" weight="regular" />
                 </button>
+
+                {showMessageIcon ? (
+                  <Link
+                    href={isAuthReady ? messageHref : "#"}
+                    className="mobile-icon relative"
+                    aria-label="Messages"
+                    aria-disabled={!isAuthReady}
+                    tabIndex={isAuthReady ? undefined : -1}
+                    onClick={(event) => {
+                      if (!isAuthReady) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    <MessageCircle className="w-7 h-7 text-[#111827]" weight="regular" />
+                    {showUnreadBadge ? (
+                      <span
+                        className="site-header__unread-badge"
+                        aria-label={`${unreadBadgeLabel} unread messages`}
+                      >
+                        {unreadBadgeLabel}
+                      </span>
+                    ) : null}
+                  </Link>
+                ) : (
+                  <span className="mobile-icon mobile-icon--placeholder" aria-hidden="true" />
+                )}
 
                 <Link
                   href={savedHref}
@@ -203,9 +420,9 @@ export default function Header() {
                   <Image
                     src="/logo.svg"
                     alt="Findone"
-                    className="logo-img"
-                    width={120}
-                    height={40}
+                    className="logo-img h-16 w-auto"
+                    width={210}
+                    height={70}
                   />
                 </Link>
                 <button
@@ -250,6 +467,12 @@ export default function Header() {
                         {accountLinks.map((link) => {
                           const isActive = pathname === link.href;
                           const Icon = link.icon;
+                          const iconWeight =
+                            link.href === "/dashboard/messages"
+                              ? "regular"
+                              : isActive
+                                ? "fill"
+                                : "regular";
                           return (
                             <Link
                               key={link.href}
@@ -260,10 +483,10 @@ export default function Header() {
                               <span className="mobile-menu__icon-wrap menu-item__icon">
                                 <Icon
                                   className="mobile-menu__icon"
-                                  weight={isActive ? "fill" : "regular"}
+                                  weight={iconWeight}
                                 />
                               </span>
-                              <span className="mobile-menu__row-label">{link.label}</span>
+                              <span className="mobile-menu__row-label text-sm">{link.label}</span>
                             </Link>
                           );
                         })}
@@ -333,9 +556,9 @@ export default function Header() {
                 <Image
                   src="/logo.svg"
                   alt="Findone"
-                  className="logo-img"
-                  width={120}
-                  height={40}
+                  className="logo-img h-16 w-auto"
+                  width={210}
+                  height={70}
                   priority
                 />
               </Link>
@@ -368,61 +591,107 @@ export default function Header() {
                   Marketplace
                 </Link>
 
-                {isAdmin ? (
-                  <span className="relative inline-flex items-center">
-                    <Link
-                      href="/dashboard/admin"
-                      className={`site-nav__link${pathname?.startsWith("/dashboard/admin") ? " is-active" : ""}`}
-                    >
-                      Admin
-                    </Link>
-                    {visiblePendingReports && visiblePendingReports > 0 ? (
-                      <span className="absolute -right-3 -top-2 flex min-w-4.5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
-                        {badgeLabel}
-                      </span>
-                    ) : null}
+                <span className="site-nav__admin-slot relative inline-flex items-center">
+                  <Link
+                    href={canAccessAdminLink ? "/dashboard/admin" : "#"}
+                    className={`site-nav__link${pathname?.startsWith("/dashboard/admin") ? " is-active" : ""}${showAdminLink ? "" : " site-nav__link--placeholder"}`}
+                    aria-disabled={!canAccessAdminLink}
+                    tabIndex={canAccessAdminLink ? undefined : -1}
+                    onClick={(event) => {
+                      if (!canAccessAdminLink) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    Admin
+                  </Link>
+
+                  <span
+                    className={`site-nav__admin-badge${showAdminBadge ? "" : " site-nav__admin-badge--placeholder"}`}
+                    aria-hidden={!showAdminBadge}
+                  >
+                    {showAdminBadge ? badgeLabel : "99+"}
                   </span>
-                ) : null}
+                </span>
               </nav>
             </div>
 
             <div className="site-header__actions site-header__actions-wrapper" data-ls="actions-wrapper">
               <div className="site-header__actions-group">
-                <div className="site-header__auth" data-ls="auth">
-                  <div className="site-header__auth-slot" data-ls="auth-slot">
-                    {isAuthReady && user ? (
-                      <AvatarDropdown
-                        avatarData={avatarData}
-                        onLogout={handleLogout}
-                        data-ls="avatar-real"
-                        className="avatar-circle"
-                      />
-                    ) : isAuthReady ? (
-                      <Link
-                        href="/login"
-                        className="site-header__auth-link"
-                        aria-label="Log in"
-                      >
-                        Login
-                      </Link>
-                    ) : (
-                      <div
-                        className="avatar-circle site-header__auth-spacer"
-                        data-ls="avatar-loading"
-                        aria-hidden
-                      />
-                    )}
+                <div className="site-header__auth-cluster">
+                  {showMessageIcon ? (
+                    <Link
+                      href={isAuthReady ? messageHref : "#"}
+                      className="site-header__message-icon"
+                      aria-label="Messages"
+                      aria-disabled={!isAuthReady}
+                      tabIndex={isAuthReady ? undefined : -1}
+                      onClick={(event) => {
+                        if (!isAuthReady) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      <MessageCircle className="h-6 w-6" weight="regular" />
+                      {showUnreadBadge ? (
+                        <span
+                          className="site-header__unread-badge"
+                          aria-label={`${unreadBadgeLabel} unread messages`}
+                        >
+                          {unreadBadgeLabel}
+                        </span>
+                      ) : null}
+                    </Link>
+                  ) : (
+                    <span
+                      className="site-header__message-icon site-header__message-icon--placeholder"
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <div className="site-header__auth" data-ls="auth">
+                    <div className="site-header__auth-slot" data-ls="auth-slot">
+                      {isAuthReady && user ? (
+                        <AvatarDropdown
+                          avatarData={avatarData}
+                          onLogout={handleLogout}
+                          data-ls="avatar-real"
+                          className="avatar-circle"
+                        />
+                      ) : isAuthReady ? (
+                        <Link
+                          href="/login"
+                          className="site-header__auth-link"
+                          aria-label="Log in"
+                        >
+                          Login
+                        </Link>
+                      ) : (
+                        <div
+                          className="avatar-circle site-header__auth-spacer"
+                          data-ls="avatar-loading"
+                          aria-hidden
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="site-header__cta" data-ls="cta">
-                  {isAuthReady ? (
-                    <Link href={createListingHref} className="btn btn-primary" aria-label="Create listing">
-                      Create Listing
-                    </Link>
-                  ) : (
-                    <div className="site-header__cta-spacer" aria-hidden />
-                  )}
+                  <Link
+                    href={isAuthReady ? createListingHref : "#"}
+                    className="btn btn-primary"
+                    aria-label="Create listing"
+                    aria-disabled={!isAuthReady}
+                    tabIndex={isAuthReady ? undefined : -1}
+                    onClick={(event) => {
+                      if (!isAuthReady) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    Create Listing
+                  </Link>
                 </div>
               </div>
             </div>

@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
-import PageContainer from "@/components/layout/PageContainer";
 import ListingStatusBadge from "@/components/listings/ListingStatusBadge";
 import LocationFields from "@/components/location/LocationFields";
 import PhotoUploadField, { type PhotoDraft } from "@/components/forms/listing/PhotoUploadField";
@@ -36,11 +35,11 @@ import type { Listing, ListingType } from "@/types/listing";
 import type { UserProfile } from "@/types/user";
 
 type ExistingImage = {
-  path600?: string | null;
-  path1800?: string | null;
-  url?: string | null;
-  largeUrl?: string | null;
+  id?: string | null;
+  storagePath?: string | null;
+  imageUrl?: string | null;
   sortOrder?: number | null;
+  isPrimary?: boolean | null;
 };
 
 const statusOptions: Array<{ value: Listing["status"]; label: string }> = [
@@ -331,7 +330,7 @@ export default function ListingEditPage() {
       resolveCategorySlug(result.category_id),
       createSupabaseBrowserClient()
         .from("listing_images")
-        .select("storage_path_600, storage_path_1800, sort_order")
+        .select("id, image_url, storage_path_600, storage_path_1800, sort_order")
         .eq("listing_id", result.id)
         .order("sort_order", { ascending: true })
         .then(({ data }) => data ?? []),
@@ -595,19 +594,16 @@ export default function ListingEditPage() {
 
     const supabase = createSupabaseBrowserClient();
     const images: ExistingImage[] = (imageRows ?? []).map((row) => {
-      const url = row.storage_path_600
+      const url = row.image_url
+        ? row.image_url
+        : row.storage_path_600
         ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_600).data
             ?.publicUrl ?? null
         : null;
-      const largeUrl = row.storage_path_1800
-        ? supabase.storage.from("uploads").getPublicUrl(row.storage_path_1800).data
-            ?.publicUrl ?? null
-        : null;
       return {
-        path600: row.storage_path_600,
-        path1800: row.storage_path_1800,
-        url,
-        largeUrl,
+        id: row.id,
+        storagePath: row.storage_path_600 ?? null,
+        imageUrl: url,
         sortOrder: row.sort_order,
       };
     });
@@ -657,32 +653,34 @@ export default function ListingEditPage() {
   };
 
   const handleRemoveExisting = async (image: ExistingImage) => {
-    if (!listingId || !image.path600) return;
+    if (!listingId || !image.id) return;
     const supabase = createSupabaseBrowserClient();
     await supabase
       .from("listing_images")
       .delete()
       .eq("listing_id", listingId)
-      .eq("storage_path_600", image.path600);
-    setExistingImages((prev) => prev.filter((item) => item.path600 !== image.path600));
+      .eq("id", image.id);
+    setExistingImages((prev) => prev.filter((item) => item.id !== image.id));
     setDirty(true);
   };
 
   const handleSetCover = async (image: ExistingImage) => {
-    if (!listingId || !image.path600) return;
+    if (!listingId || !image.id) return;
     const sorted = [...existingImages]
-      .filter((item) => item.path600)
+      .filter((item) => item.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    const reordered = [image, ...sorted.filter((item) => item.path600 !== image.path600)];
+    const reordered = [image, ...sorted.filter((item) => item.id !== image.id)];
     const supabase = createSupabaseBrowserClient();
 
     await Promise.all(
       reordered.map((item, index) =>
-        supabase
-          .from("listing_images")
-          .update({ sort_order: index })
-          .eq("listing_id", listingId)
-          .eq("storage_path_600", item.path600)
+        item.id
+          ? supabase
+              .from("listing_images")
+              .update({ sort_order: index })
+              .eq("listing_id", listingId)
+              .eq("id", item.id)
+          : Promise.resolve(null)
       )
     );
 
@@ -884,10 +882,11 @@ export default function ListingEditPage() {
 
       if (uploads.length) {
         const nextImages: ExistingImage[] = uploads.map((item) => ({
-          path600: item.path,
-          path1800: item.largePath,
-          url: item.publicUrl ?? null,
-          largeUrl: item.largeUrl ?? item.publicUrl ?? null,
+          id: item.imageId ?? null,
+          storagePath: item.path,
+          imageUrl: item.publicUrl ?? null,
+          sortOrder: null,
+          isPrimary: null,
         }));
         setExistingImages((prev) => [...prev, ...nextImages]);
       }
@@ -951,7 +950,7 @@ export default function ListingEditPage() {
 
   return (
     <ProtectedRoute>
-      <PageContainer className="mx-auto max-w-5xl">
+      <div className="mx-auto w-full max-w-5xl">
         <div className="space-y-6 py-4 sm:py-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
@@ -996,7 +995,11 @@ export default function ListingEditPage() {
             </div>
           ) : (
             <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
-              <form id="edit-listing-form" onSubmit={handleSave} className="space-y-6">
+              <form
+                id="edit-listing-form"
+                onSubmit={handleSave}
+                className="space-y-6 [&_.form-card]:p-4 sm:[&_.form-card]:p-6"
+              >
                 <section className="form-section form-card">
                   <h3 className="form-card-title">Basic information</h3>
                   <div className="field-block">
@@ -1094,12 +1097,12 @@ export default function ListingEditPage() {
                     <div className="grid gap-3 sm:grid-cols-3">
                       {existingImages.map((image, index) => (
                         <div
-                          key={image.path600 ?? image.url}
+                          key={image.id ?? image.storagePath ?? image.imageUrl}
                           className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
                         >
-                          {image.url ? (
+                          {image.imageUrl ? (
                             <Image
-                              src={image.url}
+                              src={image.imageUrl}
                               alt="Listing image"
                               width={320}
                               height={200}
@@ -1368,7 +1371,7 @@ export default function ListingEditPage() {
             </div>
           )}
         </div>
-      </PageContainer>
+      </div>
     </ProtectedRoute>
   );
 }
