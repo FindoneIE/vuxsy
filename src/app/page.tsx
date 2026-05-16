@@ -27,7 +27,7 @@ export default async function HomePage() {
         {/* Decorative background */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-32 -z-10 h-[640px] bg-[radial-gradient(60%_60%_at_50%_0%,rgba(52,87,155,0.18),transparent_70%)]"
+          className="pointer-events-none absolute inset-x-0 -top-32 -z-10 h-160 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(52,87,155,0.18),transparent_70%)]"
         />
         <div
           aria-hidden
@@ -42,12 +42,12 @@ export default async function HomePage() {
           {/* Left: copy */}
           <div className="max-w-xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
-              <Sparkles weight="regular" className="h-3.5 w-3.5 text-[color:var(--color-primary)]" />
+              <Sparkles weight="regular" className="h-3.5 w-3.5 text-(--color-primary)" />
               Ireland's friendly local marketplace
             </span>
 
             <h1 className="mt-4 text-[34px] leading-[1.05] font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-[56px]">
-              Find local <span className="text-[color:var(--color-primary)]">services</span>,
+              Find local <span className="text-(--color-primary)">services</span>,
               get help, and shop nearby.
             </h1>
 
@@ -60,7 +60,7 @@ export default async function HomePage() {
               <Link
                 href="/services"
                 style={{ color: "#ffffff" }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[color:var(--color-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(52,87,155,0.7)] transition hover:bg-[color:var(--color-primary-hover)] hover:text-white focus:text-white active:text-white [&_*]:text-white"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-(--color-primary) px-5 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(52,87,155,0.7)] transition hover:bg-(--color-primary-hover) hover:text-white focus:text-white active:text-white **:text-white"
               >
                 <span style={{ color: "#ffffff" }} className="text-white">Browse services</span>
                 <ArrowUpRight weight="regular" className="h-4 w-4 text-white" />
@@ -109,7 +109,7 @@ export default async function HomePage() {
             const Icon = item.icon;
             return (
               <div key={item.title} className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(52,87,155,0.08)] text-[color:var(--color-primary)]">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(52,87,155,0.08)] text-(--color-primary)">
                   <Icon weight="regular" className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
@@ -167,7 +167,7 @@ export default async function HomePage() {
                 className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_14px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_40px_-20px_rgba(31,42,68,0.25)]"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[rgba(52,87,155,0.08)] text-[color:var(--color-primary)] transition group-hover:bg-[rgba(52,87,155,0.14)]">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[rgba(52,87,155,0.08)] text-(--color-primary) transition group-hover:bg-[rgba(52,87,155,0.14)]">
                     <Icon weight="regular" className="h-5 w-5" />
                   </span>
                   <ArrowUpRight weight="regular" className="h-4 w-4 text-slate-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-700" />
@@ -176,7 +176,7 @@ export default async function HomePage() {
                   <h3 className="text-lg font-semibold text-slate-900">{card.title}</h3>
                   <p className="mt-1 text-sm text-slate-600">{card.text}</p>
                 </div>
-                <span className="mt-1 text-sm font-semibold text-[color:var(--color-primary)]">
+                <span className="mt-1 text-sm font-semibold text-(--color-primary)">
                   {card.cta} &rarr;
                 </span>
               </Link>
@@ -198,7 +198,7 @@ export default async function HomePage() {
           </div>
           <Link
             href="/services"
-            className="hidden text-sm font-semibold text-[color:var(--color-primary)] hover:text-[color:var(--color-primary-hover)] sm:inline-flex sm:items-center sm:gap-1"
+            className="hidden text-sm font-semibold text-(--color-primary) hover:text-(--color-primary-hover) sm:inline-flex sm:items-center sm:gap-1"
           >
             See all <ArrowUpRight weight="regular" className="h-4 w-4" />
           </Link>
@@ -217,7 +217,7 @@ export default async function HomePage() {
         <div className="mt-6 text-center sm:hidden">
           <Link
             href="/services"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-[color:var(--color-primary)]"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-(--color-primary)"
           >
             See all <ArrowUpRight weight="regular" className="h-4 w-4" />
           </Link>
@@ -254,7 +254,7 @@ export default async function HomePage() {
               <Link
                 href="/signup"
                 style={{ color: "#ffffff" }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 text-sm font-semibold text-white transition hover:bg-white/10 hover:text-white focus:text-white active:text-white [&_*]:text-white"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 text-sm font-semibold text-white transition hover:bg-white/10 hover:text-white focus:text-white active:text-white **:text-white"
               >
                 <span style={{ color: "#ffffff" }} className="text-white">Create account</span>
               </Link>
