@@ -64,17 +64,17 @@ export default function ListingsList({ items, className, eagerCount = 4 }: Props
             <Link
               href={href}
               className={cn(
-                "group flex items-center gap-4 rounded-xl overflow-hidden bg-white px-4 py-0 pl-0 shadow-sm transition cursor-pointer mb-2 md:mb-3 last:mb-0 md:gap-3 md:rounded-xl md:bg-white md:p-3 md:shadow-none md:transition-[border-color,box-shadow,transform] md:duration-200 md:ease-in-out lg:hidden",
+                "group relative flex gap-3 overflow-hidden rounded-xl bg-white shadow-sm transition cursor-pointer mb-2 last:mb-0 md:mb-3 md:gap-4 md:shadow-none md:transition-[border-color,box-shadow,transform] md:duration-200 md:ease-in-out lg:hidden",
                 className
               )}
             >
-              <div className="listing-card__image-wrapper relative h-32 w-32 shrink-0 overflow-hidden rounded-none bg-transparent p-0 m-0 md:h-36 md:w-36">
+              <div className="listing-card__image-wrapper relative aspect-square w-[36%] max-w-40 shrink-0 self-start overflow-hidden rounded-none bg-transparent p-0 m-0 sm:w-[34%]">
                 {imageSrc ? (
                   <Image
                     src={imageSrc}
                     alt={title}
                     fill
-                    sizes="(max-width: 768px) 128px, (max-width: 1024px) 144px"
+                    sizes="(max-width: 640px) 38vw, (max-width: 1024px) 180px"
                     priority={isEager}
                     loading={isEager ? "eager" : "lazy"}
                     fetchPriority={isEager ? "high" : "auto"}
@@ -107,45 +107,54 @@ export default function ListingsList({ items, className, eagerCount = 4 }: Props
                 )}
               </div>
 
-              <div className="min-w-0 flex-1 md:flex md:flex-col md:gap-1.5 md:py-1">
-                <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:mb-1 md:text-base md:font-semibold">
+              <div className="flex min-w-0 flex-1 flex-col gap-1 py-2.5 pr-10 sm:gap-1.5 sm:py-3">
+                <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-(--text-primary) sm:text-base">
                   {title}
                 </h3>
-                {metadataLabel ? (
-                  <div className="mt-0.5 truncate whitespace-nowrap text-xs text-slate-500" title={metadataLabel}>
-                    {metadataLabel}
+                {locationLabel ? (
+                  <div
+                    className="truncate text-[13px] text-slate-600 sm:text-sm"
+                    title={locationLabel}
+                  >
+                    {locationLabel}
+                  </div>
+                ) : null}
+                {(relativeDateLabel || viewsLabel) ? (
+                  <div
+                    className="truncate text-[11px] text-slate-400 sm:text-xs"
+                    title={[relativeDateLabel, viewsLabel].filter(Boolean).join(" • ")}
+                  >
+                    {[relativeDateLabel, viewsLabel].filter(Boolean).join(" • ")}
                   </div>
                 ) : null}
 
                 <ListingPrice
                   price={item.price}
                   currency={item.currency}
-                  className="mt-2.5 [&>span:first-child]:text-lg [&>span:last-child]:text-[1.95rem] [&>span:last-child]:font-semibold md:mt-3 md:[&>span:first-child]:text-xl md:[&>span:last-child]:text-4xl md:[&>span:last-child]:font-bold"
+                  className="pt-1.5"
                 />
               </div>
 
-              <div className="flex w-24 shrink-0 flex-col items-end justify-between text-right text-sm text-(--text-primary) sm:w-28 md:w-32 md:items-end md:pr-1 md:pt-0">
-                <div className="mt-2">
-                  <SavedListingButton
-                    listingId={item.id}
-                    initialSaved={item.savedByCurrentUser}
-                    size="sm"
-                  />
-                </div>
+              <div className="absolute right-2 top-2 z-10">
+                <SavedListingButton
+                  listingId={item.id}
+                  initialSaved={item.savedByCurrentUser}
+                  size="sm"
+                />
               </div>
             </Link>
 
             <Link
               href={href}
-              className="hidden lg:grid lg:grid-cols-[280px_1fr_120px] lg:h-70 rounded-xl overflow-hidden bg-white shadow-sm transition lg:mb-4 last:lg:mb-0"
+              className="group relative hidden overflow-hidden rounded-xl bg-white shadow-sm transition last:lg:mb-0 lg:mb-3 lg:grid lg:h-45 lg:grid-cols-[260px_1fr]"
             >
-              <div className="relative h-70 w-70 overflow-hidden">
+              <div className="relative h-45 w-full overflow-hidden">
                 {imageSrc ? (
                   <Image
                     src={imageSrc}
                     alt={title}
                     fill
-                    sizes="280px"
+                    sizes="260px"
                     priority={isEager}
                     loading={isEager ? "eager" : "lazy"}
                     fetchPriority={isEager ? "high" : "auto"}
@@ -178,19 +187,31 @@ export default function ListingsList({ items, className, eagerCount = 4 }: Props
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 p-6">
-                <h3 className="line-clamp-2 text-[19px] font-semibold leading-6 text-(--text-primary)">{title}</h3>
-                {metadataLabel ? (
-                  <div className="truncate whitespace-nowrap text-[13px] text-slate-500" title={metadataLabel}>
-                    {metadataLabel}
+              <div className="relative flex min-w-0 flex-col gap-1.5 px-5 py-4 pr-14">
+                <h3 className="line-clamp-2 text-[17px] font-semibold leading-snug text-(--text-primary)">
+                  {title}
+                </h3>
+                {locationLabel ? (
+                  <div className="truncate text-sm text-slate-600" title={locationLabel}>
+                    {locationLabel}
+                  </div>
+                ) : null}
+                {(relativeDateLabel || viewsLabel) ? (
+                  <div
+                    className="truncate text-xs text-slate-400"
+                    title={[relativeDateLabel, viewsLabel].filter(Boolean).join(" • ")}
+                  >
+                    {[relativeDateLabel, viewsLabel].filter(Boolean).join(" • ")}
                   </div>
                 ) : null}
 
-                <ListingPrice price={item.price} currency={item.currency} />
-              </div>
+                <ListingPrice
+                  price={item.price}
+                  currency={item.currency}
+                  className="mt-auto pt-2"
+                />
 
-              <div className="flex flex-col items-end justify-between p-6 text-right text-sm text-(--text-primary)">
-                <div className="mt-2 flex items-center justify-end gap-2 text-xs text-slate-500">
+                <div className="absolute right-3 top-3">
                   <SavedListingButton
                     listingId={item.id}
                     initialSaved={item.savedByCurrentUser}

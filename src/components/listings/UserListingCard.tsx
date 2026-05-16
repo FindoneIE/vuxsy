@@ -30,6 +30,21 @@ function formatDate(value?: Date | string | number | null) {
   });
 }
 
+/**
+ * Short date for compact mobile meta. Drops the year so cards read
+ * "Updated May 16" instead of "Updated May 16, 2026" — same density
+ * pattern DoneDeal/Airbnb use on mobile.
+ */
+function formatShortDate(value?: Date | string | number | null) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function UserListingCard({
   id,
   title,
@@ -47,19 +62,23 @@ export default function UserListingCard({
 }: UserListingCardProps) {
   const createdLabel = formatDate(createdAt);
   const updatedLabel = formatDate(updatedAt);
+  const updatedShort = formatShortDate(updatedAt);
+  const createdShort = formatShortDate(createdAt);
   const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-  const dateLabel = updatedLabel ?? createdLabel;
+  const shortDatePrefixed = updatedShort
+    ? `Updated ${updatedShort}`
+    : createdShort ?? null;
 
   return (
     <div
       className={cn(
-        "group rounded-xl overflow-hidden bg-white shadow-sm transition max-sm:flex max-sm:h-47.5 max-sm:flex-col max-sm:overflow-hidden sm:grid sm:h-70 sm:grid-cols-[280px_1fr]",
+        "group overflow-hidden rounded-xl bg-white shadow-sm transition max-sm:flex max-sm:flex-col max-sm:overflow-hidden sm:grid sm:h-70 sm:grid-cols-[280px_1fr]",
         className
       )}
       data-listing-id={id}
     >
-  <div className="max-sm:flex max-sm:h-32.5 sm:contents">
-        <div className="relative shrink-0 overflow-hidden rounded-none bg-transparent p-0 m-0 max-sm:h-32.5 max-sm:w-28 max-sm:shrink-0 sm:h-70 sm:w-70 sm:row-span-2">
+      <div className="max-sm:flex sm:contents">
+        <div className="relative shrink-0 self-start overflow-hidden rounded-none bg-transparent p-0 m-0 max-sm:aspect-square max-sm:w-[38%] max-sm:max-w-44 sm:row-span-2 sm:h-70 sm:w-70">
           {coverImage ? (
             <Image
               src={coverImage}
@@ -75,43 +94,51 @@ export default function UserListingCard({
           )}
         </div>
 
-  <div className="flex min-w-0 flex-1 flex-col max-sm:h-32.5 max-sm:min-w-0 max-sm:p-3 max-sm:relative sm:p-5 sm:col-start-2 sm:row-start-1">
-          <div className="flex min-w-0 items-start justify-between gap-3 sm:block">
+        <div className="flex min-w-0 flex-1 flex-col max-sm:gap-1 max-sm:py-3 max-sm:pr-3 max-sm:pl-2 sm:col-start-2 sm:row-start-1 sm:p-5">
+          <div className="flex min-w-0 items-start justify-between gap-2 sm:block">
             <div className="min-w-0 flex-1">
               <div className="hidden items-center gap-2 sm:flex">
                 <ListingStatusBadge status={status} />
                 <span className="text-xs font-medium text-slate-500">{typeLabel}</span>
               </div>
-              <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:mb-1 md:text-base md:font-semibold sm:mb-0 sm:text-lg max-sm:line-clamp-1 max-sm:font-semibold">
+              <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-(--text-primary) sm:mb-0 sm:text-lg">
                 {title}
               </h3>
               {location ? (
-                <div className="mt-0.5 text-sm text-(--text-primary) opacity-70 sm:mt-0 sm:text-sm max-sm:line-clamp-1">
+                <div className="mt-1 truncate text-[13px] text-slate-600 sm:mt-0 sm:text-sm sm:text-(--text-primary) sm:opacity-70">
                   {location}
                 </div>
               ) : null}
-              <div className="mt-1 text-xs text-(--text-primary) opacity-60 sm:hidden max-sm:line-clamp-1">
-                {typeLabel}
+              {/* Mobile: single clean meta line — combines type + views.
+                  Example: "Service • 0 views". The single short date sits
+                  on the right next to the status badge. */}
+              <div className="mt-1 truncate text-[11px] text-slate-400 sm:hidden">
+                {[typeLabel, views != null ? `${views ?? 0} views` : null]
+                  .filter(Boolean)
+                  .join(" • ")}
               </div>
+              {/* Desktop: combined meta line (unchanged behavior). */}
               {(createdLabel || updatedLabel || views != null) ? (
-                <div className="mt-1 text-xs text-(--text-primary) opacity-60 sm:mt-2 sm:text-sm max-sm:truncate max-sm:whitespace-nowrap max-sm:text-xs">
+                <div className="mt-1 hidden truncate text-[11px] text-slate-400 sm:mt-2 sm:block sm:text-sm sm:text-(--text-primary) sm:opacity-60">
                   {views != null ? `${views ?? 0} views` : null}
                   {createdLabel ? `${views != null ? " • " : ""}Created ${createdLabel}` : ""}
                   {updatedLabel ? `${(views != null || createdLabel) ? " • " : ""}Updated ${updatedLabel}` : ""}
                 </div>
               ) : null}
             </div>
-            <div className="flex w-24 shrink-0 flex-col items-end justify-between text-right text-sm text-(--text-primary) sm:hidden max-sm:absolute max-sm:right-3 max-sm:top-3">
-              <ListingStatusBadge status={status} />
-              {dateLabel ? (
-                <div className="mt-1 text-xs text-(--text-primary) opacity-60 max-sm:whitespace-nowrap">{dateLabel}</div>
+            <div className="flex shrink-0 flex-col items-end gap-1 text-right sm:hidden">
+              <ListingStatusBadge status={status} size="sm" />
+              {shortDatePrefixed ? (
+                <div className="whitespace-nowrap text-[11px] text-slate-400">
+                  {shortDatePrefixed}
+                </div>
               ) : null}
             </div>
           </div>
         </div>
       </div>
 
-  <div className="max-sm:flex max-sm:items-center max-sm:justify-center max-sm:bg-slate-50 max-sm:border-t max-sm:border-slate-200 max-sm:px-4 max-sm:py-2 sm:col-start-2 sm:row-start-2 sm:flex sm:flex-wrap sm:items-center sm:gap-5 sm:pt-4 sm:px-5 sm:pb-5">
+      <div className="max-sm:flex max-sm:items-center max-sm:justify-center max-sm:border-t max-sm:border-slate-200 max-sm:bg-slate-50 max-sm:px-3 max-sm:py-1.5 sm:col-start-2 sm:row-start-2 sm:flex sm:flex-wrap sm:items-center sm:gap-5 sm:px-5 sm:pt-4 sm:pb-5">
         <div className="w-full sm:hidden">{mobileActions}</div>
         <div className="hidden w-full items-center gap-5 sm:flex">
           {secondaryActions}

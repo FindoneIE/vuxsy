@@ -254,14 +254,16 @@ body.drawer-open {
   pointer-events: auto;
 }
 
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-}
+@layer base {
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
 
-a:hover,
-a:focus {
-  color: var(--color-primary-hover);
+  a:hover,
+  a:focus {
+    color: var(--color-primary-hover);
+  }
 }
 
 /* Footer link colors must stay readable on gray background regardless of global anchor styles */
@@ -3765,19 +3767,26 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   color: #111827;
 }
 
-.listing-card__price-balance > span:first-child {
-  font-size: 1.05rem;
-}
-
-.listing-card__price-balance > span:last-child {
-  font-size: 2rem;
-  font-weight: 650;
-}
+/* Price sizing is now owned by the <ListingPrice /> component (uniform
+   Tailwind classes), so the legacy .listing-card__price-balance size
+   overrides have been removed to avoid conflicting per-context sizes.
+   The class is still applied for back-compat selectors elsewhere. */
 
 .listing-card__meta {
   margin: 0;
   color: #667085;
   font-size: 13px;
+  line-height: 1.35;
+}
+
+.listing-card__meta--location {
+  color: #475467;
+  font-weight: 500;
+}
+
+.listing-card__meta--small {
+  color: #98A2B3;
+  font-size: 12px;
 }
 
 .listing-card__count {

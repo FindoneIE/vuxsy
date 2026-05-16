@@ -161,9 +161,7 @@ export default function ListingCard({
     .replace(/^about\s+/i, "")
     .trim();
   const viewsLabel = formatViewsCount(listing.views) ?? "0 views";
-  const compactMetaLabel = [relativeDateLabel, viewsLabel, locationLabel]
-    .filter(Boolean)
-    .join(" • ");
+  const secondaryMetaLabel = [relativeDateLabel, viewsLabel].filter(Boolean).join(" • ");
   const activeImage = carouselImages[activeIndex] ?? null;
   const promotedUntil = listing.promoted_until ?? listing.promotedUntil;
   const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -267,25 +265,34 @@ export default function ListingCard({
           ) : null}
         </div>
 
-        <div className="p-3.5 md:p-4">
-          <div className="flex min-h-26 flex-col justify-between gap-2.5">
-            <div className="min-w-0">
-              <h3 className="listing-card__title line-clamp-2 min-h-[2.7em]">
-                {title}
-              </h3>
-              {compactMetaLabel ? (
-                <p className="listing-card__meta mt-0.5 truncate whitespace-nowrap" title={compactMetaLabel}>
-                  {compactMetaLabel}
-                </p>
-              ) : null}
-            </div>
-
-            <ListingPrice
-              price={listing.price}
-              currency={listing.currency}
-              className="listing-card__price-balance mt-1.5"
-            />
+        <div className="flex flex-1 flex-col gap-2 p-3 md:p-4">
+          <div className="min-w-0 space-y-1">
+            <h3 className="listing-card__title line-clamp-2 min-h-[2.7em]">
+              {title}
+            </h3>
+            {locationLabel ? (
+              <p
+                className="listing-card__meta listing-card__meta--location truncate"
+                title={locationLabel}
+              >
+                {locationLabel}
+              </p>
+            ) : null}
+            {secondaryMetaLabel ? (
+              <p
+                className="listing-card__meta listing-card__meta--small truncate"
+                title={secondaryMetaLabel}
+              >
+                {secondaryMetaLabel}
+              </p>
+            ) : null}
           </div>
+
+          <ListingPrice
+            price={listing.price}
+            currency={listing.currency}
+            className="listing-card__price-balance mt-auto pt-1"
+          />
         </div>
       </Link>
     </article>

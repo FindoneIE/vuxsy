@@ -44,15 +44,28 @@ const STATUS_CONFIG: Record<ListingStatus, StatusConfig> = {
 type Props = {
   status: ListingStatus;
   className?: string;
+  /**
+   * Visual density of the badge.
+   * - `md` (default): comfortable density for desktop / standalone use.
+   * - `sm`: compact pill used on mobile listing cards where the badge
+   *   should feel subtle next to a 15px title.
+   */
+  size?: "sm" | "md";
 };
 
-export default function ListingStatusBadge({ status, className }: Props) {
+export default function ListingStatusBadge({ status, className, size = "md" }: Props) {
   const config = STATUS_CONFIG[status];
+
+  const sizeClass =
+    size === "sm"
+      ? "px-2 py-[1px] text-[10.5px] leading-4"
+      : "px-2.5 py-0.5 text-xs";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide",
+        "inline-flex items-center rounded-full font-semibold tracking-wide",
+        sizeClass,
         config.className,
         className
       )}

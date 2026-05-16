@@ -69,13 +69,13 @@ export default function UserListingMobileActions({
       : "Boost available soon";
 
   const primaryButton =
-    "inline-flex flex-1 items-center justify-center rounded-lg border border-(--color-primary) bg-white px-3 py-2 text-sm font-medium text-(--color-primary) transition hover:bg-(--color-primary)/10 disabled:border-gray-300 disabled:text-gray-400";
+    "inline-flex flex-1 items-center justify-center rounded-lg border border-(--color-primary) bg-white px-3 py-1.5 text-[13px] font-medium text-(--color-primary) transition hover:bg-(--color-primary)/10 disabled:border-gray-300 disabled:text-gray-400";
   const secondaryButton =
-    "inline-flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60";
+    "inline-flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60";
   const dangerButton =
-    "inline-flex flex-1 items-center justify-center rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60";
+    "inline-flex flex-1 items-center justify-center rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60";
   const moreButton =
-    "inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50";
+    "inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700 transition hover:bg-gray-50";
   const menuItemClass =
     "w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50";
   const menuItemDanger =
