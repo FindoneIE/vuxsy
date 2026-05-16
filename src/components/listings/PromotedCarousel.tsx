@@ -86,16 +86,13 @@ export default function PromotedCarousel({ listings }: PromotedCarouselProps) {
           </button>
         </div>
       </div>
-  <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-3">
+  <div className="grid grid-cols-2 gap-2 sm:gap-5 md:grid-cols-3 lg:grid-cols-3">
         {visibleListings.map((listing, idx) => (
           <ListingCard
             key={`promoted-${listing.id}`}
             listing={listing}
             showPromotedBadge
-            className="listing-card--promoted listing-card--square"
-            imageSizes="100vw"
-            imageQuality={100}
-            preferHighResImage
+            className="listing-card--square listing-card--promoted"
             eager={idx < 3}
           />
         ))}

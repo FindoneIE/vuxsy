@@ -2389,11 +2389,6 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   .fullscreen-main-image {
     background: #ffffff;
   }
-
-  .listing-card--promoted .listing-card__image-wrapper {
-    height: auto;
-    aspect-ratio: 4 / 3;
-  }
 }
 
 
