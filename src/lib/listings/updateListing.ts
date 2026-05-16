@@ -1,9 +1,29 @@
 import type { ListingUpdate } from "@/types/listing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { validateTitleAndDescription } from "@/lib/listings/titleDescriptionValidation";
 
 export async function updateListing(id: string, data: ListingUpdate) {
   const supabase = createSupabaseBrowserClient();
   const now = new Date().toISOString();
+  const {
+    normalizedTitle,
+    normalizedDescription,
+    titleError,
+    descriptionError,
+  } = validateTitleAndDescription(data.title ?? "", data.description ?? "");
+
+  if (titleError || descriptionError) {
+    return {
+      id,
+      error: {
+        message: [titleError, descriptionError].filter(Boolean).join(" "),
+        code: "VALIDATION_ERROR",
+        details: null,
+        hint: null,
+      },
+    };
+  }
+
   const sellerSnapshot = (() => {
     if (!data.seller) return undefined;
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -63,8 +83,8 @@ export async function updateListing(id: string, data: ListingUpdate) {
     return normalized;
   })();
   const cleanPayload: Record<string, unknown> = {
-    title: data.title ?? "",
-    description: data.description ?? "",
+    title: normalizedTitle,
+    description: normalizedDescription || null,
     category_id: data.category_id ?? null,
     county: data.county ?? null,
     area: data.area ?? null,
@@ -77,10 +97,6 @@ export async function updateListing(id: string, data: ListingUpdate) {
   allow_phone: data.allow_phone ?? false,
   show_email_publicly: data.show_email_publicly ?? false,
   show_phone_publicly: data.show_phone_publicly ?? false,
-    marketplace_condition:
-      (data as { marketplaceCondition?: string | null }).marketplaceCondition ??
-      (data as { marketplace_condition?: string | null }).marketplace_condition ??
-      null,
     updated_at: now,
   };
 

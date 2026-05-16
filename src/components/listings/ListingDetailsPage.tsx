@@ -34,11 +34,11 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
               <div className="space-y-2 lg:space-y-3 listing-detail-card-inner">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h1 className="text-lg font-semibold">
+                    <h1 className="text-xl font-semibold leading-7 lg:text-[1.65rem] lg:leading-8">
                       {title}
                     </h1>
                     {categoryLabel ? (
-                      <p className="mt-1 text-sm text-gray-500">{categoryLabel}</p>
+                      <p className="mt-1 text-sm text-gray-500 lg:text-[15px]">{categoryLabel}</p>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-3 -mt-2 text-gray-400">
@@ -75,11 +75,11 @@ export default function ListingDetailsPage({ listing }: ListingDetailsPageProps)
                 <div className="mt-4">
                   <div className="max-w-(--media-max-width)">
                     {listing.description ? (
-                      <p className="text-sm text-gray-700 leading-relaxed listing-description-card">
+                      <p className="text-sm leading-relaxed text-gray-700 lg:text-[15px] lg:leading-7 listing-description-card">
                         {listing.description}
                       </p>
                     ) : (
-                      <p className="text-sm text-gray-500 leading-relaxed listing-description-card">
+                      <p className="text-sm leading-relaxed text-gray-500 lg:text-[15px] lg:leading-7 listing-description-card">
                         Description coming soon.
                       </p>
                     )}

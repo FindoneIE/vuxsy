@@ -14,7 +14,27 @@ export async function middleware(request: NextRequest) {
 
   const { supabase, response } = createSupabaseMiddlewareClient(request);
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Server-side redirect for unauthenticated users hitting protected routes.
+  // Previously these routes rendered an empty body (ProtectedRoute returned
+  // null) on first paint and then client-side router.replace()'d to /login,
+  // producing a footer jump. Redirecting in middleware keeps the browser
+  // from ever rendering an empty protected page.
+  const PROTECTED_PREFIXES = ["/dashboard", "/messages", "/publish"];
+  const isProtected = PROTECTED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  if (isProtected && !user) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.search = `?redirect=${encodeURIComponent(
+      pathname + (request.nextUrl.search || ""),
+    )}`;
+    return NextResponse.redirect(redirectUrl);
+  }
 
   return response;
 }

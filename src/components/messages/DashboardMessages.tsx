@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ImageIcon, ChevronLeft } from "lucide-react";
 import { PaperPlaneTilt, DotsThreeVertical, LockSimple } from "phosphor-react";
-import { MessageCircle } from "@/components/ui/Icon";
+import { MessageCircle, Trash2 } from "@/components/ui/Icon";
 import { formatListingLocation, formatRelativeTime } from "@/components/listings/formatters";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import ActionIconButton from "@/components/ui/ActionIconButton";
 import {
   getConversationMessages,
   getUserConversations,
@@ -869,7 +870,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                 <div className="space-y-2">
                   <div className="w-full">
                     <div className="flex items-center px-3 py-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <label className="flex items-center">
                           <input
                             ref={selectAllRef}
@@ -880,14 +881,21 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                             aria-label="Select all conversations"
                           />
                         </label>
-                        <button
-                          type="button"
+                        <span className="text-xs leading-none font-medium text-(--text-secondary)">
+                          {selectedConversations.size > 0
+                            ? `${selectedConversations.size} selected`
+                            : "Select all"}
+                        </span>
+                        <ActionIconButton
                           onClick={handleRemoveSelected}
                           disabled={selectedConversations.size === 0}
-                          className="text-xs font-semibold text-rose-600 disabled:text-slate-300"
+                          tone="neutral"
+                          className="ml-0.5 text-(--text-secondary) hover:bg-red-500/10 hover:text-red-500 active:bg-red-500/15 active:text-red-600 focus-visible:ring-red-200/70"
+                          aria-label="Remove selected conversations"
+                          title="Remove selected"
                         >
-                          Remove selected
-                        </button>
+                          <Trash2 weight="bold" className="h-5 w-5 sm:h-5 sm:w-5" />
+                        </ActionIconButton>
                       </div>
                     </div>
                     <div className="mt-2">

@@ -1,9 +1,14 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "listingViewMode";
+const COOKIE_KEY = "listingViewMode";
 
 type ViewMode = "grid" | "list";
 
+// Module-level client store. `null` means: no client-side change yet, so
+// reads fall back to the SSR-provided `initialMode`. This is what keeps
+// SSR and the first hydrated client render byte-identical (no localStorage
+// read during initial hydration) and prevents the grid <-> list DOM swap.
+let currentMode: ViewMode | null = null;
 const subscribers = new Set<() => void>();
 
 const notifySubscribers = () => {
@@ -12,49 +17,41 @@ const notifySubscribers = () => {
 
 const subscribe = (callback: () => void) => {
   subscribers.add(callback);
-
-  if (typeof window !== "undefined") {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) {
-        callback();
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-
-    return () => {
-      subscribers.delete(callback);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }
-
   return () => {
     subscribers.delete(callback);
   };
 };
 
-const getSnapshot = (): ViewMode => {
-  if (typeof window === "undefined") return "grid";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  return stored === "list" || stored === "grid" ? stored : "grid";
+const writeCookie = (mode: ViewMode) => {
+  if (typeof document === "undefined") return;
+  // 1 year, root path. Used by server pages to pre-render the correct
+  // variant so first paint matches what the user previously chose.
+  document.cookie = `${COOKIE_KEY}=${mode}; path=/; max-age=31536000; SameSite=Lax`;
 };
 
-const getServerSnapshot = (): ViewMode => "grid";
-
 const persistMode = (next: ViewMode) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, next);
+  currentMode = next;
+  writeCookie(next);
   notifySubscribers();
 };
 
-export function useListingViewMode() {
+export function useListingViewMode(initialMode: ViewMode = "grid") {
+  // Both snapshots return `initialMode` until the user explicitly toggles.
+  // The cookie is only WRITTEN on the client; it's read on the server and
+  // threaded back through `initialMode`. This avoids any post-hydration
+  // re-render caused by reading client-only storage.
+  const getSnapshot = (): ViewMode => currentMode ?? initialMode;
+  const getServerSnapshot = (): ViewMode => initialMode;
+
   const mode = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const setMode = useCallback(
     (next: ViewMode | ((current: ViewMode) => ViewMode)) => {
-      const resolved = typeof next === "function" ? next(getSnapshot()) : next;
+      const base = currentMode ?? initialMode;
+      const resolved = typeof next === "function" ? next(base) : next;
       persistMode(resolved);
     },
-    []
+    [initialMode]
   );
 
   return { mode, setMode };

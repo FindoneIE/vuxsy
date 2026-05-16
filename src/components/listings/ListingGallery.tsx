@@ -306,6 +306,8 @@ export default function ListingGallery({
                 sizes="(min-width: 1024px) 60vw, 100vw"
                 className="object-cover"
                 priority
+                fetchPriority="high"
+                decoding="sync"
                 onClick={openFullscreen}
               />
             )}

@@ -59,9 +59,13 @@ export default function AvatarDropdown({
   const isSavedActive = pathname === "/dashboard/saved";
   const isProfileActive = pathname === "/dashboard/settings";
   const inactiveIconColor = "#6b7280";
-  const activeIconColor = "var(--color-primary)";
+  const activeIconColor = "var(--ui-active-text)";
+  // Use the unified `.avatar-dropdown__item` class so hover + active states
+  // come from the single source of truth in globals.css (`:root` tokens
+  // --ui-hover-bg / --ui-active-bg / --ui-active-text). No inline color
+  // overrides — the active state is applied by adding `is-active`.
   const menuItemBaseClass =
-    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ease-in-out hover:bg-[rgba(0,102,255,0.06)] active:bg-[rgba(0,102,255,0.1)]";
+    "avatar-dropdown__item flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm";
 
   return (
   <div className="avatar-dropdown" ref={containerRef} data-ls={dataLs}>
@@ -101,9 +105,8 @@ export default function AvatarDropdown({
           {(displayName || email) && <div className="my-1 border-t border-slate-200" />}
           <Link
             href="/dashboard/listings"
-            className={`${menuItemBaseClass} ${
-              isListingsActive ? "bg-blue-50 text-blue-600" : "text-gray-700"
-            }`}
+            className={`${menuItemBaseClass}${isListingsActive ? " is-active" : " text-gray-700"}`}
+            aria-current={isListingsActive ? "page" : undefined}
           >
             <ClipboardList
               className="h-4.5 w-4.5"
@@ -115,9 +118,8 @@ export default function AvatarDropdown({
           </Link>
           <Link
             href="/dashboard/messages"
-            className={`${menuItemBaseClass} ${
-              isMessagesActive ? "bg-blue-50 text-blue-600" : "text-gray-700"
-            }`}
+            className={`${menuItemBaseClass}${isMessagesActive ? " is-active" : " text-gray-700"}`}
+            aria-current={isMessagesActive ? "page" : undefined}
           >
             <MessageCircle
               className="h-4.5 w-4.5"
@@ -129,9 +131,8 @@ export default function AvatarDropdown({
           </Link>
           <Link
             href="/dashboard/saved"
-            className={`${menuItemBaseClass} ${
-              isSavedActive ? "bg-blue-50 text-blue-600" : "text-gray-700"
-            }`}
+            className={`${menuItemBaseClass}${isSavedActive ? " is-active" : " text-gray-700"}`}
+            aria-current={isSavedActive ? "page" : undefined}
           >
             <Heart
               className="h-4.5 w-4.5"
@@ -143,9 +144,8 @@ export default function AvatarDropdown({
           </Link>
           <Link
             href="/dashboard/settings"
-            className={`${menuItemBaseClass} ${
-              isProfileActive ? "bg-blue-50 text-blue-600" : "text-gray-700"
-            }`}
+            className={`${menuItemBaseClass}${isProfileActive ? " is-active" : " text-gray-700"}`}
+            aria-current={isProfileActive ? "page" : undefined}
           >
             <User
               className="h-4.5 w-4.5"

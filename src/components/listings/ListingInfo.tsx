@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { formatRelativeTime, formatViewsCount } from "@/components/listings/formatters";
+import ListingPrice from "@/components/listings/ListingPrice";
 
 export type ListingInfoProps = {
   listingId: string;
@@ -22,34 +23,22 @@ export default function ListingInfo({
   createdAt,
   views,
 }: ListingInfoProps) {
-  const dateLabelRaw = formatRelativeTime(createdAt) ?? "Just now";
-  const dateLabel = dateLabelRaw
-    .replace(/\s+ago$/, "")
-    .replace(/^about\s+/i, "")
-    .replace(/^less than\s+/, "")
-    .replace(/minutes?/i, "min")
-    .replace(/hours?/i, "hr")
-    .replace(/days?/i, "day")
-    .replace(/months?/i, "mo")
-    .replace(/years?/i, "yr")
-    .trim();
+  const dateLabel =
+    formatRelativeTime(createdAt)
+      ?.replace(/\s+ago$/i, "")
+      .replace(/^about\s+/i, "")
+      .trim() ?? "Just now";
   const viewsLabel = formatViewsCount(views) ?? "0 views";
   const locationLabel = location?.trim() ?? "";
-  const metaLabel = `${dateLabel} • ${viewsLabel}`;
+  const metaLabel = [dateLabel, viewsLabel, locationLabel].filter(Boolean).join(" • ");
 
   return (
     <div className="mt-1.5 flex items-start justify-between gap-3 text-sm text-muted-foreground">
       <div className="min-w-0">
-        <span className="text-sm text-slate-700">{locationLabel}</span>
-        <div className="mt-0.5 text-xs text-slate-500">{metaLabel}</div>
-        {price != null ? (
-          <div className="mt-3 flex items-end gap-1">
-            <span className="text-gray-500 text-xl">{currency ?? "€"}</span>
-            <span className="text-4xl font-bold text-gray-900">{price}</span>
-          </div>
-        ) : (
-          <div className="mt-2 text-sm text-muted-foreground">—</div>
-        )}
+        <div className="mt-0.5 truncate whitespace-nowrap text-xs text-slate-500 lg:text-[13px]" title={metaLabel}>
+          {metaLabel}
+        </div>
+        <ListingPrice price={price} currency={currency} />
       </div>
 
       <div className="flex flex-col items-end text-right" />

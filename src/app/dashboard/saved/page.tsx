@@ -10,6 +10,10 @@ import { useSavedListings } from "@/components/listings/SavedListingsProvider";
 import { useListingViewMode } from "@/hooks/useListingViewMode";
 import type { ListingCardItem } from "@/components/listings/ListingCard";
 
+// Opt out of prerendering: transitively uses useSearchParams (via shared
+// listing components). Root Suspense boundary removed (Fix 1). Auth-gated.
+export const dynamic = "force-dynamic";
+
 export default function DashboardSavedPage() {
   const { savedIds, isLoaded } = useSavedListings();
   const [items, setItems] = React.useState<ListingCardItem[]>([]);

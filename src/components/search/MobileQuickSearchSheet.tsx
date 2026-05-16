@@ -6,6 +6,7 @@ import CountySelect from "@/components/location/CountySelect";
 import AreaSelect from "@/components/location/AreaSelect";
 import { CATEGORIES_BY_MODE } from "@/components/filters/categories";
 import { useQuickSearch } from "@/hooks/useQuickSearch";
+import { modalBackdropClass } from "@/lib/layout/constants";
 
 type MobileQuickSearchSheetProps = {
   open: boolean;
@@ -76,7 +77,7 @@ export default function MobileQuickSearchSheet({ open, onClose }: MobileQuickSea
   return (
     <>
       <div
-        className="mobile-menu mobile-menu--fullscreen fixed inset-0 isolate z-50 bg-primary/10 duration-100 supports-backdrop-filter:backdrop-blur-xs is-open"
+        className={`mobile-menu mobile-menu--fullscreen fixed inset-0 isolate z-50 duration-100 ${modalBackdropClass} is-open`}
         onClick={onClose}
         aria-hidden
       />

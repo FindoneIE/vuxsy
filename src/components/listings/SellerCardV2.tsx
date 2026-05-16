@@ -414,7 +414,8 @@ export default function SellerCardV2({
 
   const buildRedirectPath = React.useCallback(() => {
     const search = searchParams?.toString();
-    return search ? `${pathname}?${search}` : pathname;
+    const basePath = pathname ?? "/";
+    return search ? `${basePath}?${search}` : basePath;
   }, [pathname, searchParams]);
 
   const redirectToLogin = React.useCallback(() => {

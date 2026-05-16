@@ -3,6 +3,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
 import { resolveDisplayNameValue } from "@/lib/display-name";
 import { runtimeLog } from "@/lib/diagnostics/runtimeLog";
+import { resolveListingPrice } from "@/lib/listings/normalizePrice";
 
 function hasValidSellerSnapshot(seller: Listing["seller"] | null) {
   if (!seller) return false;
@@ -196,6 +197,7 @@ export async function getListingById(
   return {
     id: data.id,
     ...(data as Omit<Listing, "id">),
+    price: resolveListingPrice(data as Record<string, unknown>),
     savedByCurrentUser,
 
     // ✅ svarīgi – vienmēr padodam to pašu struktūru

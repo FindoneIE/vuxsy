@@ -6,7 +6,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "@/components/ui/Icon"
-import { dialogPadding, mobileDialogWidth } from "@/lib/layout/constants"
+import { dialogPadding, mobileDialogWidth, modalBackdropClass } from "@/lib/layout/constants"
 
 function Dialog({
   ...props
@@ -40,7 +40,8 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-white/40 backdrop-blur-sm duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        modalBackdropClass,
         className
       )}
       {...props}
@@ -52,15 +53,17 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  overlayClassName,
+  overlayClassName: _overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   overlayClassName?: string
 }) {
+  void _overlayClassName
+
   return (
     <DialogPortal>
-      <DialogOverlay className={overlayClassName} />
+      <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

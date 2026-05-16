@@ -28,15 +28,28 @@ import {
   markConversationRead,
   restoreConversationVisibilityForCurrentUser,
 } from "@/lib/messages/actions";
-import useMediaQuery from "../../hooks/useMediaQuery";
 
 const MESSAGES_UNREAD_UPDATED_EVENT = "messages:unread-updated";
 const ADMIN_EMAIL = "info@vuxsy.com";
+let headerRenderCount = 0;
 
 export default function Header() {
+  const DEV = process.env.NODE_ENV !== "production";
+  const renderCount = ++headerRenderCount;
+  if (DEV) {
+    console.debug("[mount-trace] Header render", {
+      renderCount,
+    });
+    if (typeof performance !== "undefined") {
+      performance.mark(`Header:render:${renderCount}`);
+    }
+    if (typeof console.timeStamp === "function") {
+      console.timeStamp(`Header render ${renderCount}`);
+    }
+  }
+
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
-  const isMobile = useMediaQuery("(max-width: 768px)");
   const { user, loading, avatarData, profile } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { count: savedCount, isLoaded: savedLoaded } = useSavedListings();
@@ -65,6 +78,14 @@ export default function Header() {
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
   const fetchUnreadCountRef = useRef<() => Promise<void>>(async () => {});
   const unreadFetchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!DEV) return;
+    console.debug("[mount-trace] Header mount");
+    return () => {
+      console.debug("[mount-trace] Header unmount");
+    };
+  }, [DEV]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -305,6 +326,14 @@ export default function Header() {
   const showAdminBadge = Boolean(showAdminLink && visiblePendingReports && visiblePendingReports > 0);
   const showMessageIcon = isAuthReady ? Boolean(userId) : true;
   const messageHref = userId ? "/dashboard/messages" : "/login";
+  const isServicesActive = pathname?.startsWith("/services") ?? false;
+  const isRequestsActive = pathname?.startsWith("/requests") ?? false;
+  const isMarketplaceActive = pathname?.startsWith("/marketplace") ?? false;
+  const isAdminActive = pathname?.startsWith("/dashboard/admin") ?? false;
+  const isLegalPolicyRoute =
+    pathname === "/privacy-policy" ||
+    pathname === "/terms-and-conditions" ||
+    pathname === "/cookie-policy";
 
   const handleLogout = async () => {
     await logOut();
@@ -312,8 +341,12 @@ export default function Header() {
 
   return (
     <header className="site-header" role="banner" data-ls="header">
-      {isMobile ? (
-        <>
+      {/* Both mobile and desktop variants are rendered server-side; CSS
+          decides which is visible. This eliminates the JS-driven branch
+          swap (useMediaQuery defaults to false → SSR was always desktop →
+          on mobile clients the entire header, including the logo, was
+          replaced after hydration, causing a visible flash). */}
+      <div className="md:hidden" data-ls="header-mobile-wrap">
           <PageContainer data-ls="header-container">
             <div className="site-header__inner site-header__mobile" data-ls="header-mobile">
               <div className="site-header__logo" data-ls="logo-slot">
@@ -325,6 +358,8 @@ export default function Header() {
                     width={210}
                     height={70}
                     priority
+                    fetchPriority="high"
+                    decoding="sync"
                   />
                 </Link>
               </div>
@@ -534,21 +569,23 @@ export default function Header() {
                   </div>
                 ) : null}
               </nav>
-              <div className="mobile-menu__footer drawer-bottom">
-                {!loading && (
-                  <Link
-                    href={createListingHref}
-                    className="btn btn-primary mobile-menu__cta create-listing-btn primary-action-button drawer-create-button"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    Create listing
-                  </Link>
-                )}
-              </div>
+              {!isLegalPolicyRoute ? (
+                <div className="mobile-menu__footer drawer-bottom">
+                  {!loading && (
+                    <Link
+                      href={createListingHref}
+                      className="btn btn-primary mobile-menu__cta create-listing-btn primary-action-button drawer-create-button"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      Create listing
+                    </Link>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
-        </>
-      ) : (
+      </div>
+      <div className="hidden md:block" data-ls="header-desktop-wrap">
         <PageContainer data-ls="header-container">
           <div className="site-header__inner site-header__desktop" data-ls="header-inner">
             <div className="site-header__logo" data-ls="logo-slot">
@@ -560,6 +597,8 @@ export default function Header() {
                   width={210}
                   height={70}
                   priority
+                  fetchPriority="high"
+                  decoding="sync"
                 />
               </Link>
             </div>
@@ -572,21 +611,24 @@ export default function Header() {
               >
                 <Link
                   href="/services"
-                  className={`site-nav__link${pathname?.startsWith("/services") ? " is-active" : ""}`}
+                  className={`site-nav__link${isServicesActive ? " is-active" : ""}`}
+                  aria-current={isServicesActive ? "page" : undefined}
                 >
                   Services
                 </Link>
 
                 <Link
                   href="/requests"
-                  className={`site-nav__link${pathname?.startsWith("/requests") ? " is-active" : ""}`}
+                  className={`site-nav__link${isRequestsActive ? " is-active" : ""}`}
+                  aria-current={isRequestsActive ? "page" : undefined}
                 >
                   Get Help
                 </Link>
 
                 <Link
                   href="/marketplace"
-                  className={`site-nav__link${pathname?.startsWith("/marketplace") ? " is-active" : ""}`}
+                  className={`site-nav__link${isMarketplaceActive ? " is-active" : ""}`}
+                  aria-current={isMarketplaceActive ? "page" : undefined}
                 >
                   Marketplace
                 </Link>
@@ -594,7 +636,8 @@ export default function Header() {
                 <span className="site-nav__admin-slot relative inline-flex items-center">
                   <Link
                     href={canAccessAdminLink ? "/dashboard/admin" : "#"}
-                    className={`site-nav__link${pathname?.startsWith("/dashboard/admin") ? " is-active" : ""}${showAdminLink ? "" : " site-nav__link--placeholder"}`}
+                    className={`site-nav__link${isAdminActive ? " is-active" : ""}${showAdminLink ? "" : " site-nav__link--placeholder"}`}
+                    aria-current={isAdminActive ? "page" : undefined}
                     aria-disabled={!canAccessAdminLink}
                     tabIndex={canAccessAdminLink ? undefined : -1}
                     onClick={(event) => {
@@ -697,7 +740,7 @@ export default function Header() {
             </div>
           </div>
         </PageContainer>
-      )}
+      </div>
     </header>
   );
 }

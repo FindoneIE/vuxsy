@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Eye, Trash } from "phosphor-react";
+import { Eye } from "phosphor-react";
+import { Trash2 } from "@/components/ui/Icon";
 import type { ListingStatus } from "@/components/listings/ListingStatusBadge";
 
 export type UserListingSecondaryActionsProps = {
@@ -35,9 +36,10 @@ export default function UserListingSecondaryActions({
           type="button"
           onClick={() => onView(id)}
           className={`${actionClass} order-0`}
+          aria-label="View listing"
         >
           <Eye size={18} weight="regular" />
-          View listing
+          <span className="sr-only">View listing</span>
         </button>
       ) : null}
       {onDelete && canDelete ? (
@@ -47,7 +49,7 @@ export default function UserListingSecondaryActions({
           className={`${dangerClass} order-10`}
           disabled={isDeleting}
         >
-          <Trash size={18} weight="regular" />
+          <Trash2 weight="bold" className="h-4.5 w-4.5 sm:h-4.5 sm:w-4.5" />
           {isDeleting ? "Deleting..." : "Delete"}
         </button>
       ) : null}

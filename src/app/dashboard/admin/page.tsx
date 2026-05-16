@@ -5,6 +5,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { ListingType } from "@/types/listing";
 import AdminModerationClient from "@/components/admin/AdminModerationClient";
 
+// Opt out of prerendering: this page renders AdminModerationClient which uses
+// useSearchParams(). The root src/app/loading.tsx Suspense boundary was
+// removed (Fix 1). Admin is auth-gated so dynamic is the correct mode anyway.
+export const dynamic = "force-dynamic";
+
 const ADMIN_EMAIL = "info@vuxsy.com";
 
 type ListingReport = {

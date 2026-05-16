@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import PageContainer from "@/components/layout/PageContainer";
@@ -10,7 +11,12 @@ const LINKS = [
   { label: "Marketplace", href: "/marketplace" },
 ];
 
+let mobileSubheaderRenderCount = 0;
+
 export default function MobileSubheader() {
+  const DEV = process.env.NODE_ENV !== "production";
+  const renderCount = ++mobileSubheaderRenderCount;
+
   const pathname = usePathname();
   const isDetailPage = Boolean(
     pathname?.match(/^\/(services|requests|marketplace)\/[^/]+\/[^/]+/)
@@ -24,6 +30,28 @@ export default function MobileSubheader() {
       // ignore
     }
   };
+
+  React.useEffect(() => {
+    if (!DEV) return;
+    console.debug("[mount-trace] MobileSubheader mount", {
+      pathname,
+      renderCount,
+    });
+    return () => {
+      console.debug("[mount-trace] MobileSubheader unmount", { pathname });
+    };
+  }, [DEV, pathname]);
+
+  if (DEV) {
+    console.debug("[mount-trace] MobileSubheader render", {
+      pathname,
+      isDetailPage,
+      renderCount,
+    });
+    if (typeof performance !== "undefined") {
+      performance.mark(`MobileSubheader:render:${renderCount}`);
+    }
+  }
 
   if (isDetailPage) {
     return <div className="mobile-subheader-spacer" aria-hidden />;

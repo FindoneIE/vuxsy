@@ -5,18 +5,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { getListingHref } from "@/lib/listings/getListingHref";
 import { cn } from "@/lib/utils";
-import { formatListingLocation } from "@/components/listings/formatters";
+import {
+  formatListingLocation,
+  formatRelativeTime,
+  formatViewsCount,
+} from "@/components/listings/formatters";
 import SavedListingButton from "@/components/listings/SavedListingButton";
-
-const formatDate = (value: unknown) => {
-  if (!value) return null;
-  if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number") {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString();
-};
+import ListingPrice from "@/components/listings/ListingPrice";
 
 export type ListingCardItem = {
   id: string;
@@ -35,6 +30,7 @@ export type ListingCardItem = {
   sellerType?: string | null;
   listing_type?: "service" | "request" | "marketplace" | string | null;
   created_at?: unknown;
+  views?: number | null;
   promoted_until?: string | Date | null;
   promotedUntil?: string | Date | null;
   savedByCurrentUser?: boolean | null;
@@ -48,6 +44,15 @@ type Props = {
   imageSizes?: string;
   imageQuality?: number;
   preferHighResImage?: boolean;
+  /**
+   * Above-the-fold cards should set this to true. It switches the image to
+   * `priority` + `loading="eager"` + `fetchPriority="high"` so next/image
+   * emits a `<link rel="preload">` in the document head and the browser
+   * starts the image request during HTML parse instead of after first
+   * paint. Without this, above-the-fold cards visibly repaint when their
+   * lazy-loaded images decode a few frames after the initial paint.
+   */
+  eager?: boolean;
 };
 
 export default function ListingCard({
@@ -58,6 +63,7 @@ export default function ListingCard({
   imageSizes,
   imageQuality,
   preferHighResImage = false,
+  eager = false,
 }: Props) {
   const carouselImages = React.useMemo(() => {
     const base = preferHighResImage
@@ -150,8 +156,14 @@ export default function ListingCard({
     listing.county ?? null,
     listing.city ?? null,
   ]);
-  const dateLabel = formatDate(listing.created_at);
-  const sellerLabel = listing.sellerType ? listing.sellerType : null;
+  const relativeDateLabel = formatRelativeTime(listing.created_at)
+    ?.replace(/\s+ago$/i, "")
+    .replace(/^about\s+/i, "")
+    .trim();
+  const viewsLabel = formatViewsCount(listing.views) ?? "0 views";
+  const compactMetaLabel = [relativeDateLabel, viewsLabel, locationLabel]
+    .filter(Boolean)
+    .join(" • ");
   const activeImage = carouselImages[activeIndex] ?? null;
   const promotedUntil = listing.promoted_until ?? listing.promotedUntil;
   const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -204,7 +216,20 @@ export default function ListingCard({
                 "(min-width: 1280px) 22vw, (min-width: 1024px) 28vw, (min-width: 768px) 40vw, 100vw"
               }
               quality={imageQuality}
-              loading="lazy"
+              priority={eager}
+              loading={eager ? "eager" : "lazy"}
+              fetchPriority={eager ? "high" : "auto"}
+              /*
+                Above-the-fold images use `decoding="sync"` so the browser
+                must decode the bitmap before painting the frame that
+                contains the <img>. Without this, even preloaded images
+                paint asynchronously (default decoding="async"), causing
+                card1, card2, card3 to pop in on consecutive frames — the
+                visible "image repaint" flash. With sync decode + preload,
+                all eager card images appear in the same paint frame as
+                the surrounding layout.
+              */
+              decoding={eager ? "sync" : "async"}
               className={cn(
                 "object-cover object-center",
                 imageClassName
@@ -243,37 +268,23 @@ export default function ListingCard({
         </div>
 
         <div className="p-3.5 md:p-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex min-h-26 flex-col justify-between gap-2.5">
             <div className="min-w-0">
-              <h3 className="listing-card__title line-clamp-2">
+              <h3 className="listing-card__title line-clamp-2 min-h-[2.7em]">
                 {title}
               </h3>
-              {locationLabel ? (
-                <p className="listing-card__meta mt-0.5">
-                  {locationLabel}
-                </p>
-              ) : null}
-              {sellerLabel ? (
-                <p className="listing-card__meta mt-1 text-xs">
-                  {sellerLabel}
+              {compactMetaLabel ? (
+                <p className="listing-card__meta mt-0.5 truncate whitespace-nowrap" title={compactMetaLabel}>
+                  {compactMetaLabel}
                 </p>
               ) : null}
             </div>
 
-            <div className="shrink-0 text-right">
-              {listing.price != null ? (
-                <div className="listing-card__price">
-                  {listing.currency ?? "€"} {listing.price}
-                </div>
-              ) : (
-                <div className="listing-card__meta text-sm">—</div>
-              )}
-              {dateLabel ? (
-                <div className="listing-card__meta mt-1 text-xs">
-                  {dateLabel}
-                </div>
-              ) : null}
-            </div>
+            <ListingPrice
+              price={listing.price}
+              currency={listing.currency}
+              className="listing-card__price-balance mt-1.5"
+            />
           </div>
         </div>
       </Link>

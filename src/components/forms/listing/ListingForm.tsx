@@ -7,12 +7,18 @@ import LocationFields from "@/components/location/LocationFields";
 import PhotoUploadField from "@/components/forms/listing/PhotoUploadField";
 import { Card, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "@/components/ui/Icon";
+import { CaretDown } from "@phosphor-icons/react";
 import ServiceFormFields from "@/components/forms/listing/ServiceFormFields";
 import RequestFormFields from "@/components/forms/listing/RequestFormFields";
 import MarketplaceFormFields from "@/components/forms/listing/MarketplaceFormFields";
 import { CATEGORIES_MARKETPLACE, CATEGORIES_REQUESTS, CATEGORIES_SERVICES } from "@/components/filters/categories";
 import { useListingForm } from "@/hooks/useListingForm";
+import {
+  DESCRIPTION_MAX_LENGTH,
+  DESCRIPTION_MIN_LENGTH,
+  TITLE_MAX_LENGTH,
+  TITLE_MIN_LENGTH,
+} from "@/lib/listings/titleDescriptionValidation";
 
 type Props = {
   type: ListingType;
@@ -46,14 +52,9 @@ export default function ListingForm({ type, title }: Props) {
   const previewImage = previewPhotos?.[0]?.previewUrl ?? null;
   const previewTitle = formValues.title?.trim() || "Untitled listing";
   const previewLocation = [formValues.county, formValues.area].filter(Boolean).join(" • ");
-  const previewPrice =
-    type === "service"
-      ? formValues.serviceRate
-      : type === "request"
-        ? formValues.requestBudget
-        : formValues.marketplacePrice;
-  const previewPriceLabel =
-    type === "service" ? "Rate" : type === "request" ? "Budget" : "Price";
+  const previewPrice = formValues.price;
+  const titleLength = formValues.title.trim().length;
+  const descriptionLength = formValues.description.trim().length;
   const previewDetailsRows = [
     {
       label:
@@ -70,22 +71,9 @@ export default function ListingForm({ type, title }: Props) {
             : formValues.marketplaceCategory,
     },
     {
-      label: type === "service" ? "Pricing" : type === "request" ? "Budget" : "Price",
+      label: "Price",
       value:
-        type === "service"
-          ? formValues.servicePricing
-          : type === "request"
-            ? formValues.requestBudget
-            : formValues.marketplacePrice,
-    },
-    {
-      label: type === "service" ? "Rate" : type === "request" ? "Needed by" : "Quantity",
-      value:
-        type === "service"
-          ? formValues.serviceRate
-          : type === "request"
-            ? formValues.requestNeededBy
-            : formValues.marketplaceQuantity,
+        formValues.price,
     },
   ];
 
@@ -141,6 +129,9 @@ export default function ListingForm({ type, title }: Props) {
               onChange={(event) => handleChange("title", event.target.value)}
               placeholder="e.g. Weekend garden maintenance"
             />
+            <p className="text-xs text-slate-500">
+              {titleLength}/{TITLE_MAX_LENGTH} characters (min {TITLE_MIN_LENGTH})
+            </p>
             {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
           </div>
 
@@ -155,6 +146,9 @@ export default function ListingForm({ type, title }: Props) {
               onChange={(event) => handleChange("description", event.target.value)}
               placeholder="Tell clients what they should know before contacting you."
             />
+            <p className="text-xs text-slate-500">
+              {descriptionLength}/{DESCRIPTION_MAX_LENGTH} characters (min {DESCRIPTION_MIN_LENGTH})
+            </p>
             {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
           </div>
         </div>
@@ -180,7 +174,7 @@ export default function ListingForm({ type, title }: Props) {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <CaretDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
               </div>
               {errors.serviceCategory && (
                 <p className="text-xs text-destructive">{errors.serviceCategory}</p>
@@ -196,19 +190,22 @@ export default function ListingForm({ type, title }: Props) {
               <label htmlFor="request-category" className="sr-only">
                 Category
               </label>
-              <select
-                id="request-category"
-                className="select field-select"
-                value={formValues.requestCategory}
-                onChange={(event) => handleChange("requestCategory", event.target.value)}
-              >
-                <option value="">Select a category</option>
-                {CATEGORIES_REQUESTS.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="request-category"
+                  className="select field-select pr-10"
+                  value={formValues.requestCategory}
+                  onChange={(event) => handleChange("requestCategory", event.target.value)}
+                >
+                  <option value="">Select a category</option>
+                  {CATEGORIES_REQUESTS.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
+              </div>
               {errors.requestCategory && (
                 <p className="text-xs text-destructive">{errors.requestCategory}</p>
               )}
@@ -223,19 +220,22 @@ export default function ListingForm({ type, title }: Props) {
               <label htmlFor="marketplace-category" className="sr-only">
                 Category
               </label>
-              <select
-                id="marketplace-category"
-                className="select field-select"
-                value={formValues.marketplaceCategory}
-                onChange={(event) => handleChange("marketplaceCategory", event.target.value)}
-              >
-                <option value="">Select a category</option>
-                {CATEGORIES_MARKETPLACE.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="marketplace-category"
+                  className="select field-select pr-10"
+                  value={formValues.marketplaceCategory}
+                  onChange={(event) => handleChange("marketplaceCategory", event.target.value)}
+                >
+                  <option value="">Select a category</option>
+                  {CATEGORIES_MARKETPLACE.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
+              </div>
               {errors.marketplaceCategory && (
                 <p className="text-xs text-destructive">{errors.marketplaceCategory}</p>
               )}
@@ -562,7 +562,7 @@ export default function ListingForm({ type, title }: Props) {
                   )}
                 </div>
                 <div className="listing-preview-meta__price">
-                  <span className="listing-preview-price-label">{previewPriceLabel}</span>
+                  <span className="listing-preview-price-label">Price</span>
                   <span className="listing-preview-price">{previewPrice || "—"}</span>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ListingType } from "@/types/listing";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
+import { withNormalizedPrice } from "@/lib/listings/normalizePrice";
 
 export type GetListingsParams = {
   categoryId?: string;
@@ -10,7 +11,18 @@ export type GetListingsParams = {
   pageSize?: number;
   cursor?: number | null;
   listingType?: ListingType;
+  sort?: ListingSortOption;
+  sellerTypes?: Array<"business" | "private">;
+  minPrice?: number;
+  maxPrice?: number;
 };
+
+export type ListingSortOption =
+  | "relevance"
+  | "best_match"
+  | "newest"
+  | "price_low"
+  | "price_high";
 
 export type ListingRecord = {
   id: string;
@@ -19,6 +31,7 @@ export type ListingRecord = {
   category_id?: string;
   city?: string;
   price?: number | null;
+  sellerType?: string | null;
   currency?: string;
   user_id?: string;
   listing_type?: string | null;
@@ -69,6 +82,10 @@ export async function getListings({
   pageSize = DEFAULT_PAGE_SIZE,
   cursor = null,
   listingType,
+  sort = "newest",
+  sellerTypes,
+  minPrice,
+  maxPrice,
 }: GetListingsParams = {}): Promise<GetListingsResult> {
   const safePageSize = Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
   const offset = typeof cursor === "number" && cursor >= 0 ? cursor : 0;
@@ -108,8 +125,7 @@ export async function getListings({
     }
   }
 
-  const baseSelect =
-    "id, title, description, price, city, category_id, user_id, created_at, updated_at, contact_email, contact_phone, status, listing_type";
+  const baseSelect = "*";
   let query = supabase.from("listings").select(baseSelect);
 
   if (resolvedCategoryId) {
@@ -124,12 +140,46 @@ export async function getListings({
     query = query.eq("listing_type", listingType);
   }
 
+  const effectiveSellerTypes = (sellerTypes ?? []).filter(
+    (value): value is "business" | "private" => value === "business" || value === "private"
+  );
+
+  if (effectiveSellerTypes.length === 1) {
+    query = query.eq("sellerType", effectiveSellerTypes[0]);
+  }
+
+  if (typeof minPrice === "number" && Number.isFinite(minPrice)) {
+    query = query.gte("price", minPrice);
+  }
+
+  if (typeof maxPrice === "number" && Number.isFinite(maxPrice)) {
+    query = query.lte("price", maxPrice);
+  }
+
   query = query.eq("status", "active");
 
-  query = query
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .range(offset, offset + safePageSize - 1);
+  const resolvedSort =
+    sort === "price_low" || sort === "price_high" || sort === "newest"
+      ? sort
+      : "newest";
+
+  if (resolvedSort === "price_low") {
+    query = query
+      .order("price", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  } else if (resolvedSort === "price_high") {
+    query = query
+      .order("price", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  } else {
+    query = query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  }
+
+  query = query.range(offset, offset + safePageSize - 1);
 
   const { data, error } = await query;
 
@@ -139,9 +189,17 @@ export async function getListings({
       county,
       area,
       listingType,
+      sellerTypes: effectiveSellerTypes,
+      minPrice,
+      maxPrice,
       query: {
         select: baseSelect,
-        order: ["created_at desc", "id desc"],
+        order:
+          resolvedSort === "price_low"
+            ? ["price asc nulls last", "created_at desc", "id desc"]
+            : resolvedSort === "price_high"
+            ? ["price desc nulls last", "created_at desc", "id desc"]
+            : ["created_at desc", "id desc"],
       },
       error,
     });
@@ -149,7 +207,7 @@ export async function getListings({
     return { items: [], nextCursor: null };
   }
 
-  const items = (data ?? []) as ListingRecord[];
+  const items = ((data ?? []) as ListingRecord[]).map((item) => withNormalizedPrice(item));
 
   if (items.length > 0) {
     const listingIds = items.map((item) => item.id).filter(Boolean);

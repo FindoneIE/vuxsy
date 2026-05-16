@@ -7,14 +7,25 @@ export function getCountiesList(country?: CountryCode): CountyName[] {
   return getCountyNames(country);
 }
 
-export async function getAreasByCounty(county?: string): Promise<Area[]> {
-  // Lazy access: in case this becomes a remote call later, keep API async
+// Synchronous lookup. The underlying AREAS_BY_COUNTY map is a static module
+// import — there is no real async work. A sync variant lets <AreaSelect>
+// compute the options on first render, which is required so the `<select>`'s
+// selected `<option>` exists at first paint (otherwise the dropdown text
+// briefly shows the placeholder, then "swaps" to the real area on the next
+// render tick — the subtle dropdown repaint reported on /dashboard/settings).
+export function getAreasByCountySync(county?: string): Area[] {
   if (!county) return [];
-  // Prefer exact match key; areas module loaded above but access is deferred
   const key = String(county);
-  // perform case-insensitive lookup against the AREAS_BY_COUNTY keys
-  const foundKey = Object.keys(AREAS_BY_COUNTY).find((k) => k.toLowerCase() === key.toLowerCase());
+  const foundKey = Object.keys(AREAS_BY_COUNTY).find(
+    (k) => k.toLowerCase() === key.toLowerCase(),
+  );
   return (AREAS_BY_COUNTY[foundKey ?? key] ?? []) as Area[];
+}
+
+export async function getAreasByCounty(county?: string): Promise<Area[]> {
+  // Kept async for API compatibility with callers that already `await` it.
+  // Internally delegates to the sync lookup.
+  return getAreasByCountySync(county);
 }
 
 export function isValidCounty(county?: string): boolean {

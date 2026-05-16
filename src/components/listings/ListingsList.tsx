@@ -5,30 +5,35 @@ import { getListingHref } from "@/lib/listings/getListingHref";
 import { cn } from "@/lib/utils";
 import type { ListingCardItem } from "@/components/listings/ListingCard";
 import SavedListingButton from "@/components/listings/SavedListingButton";
-
-const formatDate = (value: ListingCardItem["created_at"]) => {
-  if (!value) return null;
-  if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number") {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString();
-};
+import ListingPrice from "@/components/listings/ListingPrice";
+import {
+  formatListingLocation,
+  formatRelativeTime,
+  formatViewsCount,
+} from "@/components/listings/formatters";
 
 type Props = {
   items: ListingCardItem[];
   className?: string;
+  /**
+   * Number of leading rows whose image should be eagerly fetched with
+   * `priority` + `fetchPriority="high"`. Above-the-fold rows must be
+   * eager so next/image emits a `<link rel="preload">` and the browser
+   * issues the image request during HTML parse rather than after the
+   * first paint (which is the visible image flash on refresh).
+   */
+  eagerCount?: number;
 };
 
-export default function ListingsList({ items, className }: Props) {
+export default function ListingsList({ items, className, eagerCount = 4 }: Props) {
   if (!items || items.length === 0) {
     return <div className="text-muted-foreground">No listings found.</div>;
   }
 
   return (
     <>
-      {items.map((item) => {
+      {items.map((item, idx) => {
+        const isEager = idx < eagerCount;
         const imageSrc =
           item.images1600?.[0] ?? item.coverImage ?? item.images?.[0] ?? null;
         const listingType =
@@ -40,11 +45,19 @@ export default function ListingsList({ items, className }: Props) {
           category: item.category_id ?? undefined,
         });
         const title = item.title ?? "Untitled listing";
-        const locationLabel = item.city ?? "";
-        const dateLabel = formatDate(item.created_at);
-        const listingTypeLabel = listingType
-          ? `${listingType.charAt(0).toUpperCase()}${listingType.slice(1)}`
-          : "";
+        const locationLabel = formatListingLocation([
+          item.area ?? null,
+          item.county ?? null,
+          item.city ?? null,
+        ]);
+        const relativeDateLabel = formatRelativeTime(item.created_at)
+          ?.replace(/\s+ago$/i, "")
+          .replace(/^about\s+/i, "")
+          .trim();
+        const viewsLabel = formatViewsCount(item.views) ?? "0 views";
+        const metadataLabel = [relativeDateLabel, viewsLabel, locationLabel]
+          .filter(Boolean)
+          .join(" • ");
 
         return (
           <React.Fragment key={item.id}>
@@ -62,8 +75,11 @@ export default function ListingsList({ items, className }: Props) {
                     alt={title}
                     fill
                     sizes="(max-width: 768px) 128px, (max-width: 1024px) 144px"
-                    loading="lazy"
-                    className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03]"
+                    priority={isEager}
+                    loading={isEager ? "eager" : "lazy"}
+                    fetchPriority={isEager ? "high" : "auto"}
+                    decoding={isEager ? "sync" : "async"}
+                    className="h-full w-full object-cover object-center"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
@@ -95,35 +111,20 @@ export default function ListingsList({ items, className }: Props) {
                 <h3 className="line-clamp-2 text-sm font-semibold text-(--text-primary) md:mb-1 md:text-base md:font-semibold">
                   {title}
                 </h3>
-                <div className="mt-0.5 text-sm text-(--text-primary) opacity-70 md:mt-0 md:text-[13px] md:text-slate-500 md:opacity-100">
-                  {locationLabel}
-                  {item.area ? ` • ${item.area}` : ""}
-                </div>
-                {listingTypeLabel ? (
-                  <div className="mt-1 text-xs text-(--text-primary) opacity-60 md:text-[13px] md:text-slate-500 md:opacity-100">
-                    {listingTypeLabel}
+                {metadataLabel ? (
+                  <div className="mt-0.5 truncate whitespace-nowrap text-xs text-slate-500" title={metadataLabel}>
+                    {metadataLabel}
                   </div>
                 ) : null}
-                {item.sellerType ? (
-                  <div className="mt-1 text-xs text-(--text-primary) opacity-60 md:text-[13px] md:text-slate-500 md:opacity-100">
-                    {item.sellerType}
-                  </div>
-                ) : null}
+
+                <ListingPrice
+                  price={item.price}
+                  currency={item.currency}
+                  className="mt-2.5 [&>span:first-child]:text-lg [&>span:last-child]:text-[1.95rem] [&>span:last-child]:font-semibold md:mt-3 md:[&>span:first-child]:text-xl md:[&>span:last-child]:text-4xl md:[&>span:last-child]:font-bold"
+                />
               </div>
 
               <div className="flex w-24 shrink-0 flex-col items-end justify-between text-right text-sm text-(--text-primary) sm:w-28 md:w-32 md:items-end md:pr-1 md:pt-0">
-                {item.price != null ? (
-                  <div className="text-lg font-semibold text-(--text-primary) md:text-xl">
-                    {item.currency ?? "€"} {item.price}
-                  </div>
-                ) : (
-                  <div className="text-sm text-(--text-primary) opacity-60">—</div>
-                )}
-                {dateLabel ? (
-                  <div className="mt-1 text-xs text-(--text-primary) opacity-60 md:text-[13px] md:text-slate-500 md:opacity-100">
-                    {dateLabel}
-                  </div>
-                ) : null}
                 <div className="mt-2">
                   <SavedListingButton
                     listingId={item.id}
@@ -145,7 +146,10 @@ export default function ListingsList({ items, className }: Props) {
                     alt={title}
                     fill
                     sizes="280px"
-                    loading="lazy"
+                    priority={isEager}
+                    loading={isEager ? "eager" : "lazy"}
+                    fetchPriority={isEager ? "high" : "auto"}
+                    decoding={isEager ? "sync" : "async"}
                     className="h-full w-full object-cover object-center"
                   />
                 ) : (
@@ -175,32 +179,18 @@ export default function ListingsList({ items, className }: Props) {
               </div>
 
               <div className="flex flex-col gap-2 p-6">
-                <h3 className="line-clamp-2 text-lg font-semibold text-(--text-primary)">{title}</h3>
-                <div className="text-sm text-(--text-primary) opacity-70">
-                  {locationLabel}
-                  {item.area ? ` • ${item.area}` : ""}
-                </div>
-                {listingTypeLabel ? (
-                  <div className="text-sm text-(--text-primary) opacity-60">{listingTypeLabel}</div>
+                <h3 className="line-clamp-2 text-[19px] font-semibold leading-6 text-(--text-primary)">{title}</h3>
+                {metadataLabel ? (
+                  <div className="truncate whitespace-nowrap text-[13px] text-slate-500" title={metadataLabel}>
+                    {metadataLabel}
+                  </div>
                 ) : null}
-                {item.sellerType ? (
-                  <div className="text-sm text-(--text-primary) opacity-60">{item.sellerType}</div>
-                ) : null}
+
+                <ListingPrice price={item.price} currency={item.currency} />
               </div>
 
               <div className="flex flex-col items-end justify-between p-6 text-right text-sm text-(--text-primary)">
-                {item.price != null ? (
-                  <div className="text-xl font-semibold text-(--text-primary)">
-                    {item.currency ?? "€"} {item.price}
-                  </div>
-                ) : (
-                  <div className="text-sm text-(--text-primary) opacity-60">—</div>
-                )}
-                {dateLabel ? (
-                  <div className="text-xs text-(--text-primary) opacity-60">{dateLabel}</div>
-                ) : null}
                 <div className="mt-2 flex items-center justify-end gap-2 text-xs text-slate-500">
-                  <span className="font-medium text-slate-700">View</span>
                   <SavedListingButton
                     listingId={item.id}
                     initialSaved={item.savedByCurrentUser}

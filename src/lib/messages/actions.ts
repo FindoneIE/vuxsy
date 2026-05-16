@@ -2,14 +2,42 @@
 
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
 import { revalidatePath } from "next/cache";
 import { sendMessageNotificationEmail } from "@/lib/email/sendMessageNotificationEmail";
 import type { ConversationSummary, MessageItem } from "@/lib/messages/types";
 import { resolveDisplayNameValue } from "@/lib/display-name";
+import { formatListingLocation } from "@/components/listings/formatters";
 
 const MIN_MESSAGE_LENGTH = 1;
 const MAX_MESSAGE_LENGTH = 2000;
+
+const resolvePositiveInteger = (value: string | undefined, fallback: number) => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const resolveNonNegativeInteger = (value: string | undefined, fallback: number) => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const MESSAGE_EMAIL_DEBOUNCE_SECONDS = resolvePositiveInteger(
+  process.env.MESSAGE_EMAIL_NOTIFICATION_DEBOUNCE_SECONDS,
+  300
+);
+const MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS = resolveNonNegativeInteger(
+  process.env.MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
+  90
+);
+const MESSAGE_EMAIL_PREVIEW_MAX_LENGTH = 80;
+
+console.info("message_notification_config_loaded", {
+  rawMessageEmailActiveReadWindowSeconds:
+    process.env.MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS ?? null,
+  parsedMessageEmailActiveReadWindowSeconds: MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
+});
 
 const resolveParticipantDisplayName = (
   profile?: {
@@ -47,6 +75,125 @@ const escapePostgrestInValue = (value: string) =>
 
 const serializePostgrestInFilter = (values: string[]) =>
   `(${values.map((value) => `"${escapePostgrestInValue(value)}"`).join(",")})`;
+
+const truncateMessagePreview = (message: string, maxLength = MESSAGE_EMAIL_PREVIEW_MAX_LENGTH) => {
+  const normalized = message.trim().replace(/\s+/g, " ");
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+};
+
+const hasRecentConversationReadActivity = async (
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  conversationId: string,
+  recipientId: string,
+  windowSeconds: number
+) => {
+  const cutoff = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .eq("recipient_id", recipientId)
+    .not("read_at", "is", null)
+    .gte("read_at", cutoff)
+    .limit(1);
+
+  if (error) {
+    console.warn("message_notification_skip_check_failed", {
+      conversationId,
+      recipientId,
+      windowSeconds,
+      error: error.message,
+      code: error.code,
+    });
+    return false;
+  }
+
+  return (data ?? []).length > 0;
+};
+
+const reserveMessageEmailNotificationSlot = async (
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  {
+    conversationId,
+    recipientId,
+    messageId,
+    debounceSeconds,
+  }: {
+    conversationId: string;
+    recipientId: string;
+    messageId: string;
+    debounceSeconds: number;
+  }
+) => {
+  const nowIso = new Date().toISOString();
+  const cutoffIso = new Date(Date.now() - debounceSeconds * 1000).toISOString();
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("message_email_notifications")
+    .update({
+      last_notified_at: nowIso,
+      last_message_id: messageId,
+      updated_at: nowIso,
+    })
+    .eq("conversation_id", conversationId)
+    .eq("recipient_id", recipientId)
+    .lte("last_notified_at", cutoffIso)
+    .select("conversation_id")
+    .limit(1);
+
+  if (updateError) {
+    console.error("message_notification_reservation_failed", {
+      conversationId,
+      recipientId,
+      messageId,
+      debounceSeconds,
+      error: updateError.message,
+      code: updateError.code,
+      details: updateError.details,
+    });
+    return { allowed: false as const, reason: "reservation_failed" as const };
+  }
+
+  if ((updatedRows ?? []).length > 0) {
+    return { allowed: true as const, reason: "updated" as const };
+  }
+
+  const { data: insertedRows, error: insertError } = await supabase
+    .from("message_email_notifications")
+    .insert({
+      conversation_id: conversationId,
+      recipient_id: recipientId,
+      last_message_id: messageId,
+      last_notified_at: nowIso,
+      updated_at: nowIso,
+    })
+    .select("conversation_id")
+    .limit(1);
+
+  if (!insertError && (insertedRows ?? []).length > 0) {
+    return { allowed: true as const, reason: "inserted" as const };
+  }
+
+  if (insertError?.code === "23505") {
+    return { allowed: false as const, reason: "debounced" as const };
+  }
+
+  if (insertError) {
+    console.error("message_notification_insert_reservation_failed", {
+      conversationId,
+      recipientId,
+      messageId,
+      debounceSeconds,
+      error: insertError.message,
+      code: insertError.code,
+      details: insertError.details,
+    });
+    return { allowed: false as const, reason: "reservation_failed" as const };
+  }
+
+  return { allowed: false as const, reason: "debounced" as const };
+};
 
 export async function getOrCreateConversation(listingId: string) {
   try {
@@ -467,7 +614,9 @@ export async function getConversationMessages(
 
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
-    .select("id, buyer_id, seller_id")
+    .select(
+      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
+    )
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -527,7 +676,9 @@ export async function restoreConversationVisibilityForCurrentUser(conversationId
 
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
-    .select("id, buyer_id, seller_id")
+    .select(
+      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
+    )
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -561,12 +712,28 @@ export async function restoreConversationVisibilityForCurrentUser(conversationId
 }
 
 export async function sendMessage(conversationId: string, body: string) {
+  console.info("sendMessage_entered", {
+    conversationId,
+    bodyLength: body?.length ?? 0,
+  });
+
   if (!conversationId) {
+    console.info("sendMessage_guard_exit", {
+      reason: "missing_conversation_id",
+      conversationId,
+    });
     throw new Error("Missing conversation id");
   }
 
   const trimmed = body.trim();
   if (trimmed.length < MIN_MESSAGE_LENGTH || trimmed.length > MAX_MESSAGE_LENGTH) {
+    console.info("sendMessage_guard_exit", {
+      reason: "invalid_message_length",
+      conversationId,
+      trimmedLength: trimmed.length,
+      minLength: MIN_MESSAGE_LENGTH,
+      maxLength: MAX_MESSAGE_LENGTH,
+    });
     throw new Error(`Message must be between ${MIN_MESSAGE_LENGTH} and ${MAX_MESSAGE_LENGTH} characters.`);
   }
 
@@ -575,16 +742,29 @@ export async function sendMessage(conversationId: string, body: string) {
   const user = authData.user;
 
   if (!user) {
+    console.info("sendMessage_guard_exit", {
+      reason: "not_authenticated",
+      conversationId,
+    });
     throw new Error("Not authenticated");
   }
 
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
-    .select("id, buyer_id, seller_id")
+    .select(
+      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
+    )
     .eq("id", conversationId)
     .maybeSingle();
 
   if (conversationError || !conversation) {
+    console.info("sendMessage_guard_exit", {
+      reason: "conversation_not_found",
+      conversationId,
+      hasConversation: Boolean(conversation),
+      conversationError: conversationError?.message ?? null,
+      conversationErrorCode: conversationError?.code ?? null,
+    });
     throw new Error("Conversation not found");
   }
 
@@ -595,6 +775,11 @@ export async function sendMessage(conversationId: string, body: string) {
     .limit(1);
 
   if ((blockRows ?? []).length > 0) {
+    console.info("sendMessage_guard_exit", {
+      reason: "conversation_blocked",
+      conversationId,
+      blockedRowsCount: (blockRows ?? []).length,
+    });
     throw new Error("Conversation is blocked");
   }
 
@@ -623,8 +808,23 @@ export async function sendMessage(conversationId: string, body: string) {
     .single();
 
   if (insertError || !inserted) {
+    console.info("sendMessage_guard_exit", {
+      reason: "insert_failed",
+      conversationId,
+      insertError: insertError?.message ?? null,
+      insertErrorCode: insertError?.code ?? null,
+      hasInsertedRow: Boolean(inserted),
+    });
     throw new Error("Failed to send message");
   }
+
+  console.info("sendMessage_after_insert", {
+    conversationId,
+    messageId: inserted.id,
+    senderId: inserted.sender_id,
+    recipientId: inserted.recipient_id,
+    createdAt: inserted.created_at,
+  });
 
   console.log("sendMessage insert diagnostic", {
     conversationId,
@@ -644,23 +844,337 @@ export async function sendMessage(conversationId: string, body: string) {
     })
     .eq("id", conversationId);
 
+  console.info("sendMessage_before_notification_block", {
+    conversationId,
+    messageId: inserted.id,
+    senderId: user.id,
+    recipientId,
+    recipientDiffersFromSender: recipientId !== user.id,
+  });
+
   if (recipientId !== user.id) {
+    console.info("sendMessage_notification_block_entered", {
+      conversationId,
+      messageId: inserted.id,
+      senderId: user.id,
+      recipientId,
+    });
+
+    console.info("message_notification_attempted", {
+      conversationId,
+      messageId: inserted.id,
+      senderId: user.id,
+      recipientId,
+      debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
+    });
+
     const { data: recipientProfile } = await supabase
       .from("profiles")
       .select("email, message_notifications")
       .eq("id", recipientId)
       .maybeSingle();
 
-    if (recipientProfile?.email && recipientProfile.message_notifications !== false) {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-      const conversationUrl = `${baseUrl}/dashboard/messages/${conversationId}`;
+    let resolvedRecipientEmail = recipientProfile?.email?.trim() || null;
+    let sourceUsed: "profiles.email" | "auth.users.email" | "auth.user_metadata.email" | "none" =
+      resolvedRecipientEmail ? "profiles.email" : "none";
 
-      await sendMessageNotificationEmail({
-        to: recipientProfile.email,
-        conversationUrl,
-      });
+    if (!resolvedRecipientEmail) {
+      try {
+        const adminSupabase = createSupabaseAdminClient();
+        const { data: authUserData, error: authUserError } =
+          await adminSupabase.auth.admin.getUserById(recipientId);
+
+        if (authUserError) {
+          console.warn("message_notification_email_fallback_auth_lookup_failed", {
+            conversationId,
+            messageId: inserted.id,
+            recipientId,
+            error: authUserError.message,
+            code: authUserError.code,
+          });
+        } else {
+          const authUserEmail = authUserData.user?.email?.trim() || null;
+          const authMetadata = authUserData.user?.user_metadata as
+            | Record<string, unknown>
+            | undefined;
+          const metadataEmailRaw = authMetadata?.email;
+          const metadataEmail =
+            typeof metadataEmailRaw === "string" ? metadataEmailRaw.trim() : null;
+
+          if (authUserEmail) {
+            resolvedRecipientEmail = authUserEmail;
+            sourceUsed = "auth.users.email";
+          } else if (metadataEmail) {
+            resolvedRecipientEmail = metadataEmail;
+            sourceUsed = "auth.user_metadata.email";
+          }
+        }
+      } catch (error) {
+        console.warn("message_notification_email_fallback_admin_client_unavailable", {
+          conversationId,
+          messageId: inserted.id,
+          recipientId,
+          error: (error as Error).message,
+        });
+      }
     }
+
+    console.info("message_notification_recipient_email_resolved", {
+      conversationId,
+      messageId: inserted.id,
+      recipientId,
+      resolvedRecipientEmail,
+      sourceUsed,
+    });
+
+    if (!resolvedRecipientEmail) {
+      console.info("message_notification_skipped", {
+        conversationId,
+        messageId: inserted.id,
+        recipientId,
+        reason: "missing_email",
+      });
+    } else if (recipientProfile?.message_notifications === false) {
+      console.info("message_notification_skipped", {
+        conversationId,
+        messageId: inserted.id,
+        recipientId,
+        reason: "opted_out",
+      });
+    } else {
+      console.info("message_notification_active_window_config", {
+        conversationId,
+        messageId: inserted.id,
+        recipientId,
+        rawMessageEmailActiveReadWindowSeconds:
+          process.env.MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS ?? null,
+        activeWindowSeconds: MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
+      });
+
+      const recipientActiveInConversation = await hasRecentConversationReadActivity(
+        supabase,
+        conversationId,
+        recipientId,
+        MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS
+      );
+
+      if (recipientActiveInConversation) {
+        console.info("message_notification_skipped", {
+          conversationId,
+          messageId: inserted.id,
+          recipientId,
+          reason: "active_conversation",
+          activeWindowSeconds: MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
+        });
+      } else {
+        const reservation = await reserveMessageEmailNotificationSlot(supabase, {
+          conversationId,
+          recipientId,
+          messageId: inserted.id,
+          debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
+        });
+
+        if (!reservation.allowed) {
+          console.info("message_notification_skipped", {
+            conversationId,
+            messageId: inserted.id,
+            recipientId,
+            reason: reservation.reason === "debounced" ? "debounce" : reservation.reason,
+            debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
+          });
+        } else {
+          const [{ data: senderProfile }, { data: listingImageRows }] = await Promise.all([
+            supabase
+              .from("profiles")
+              .select("display_name, full_name, name")
+              .eq("id", user.id)
+              .maybeSingle(),
+            conversation.listing_id
+              ? supabase
+                  .from("listing_images")
+                  .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
+                  .eq("listing_id", conversation.listing_id)
+                  .order("sort_order", { ascending: true })
+              : Promise.resolve({ data: [] }),
+            ]);
+
+          const listingRawFromConversation = (
+            conversation as {
+              listing?:
+                | {
+                    id?: string | null;
+                    title?: string | null;
+                    price?: number | null;
+                    county?: string | null;
+                    area?: string | null;
+                    city?: string | null;
+                  }
+                | Array<{
+                    id?: string | null;
+                    title?: string | null;
+                    price?: number | null;
+                    county?: string | null;
+                    area?: string | null;
+                    city?: string | null;
+                  }>
+                | null;
+            }
+          ).listing;
+
+          const listingRaw = Array.isArray(listingRawFromConversation)
+            ? listingRawFromConversation[0] ?? null
+            : listingRawFromConversation ?? null;
+
+          const listingSeller = (
+            listingRaw as {
+              seller?: {
+                displayName?: string | null;
+                display_name?: string | null;
+                fullName?: string | null;
+                full_name?: string | null;
+                name?: string | null;
+                username?: string | null;
+              } | null;
+            } | null
+          )?.seller;
+
+          const senderDisplayName =
+            resolveDisplayNameValue(
+              listingSeller?.displayName,
+              listingSeller?.display_name,
+              listingSeller?.fullName,
+              listingSeller?.full_name,
+              listingSeller?.name,
+              listingSeller?.username,
+              senderProfile?.display_name,
+              senderProfile?.full_name,
+              senderProfile?.name
+            ) ?? "User";
+
+          const listingTitle = listingRaw?.title?.trim() ?? "";
+          const listingLocation = formatListingLocation([
+            listingRaw?.county ?? null,
+            listingRaw?.area ?? null,
+            listingRaw?.city ?? null,
+          ]);
+
+          const listingPrice =
+            listingRaw?.price !== null && listingRaw?.price !== undefined
+              ? (() => {
+                  const numericPrice =
+                    typeof listingRaw.price === "number"
+                      ? listingRaw.price
+                      : Number.parseFloat(String(listingRaw.price));
+
+                  if (!Number.isFinite(numericPrice)) {
+                    return null;
+                  }
+
+                  return `${new Intl.NumberFormat("en-IE", {
+                    maximumFractionDigits: 0,
+                  }).format(numericPrice)} €`;
+                })()
+              : null;
+
+          const listingImageMap = buildListingImageMap(
+            supabase,
+            (listingImageRows ?? []) as {
+              listing_id?: string | null;
+              image_url?: string | null;
+              storage_path_600?: string | null;
+              storage_path_1800?: string | null;
+              sort_order?: number | null;
+            }[]
+          );
+          const listingImageEntry = conversation.listing_id
+            ? listingImageMap.get(conversation.listing_id) ?? null
+            : null;
+          const listingImageUrl = conversation.listing_id
+            ? listingImageEntry?.coverImage ?? listingImageEntry?.images?.[0] ?? null
+            : null;
+
+          const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
+            /\/$/,
+            ""
+          );
+          const conversationUrl = `${baseUrl}/dashboard/messages/${conversationId}`;
+
+          console.info("message_notification_send_invoked", {
+            conversationId,
+            messageId: inserted.id,
+            recipientId,
+            resolvedRecipientEmail,
+            sourceUsed,
+          });
+
+          console.info("email_listing_payload_source", {
+            conversationId,
+            messageId: inserted.id,
+            listingId: conversation.listing_id ?? null,
+            listingTitle,
+            listingPrice,
+            listingLocation: listingLocation || null,
+            listingImageUrl,
+          });
+
+          console.info("email_notification_payload_final", {
+            senderDisplayName,
+            listingTitle,
+            listingPrice,
+            listingLocation: listingLocation || null,
+            listingImageUrl,
+            conversationUrl,
+            rawConversationListing: (conversation as { listing?: unknown }).listing ?? null,
+          });
+
+          const emailResult = await sendMessageNotificationEmail({
+            to: resolvedRecipientEmail,
+            conversationUrl,
+            senderDisplayName,
+            listingTitle,
+            listingLocation: listingLocation || null,
+            listingPrice,
+            listingImageUrl,
+            messagePreview: truncateMessagePreview(trimmed),
+            messageSentAt: inserted.created_at,
+          });
+
+          if (emailResult.delivered) {
+            console.info("message_notification_sent", {
+              conversationId,
+              messageId: inserted.id,
+              recipientId,
+              reservationReason: reservation.reason,
+            });
+          } else if (emailResult.skipped) {
+            console.info("message_notification_skipped", {
+              conversationId,
+              messageId: inserted.id,
+              recipientId,
+              reason:
+                emailResult.reason === "missing_smtp_config"
+                  ? "missing_smtp_config"
+                  : "email_provider_not_configured",
+            });
+          } else {
+            console.error("message_notification_failed", {
+              conversationId,
+              messageId: inserted.id,
+              recipientId,
+              error: emailResult.error ?? "Unknown email failure",
+            });
+          }
+        }
+      }
+    }
+  } else {
+    console.info("sendMessage_notification_block_skipped", {
+      conversationId,
+      messageId: inserted.id,
+      senderId: user.id,
+      recipientId,
+      reason: "recipient_is_sender",
+    });
   }
 
   return {

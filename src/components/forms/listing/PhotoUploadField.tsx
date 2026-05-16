@@ -20,6 +20,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import ActionIconButton from "@/components/ui/ActionIconButton";
 import { ImagePlus, Trash2 } from "@/components/ui/Icon";
 
 type PhotoDraft = {
@@ -87,14 +88,14 @@ const SortablePhotoTile = ({
           Cover
         </div>
       )}
-      <button
-        type="button"
+      <ActionIconButton
         onClick={() => onRemove(photo.id)}
-        className="absolute right-2 top-2 rounded-full bg-white/80 p-1 text-red-600 shadow transition-opacity duration-150 opacity-100 hover:bg-white sm:opacity-0 sm:group-hover:opacity-100"
+        tone="danger"
+        className="absolute right-2 top-2 opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-hover:opacity-100"
       >
         <span className="sr-only">Remove</span>
-        <Trash2 className="h-4 w-4" />
-      </button>
+        <Trash2 weight="bold" className="h-5 w-5 sm:h-5 sm:w-5" />
+      </ActionIconButton>
     </div>
   );
 };

@@ -4,6 +4,11 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import UserAvatar from "@/components/ui/UserAvatar";
 
+// Opt out of prerendering: ProtectedRoute uses useSearchParams() and the
+// root src/app/loading.tsx Suspense boundary was removed (Fix 1). Auth-gated
+// route — dynamic is appropriate.
+export const dynamic = "force-dynamic";
+
 export default function MessagesPage() {
   const { user, profile } = useAuth();
   const metadata = user?.user_metadata as Record<string, unknown> | undefined;

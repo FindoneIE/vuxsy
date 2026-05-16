@@ -9,6 +9,7 @@ import { createListing } from "@/lib/listings/createListing";
 import { updateListing } from "@/lib/listings/updateListing";
 import { updateUserProfile } from "@/lib/users";
 import { validateDisplayName } from "@/lib/display-name-policy";
+import { validateTitleAndDescription } from "@/lib/listings/titleDescriptionValidation";
 import { useToast } from "@/components/ui/ToastProvider";
 import {
 	defaultListingFormValues,
@@ -126,12 +127,11 @@ const buildListingPayload = (
 
 	const categoryId = getCategoryForType(type, values);
 
-	const price =
-		type === "service"
-			? toNumberOrNull(rest.serviceRate)
-			: type === "request"
-				? toNumberOrNull(rest.requestBudget)
-				: toNumberOrNull(rest.marketplacePrice);
+	const price = toNumberOrNull(rest.price);
+	const {
+		normalizedTitle,
+		normalizedDescription,
+	} = validateTitleAndDescription(rest.title, rest.description);
 
 	const youtubeUrl =
 		type === "service"
@@ -153,8 +153,8 @@ const buildListingPayload = (
 	const showPhonePublicly = rest.showPhonePublicly ?? false;
 
 	return {
-		title: rest.title,
-		description: rest.description || null,
+		title: normalizedTitle,
+		description: normalizedDescription || null,
 		category_id: categoryId || null,
 		county: rest.county || null,
 		area: rest.area || null,
@@ -345,6 +345,34 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			}
 			return { ...prev, [field]: value };
 		});
+
+		if (field === "title" || field === "description") {
+			const nextTitle =
+				field === "title" ? String(value ?? "") : formValues.title;
+			const nextDescription =
+				field === "description" ? String(value ?? "") : formValues.description;
+			const { titleError, descriptionError } = validateTitleAndDescription(
+				nextTitle,
+				nextDescription
+			);
+
+			setErrors((prev) => {
+				const nextErrors = { ...prev };
+				if (titleError) {
+					nextErrors.title = titleError;
+				} else {
+					delete nextErrors.title;
+				}
+
+				if (descriptionError) {
+					nextErrors.description = descriptionError;
+				} else {
+					delete nextErrors.description;
+				}
+
+				return nextErrors;
+			});
+		}
 	};
 
 	const handleBusinessToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -393,6 +421,10 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 	const validateListing = (values: ListingFormValues) => {
 		const nextErrors: ListingFormErrors = {};
 		const requiredFields = requiredFieldsByType[type];
+		const { titleError, descriptionError } = validateTitleAndDescription(
+			values.title,
+			values.description
+		);
 
 		requiredFields.forEach((field) => {
 			const value = values[field];
@@ -400,6 +432,14 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 				nextErrors[field] = "This field is required.";
 			}
 		});
+
+		if (titleError) {
+			nextErrors.title = titleError;
+		}
+
+		if (descriptionError) {
+			nextErrors.description = descriptionError;
+		}
 
 		if (values.listAsBusiness) {
 			if (!values.companyName.trim()) {
@@ -423,20 +463,8 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			nextErrors.displayName = "This field is required.";
 		}
 
-		if (values.requestBudget && Number.isNaN(Number(values.requestBudget))) {
-			nextErrors.requestBudget = "Use a numeric amount.";
-		}
-
-		if (values.serviceRate && Number.isNaN(Number(values.serviceRate))) {
-			nextErrors.serviceRate = "Use a numeric rate.";
-		}
-
-		if (values.marketplacePrice && Number.isNaN(Number(values.marketplacePrice))) {
-			nextErrors.marketplacePrice = "Use a numeric price.";
-		}
-
-		if (values.marketplaceQuantity && Number.isNaN(Number(values.marketplaceQuantity))) {
-			nextErrors.marketplaceQuantity = "Use a numeric quantity.";
+		if (values.price && Number.isNaN(Number(values.price))) {
+			nextErrors.price = "Use a numeric price.";
 		}
 
 		return nextErrors;
@@ -616,11 +644,7 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 					county: formSnapshot.county,
 					area: formSnapshot.area,
 					price:
-						type === "service"
-							? formSnapshot.serviceRate
-							: type === "request"
-							? formSnapshot.requestBudget
-							: formSnapshot.marketplacePrice,
+						formSnapshot.price,
 					sellerType: formSnapshot.listAsBusiness ? "business" : "private",
 					photoCount: photos.length,
 					photoNames,
@@ -731,7 +755,9 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			console.error("Listing submission failed:", error);
 			setIsSubmitting(false);
 			setSubmitMode(null);
-			setStatusMessage("Upload failed. Please try again.");
+			setStatusMessage(
+				(error as { message?: string })?.message || "Upload failed. Please try again."
+			);
 		}
 	};
 

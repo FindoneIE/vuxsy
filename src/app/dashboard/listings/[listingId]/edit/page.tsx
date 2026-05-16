@@ -10,6 +10,10 @@ import LocationFields from "@/components/location/LocationFields";
 import PhotoUploadField, { type PhotoDraft } from "@/components/forms/listing/PhotoUploadField";
 import ServiceFormFields from "@/components/forms/listing/ServiceFormFields";
 import RequestFormFields from "@/components/forms/listing/RequestFormFields";
+
+// Opt out of prerendering: ProtectedRoute uses useSearchParams(). The root
+// src/app/loading.tsx Suspense boundary was removed (Fix 1). Auth-gated.
+export const dynamic = "force-dynamic";
 import MarketplaceFormFields from "@/components/forms/listing/MarketplaceFormFields";
 import { CATEGORIES_MARKETPLACE, CATEGORIES_REQUESTS, CATEGORIES_SERVICES } from "@/components/filters/categories";
 import {
@@ -19,8 +23,10 @@ import {
   type ListingFormValues,
   type ListingFormChangeHandler,
 } from "@/components/forms/listing/listingFormConfig";
+import ActionIconButton from "@/components/ui/ActionIconButton";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, ChevronDown } from "@/components/ui/Icon";
+import { ArrowUpRight, Trash2 } from "@/components/ui/Icon";
+import { CaretDown } from "@phosphor-icons/react";
 import { getListingById } from "@/lib/listings/getListingById";
 import { updateListing } from "@/lib/listings/updateListing";
 import { updateListingStatus } from "@/lib/listings/updateListingStatus";
@@ -31,6 +37,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateUserProfile } from "@/lib/users";
 import { validateDisplayName } from "@/lib/display-name-policy";
 import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
+import {
+  DESCRIPTION_MAX_LENGTH,
+  DESCRIPTION_MIN_LENGTH,
+  TITLE_MAX_LENGTH,
+  TITLE_MIN_LENGTH,
+  validateTitleAndDescription,
+} from "@/lib/listings/titleDescriptionValidation";
 import type { Listing, ListingType } from "@/types/listing";
 import type { UserProfile } from "@/types/user";
 
@@ -168,6 +181,35 @@ export default function ListingEditPage() {
       }
       return { ...prev, [field]: value };
     });
+
+    if (field === "title" || field === "description") {
+      const nextTitle = field === "title" ? String(value ?? "") : formValues.title;
+      const nextDescription =
+        field === "description" ? String(value ?? "") : formValues.description;
+      const { titleError, descriptionError } = validateTitleAndDescription(
+        nextTitle,
+        nextDescription
+      );
+
+      setErrors((prev) => {
+        const nextErrors = { ...prev };
+
+        if (titleError) {
+          nextErrors.title = titleError;
+        } else {
+          delete nextErrors.title;
+        }
+
+        if (descriptionError) {
+          nextErrors.description = descriptionError;
+        } else {
+          delete nextErrors.description;
+        }
+
+        return nextErrors;
+      });
+    }
+
     setDirty(true);
   };
 
@@ -254,6 +296,8 @@ export default function ListingEditPage() {
       : listingType === "request"
       ? formValues.requestCategory
       : formValues.marketplaceCategory;
+  const titleLength = formValues.title.trim().length;
+  const descriptionLength = formValues.description.trim().length;
 
   const currentPhotos: PhotoDraft[] =
     listingType === "service"
@@ -570,23 +614,8 @@ export default function ListingEditPage() {
       serviceCategory: type === "service" ? categorySlug : "",
       requestCategory: type === "request" ? categorySlug : "",
       marketplaceCategory: type === "marketplace" ? categorySlug : "",
-      servicePricing: result.servicePricing ?? "",
-      serviceRate:
-        type === "service"
-          ? String(result.serviceRate ?? result.price ?? "")
-          : "",
       serviceAvailability: result.serviceAvailability ?? "",
-      requestBudget:
-        type === "request"
-          ? String(result.requestBudget ?? result.price ?? "")
-          : "",
-      requestNeededBy: result.requestNeededBy ?? "",
-      requestUrgency: result.requestUrgency ?? "",
-      marketplaceQuantity: result.marketplaceQuantity ?? "",
-      marketplacePrice:
-        type === "marketplace"
-          ? String(result.price ?? "")
-          : "",
+      price: String(result.price ?? ""),
       serviceYoutubeUrl: result.serviceYoutubeUrl ?? "",
       requestYoutubeUrl: result.requestYoutubeUrl ?? "",
       marketplaceYoutubeUrl: result.marketplaceYoutubeUrl ?? "",
@@ -622,6 +651,10 @@ export default function ListingEditPage() {
   const validate = () => {
     const requiredFields = requiredFieldsByType[listingType] ?? [];
     const nextErrors: ListingFormErrors = {};
+    const { titleError, descriptionError } = validateTitleAndDescription(
+      formValues.title,
+      formValues.description
+    );
 
     requiredFields.forEach((field) => {
       const value = formValues[field];
@@ -630,17 +663,16 @@ export default function ListingEditPage() {
       }
     });
 
-    if (formValues.requestBudget && Number.isNaN(Number(formValues.requestBudget))) {
-      nextErrors.requestBudget = "Use a numeric amount.";
+    if (titleError) {
+      nextErrors.title = titleError;
     }
-    if (formValues.serviceRate && Number.isNaN(Number(formValues.serviceRate))) {
-      nextErrors.serviceRate = "Use a numeric rate.";
+
+    if (descriptionError) {
+      nextErrors.description = descriptionError;
     }
-    if (formValues.marketplacePrice && Number.isNaN(Number(formValues.marketplacePrice))) {
-      nextErrors.marketplacePrice = "Use a numeric price.";
-    }
-    if (formValues.marketplaceQuantity && Number.isNaN(Number(formValues.marketplaceQuantity))) {
-      nextErrors.marketplaceQuantity = "Use a numeric quantity.";
+
+    if (formValues.price && Number.isNaN(Number(formValues.price))) {
+      nextErrors.price = "Use a numeric price.";
     }
 
   const displayNameValidation = validateDisplayName(formValues.displayName.trim(), isAdmin);
@@ -712,12 +744,11 @@ export default function ListingEditPage() {
     try {
       const selectedCategoryId = await resolveCategoryId(selectedCategory);
 
-      const price =
-        listingType === "service"
-          ? toNumberOrNull(formValues.serviceRate)
-          : listingType === "request"
-          ? toNumberOrNull(formValues.requestBudget)
-          : toNumberOrNull(formValues.marketplacePrice);
+      const price = toNumberOrNull(formValues.price);
+      const { normalizedTitle, normalizedDescription } = validateTitleAndDescription(
+        formValues.title,
+        formValues.description
+      );
 
       console.log("RAW EDIT FORM VALUES", formValues);
 
@@ -821,21 +852,17 @@ export default function ListingEditPage() {
       );
 
       const payload = {
-        title: formValues.title,
-        description: formValues.description,
+        title: normalizedTitle,
+        description: normalizedDescription,
         category_id: formValues.category_id ?? selectedCategoryId ?? null,
         city: formValues.city ?? formValues.county ?? null,
         county: formValues.county ?? null,
         area: formValues.area ?? null,
-        price:
-          typeof formValues.price === "number"
-            ? formValues.price
-            : price ?? 0,
+        price,
         status: formValues.status ?? status,
         listing_type: formValues.listing_type ?? listingType,
   contact_email: formValues.contactEmail,
   contact_phone: normalizedContactPhone ?? formValues.contactPhone,
-        marketplace_condition: formValues.marketplaceCondition ?? null,
         sellerType,
         seller: sellerSnapshot,
       };
@@ -1013,6 +1040,9 @@ export default function ListingEditPage() {
                       onChange={(event) => handleChange("title", event.target.value)}
                       placeholder="e.g. Weekend garden maintenance"
                     />
+                    <p className="text-xs text-slate-500">
+                      {titleLength}/{TITLE_MAX_LENGTH} characters (min {TITLE_MIN_LENGTH})
+                    </p>
                     {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
                   </div>
 
@@ -1027,6 +1057,9 @@ export default function ListingEditPage() {
                       onChange={(event) => handleChange("description", event.target.value)}
                       placeholder="Tell clients what they should know before contacting you."
                     />
+                    <p className="text-xs text-slate-500">
+                      {descriptionLength}/{DESCRIPTION_MAX_LENGTH} characters (min {DESCRIPTION_MIN_LENGTH})
+                    </p>
                     {errors.description && (
                       <p className="text-xs text-destructive">{errors.description}</p>
                     )}
@@ -1060,7 +1093,7 @@ export default function ListingEditPage() {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <CaretDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     </div>
                     {listingType === "service" && errors.serviceCategory && (
                       <p className="text-xs text-destructive">{errors.serviceCategory}</p>
@@ -1114,13 +1147,15 @@ export default function ListingEditPage() {
                               Cover
                             </div>
                           )}
-                          <button
-                            type="button"
+                          <ActionIconButton
                             onClick={() => handleRemoveExisting(image)}
-                            className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                            tone="danger"
+                            className="absolute right-2 top-2"
+                            aria-label="Remove image"
+                            title="Remove image"
                           >
-                            Remove
-                          </button>
+                            <Trash2 weight="bold" className="h-5 w-5 sm:h-5 sm:w-5" />
+                          </ActionIconButton>
                           {index !== 0 && (
                             <button
                               type="button"

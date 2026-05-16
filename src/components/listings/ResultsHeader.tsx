@@ -23,7 +23,12 @@ type ResultsHeaderProps = {
   count?: number | null;
 };
 
+let resultsHeaderRenderCount = 0;
+
 export default function ResultsHeader({ mode, count: countProp }: ResultsHeaderProps) {
+  const DEV = process.env.NODE_ENV !== "production";
+  const renderCount = ++resultsHeaderRenderCount;
+
   const searchParams = useSearchParams();
 
   const categoryParam = searchParams?.get("category");
@@ -50,11 +55,12 @@ export default function ResultsHeader({ mode, count: countProp }: ResultsHeaderP
         .join(" ")
     : "Ireland";
 
-  const [count, setCount] = React.useState<number | null>(null);
+  const [count, setCount] = React.useState<number | null>(
+    typeof countProp === "number" ? countProp : null
+  );
 
   React.useEffect(() => {
     if (typeof countProp === "number") {
-      queueMicrotask(() => setCount(countProp));
       return;
     }
     let mounted = true;
@@ -101,6 +107,34 @@ export default function ResultsHeader({ mode, count: countProp }: ResultsHeaderP
   }, [searchParams, mode, countProp]);
 
   const noun = mode === "requests" ? "jobs" : "listings";
+  const resolvedCount = typeof countProp === "number" ? countProp : count ?? 0;
+
+  if (DEV) {
+    console.debug("[mount-trace] ResultsHeader render", {
+      mode,
+  renderCount,
+      categoryParam,
+      countyParam,
+      countProp,
+      stateCount: count,
+      resolvedCount,
+    });
+    if (typeof performance !== "undefined") {
+      performance.mark(`ResultsHeader:render:${renderCount}`);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!DEV) return;
+    console.debug("[mount-trace] ResultsHeader mount", {
+      mode,
+      countProp,
+      stateCount: count,
+    });
+    return () => {
+      console.debug("[mount-trace] ResultsHeader unmount", { mode });
+    };
+  }, [DEV, count, countProp, mode]);
 
   return (
     <div>
@@ -108,7 +142,7 @@ export default function ResultsHeader({ mode, count: countProp }: ResultsHeaderP
         {`${categoryLabel} in ${locationLabel}`}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {`${(count ?? 0).toLocaleString()} ${noun}`}
+        {`${resolvedCount.toLocaleString()} ${noun}`}
       </p>
     </div>
   );

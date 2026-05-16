@@ -31,7 +31,7 @@ export const listingConfig: Record<ListingType, ListingSectionConfig> = {
     singularLabel: "Job",
     basePath: "/requests",
     collectionName: "requests",
-    supportsPrice: false,
+  supportsPrice: true,
     supportsSpotlight: true,
     supportsBump: true,
     supportsRenew: true,

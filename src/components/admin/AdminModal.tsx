@@ -9,9 +9,6 @@ import { dialogPadding, mobileDialogWidth } from "@/lib/layout/constants";
 const adminModalBaseClassName =
   "w-full rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden p-0 gap-0 ring-0";
 
-const adminModalOverlayClassName =
-  "fixed inset-0 bg-slate-900/20 backdrop-blur-sm supports-backdrop-filter:backdrop-blur-sm";
-
 type AdminModalProps = {
   children: React.ReactNode;
   className?: string;
@@ -30,7 +27,6 @@ export function AdminModal({
   return (
     <DialogContent
       showCloseButton={showCloseButton}
-      overlayClassName={adminModalOverlayClassName}
       className={cn(adminModalBaseClassName, mobileDialogWidth, maxWidthClassName, className)}
       onOpenAutoFocus={onOpenAutoFocus}
     >

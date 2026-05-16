@@ -29,8 +29,8 @@ export default async function ServicesPage({
             gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
           }}
         >
-          {result.items.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
+          {result.items.map((listing, idx) => (
+            <ListingCard key={listing.id} listing={listing} eager={idx < 6} />
           ))}
         </div>
       )}

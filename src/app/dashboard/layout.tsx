@@ -17,6 +17,11 @@ import VuxsyVerifiedBadge from "@/components/ui/VuxsyVerifiedBadge";
 import { cn } from "@/lib/utils";
 import { logOut } from "@/lib/auth";
 
+// Opt out of prerendering: dashboard layout uses ProtectedRoute which calls
+// useSearchParams(). The root src/app/loading.tsx Suspense boundary was
+// removed (Fix 1). All dashboard pages are auth-gated and dynamic anyway.
+export const dynamic = "force-dynamic";
+
 const navSections = [
   [
     { label: "My listings", href: "/dashboard/listings", icon: ClipboardList },

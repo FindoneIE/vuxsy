@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Eye } from "phosphor-react";
 import type { ListingStatus } from "@/components/listings/ListingStatusBadge";
 import {
   DropdownMenu,
@@ -114,8 +115,14 @@ export default function UserListingMobileActions({
       ) : (
         <>
           {onView && canView ? (
-            <button type="button" className={primaryButton} onClick={onView}>
-              View listing
+            <button
+              type="button"
+              className={primaryButton}
+              onClick={onView}
+              aria-label="View listing"
+            >
+              <Eye size={18} weight="regular" aria-hidden />
+              <span className="sr-only">View listing</span>
             </button>
           ) : null}
           {(isActive || isPaused) && onToggleStatus ? (

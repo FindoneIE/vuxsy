@@ -26,8 +26,13 @@ export default function ListingsGrid({ items, className, wrap = true }: Props) {
         "grid grid-cols-2 gap-2 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
       }
     >
-      {items.map((it) => (
-        <ListingCard key={it.id} listing={it} className="listing-card--square" />
+      {items.map((it, idx) => (
+        <ListingCard
+          key={it.id}
+          listing={it}
+          className="listing-card--square"
+          eager={idx < 6}
+        />
       ))}
     </div>
   );

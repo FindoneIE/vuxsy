@@ -14,13 +14,7 @@ export interface Listing {
   area?: string | null;
   price?: number | null;
   currency?: string | null;
-  servicePricing?: string | null;
-  serviceRate?: string | null;
   serviceAvailability?: string | null;
-  requestBudget?: string | null;
-  requestNeededBy?: string | null;
-  requestUrgency?: string | null;
-  marketplaceQuantity?: string | null;
   serviceYoutubeUrl?: string | null;
   requestYoutubeUrl?: string | null;
   marketplaceYoutubeUrl?: string | null;
@@ -70,13 +64,7 @@ export type ListingInsert = {
   price?: number | null;
   currency?: string | null;
   youtubeUrl?: string | null;
-  servicePricing?: string | null;
-  serviceRate?: string | null;
   serviceAvailability?: string | null;
-  requestBudget?: string | null;
-  requestNeededBy?: string | null;
-  requestUrgency?: string | null;
-  marketplaceQuantity?: string | null;
   serviceYoutubeUrl?: string | null;
   requestYoutubeUrl?: string | null;
   marketplaceYoutubeUrl?: string | null;

@@ -15,35 +15,17 @@ export default function ServiceFormFields({ values, onChange, errors }: Props) {
         <h3 className="form-card-title">Service details</h3>
 
       <div className="field-block">
-        <label htmlFor="service-pricing" className="field-label">
-          Pricing model
-        </label>
-        <select
-          id="service-pricing"
-          className="select field-select"
-          value={values.servicePricing}
-          onChange={(event) => onChange("servicePricing", event.target.value)}
-        >
-          <option value="">Select pricing model</option>
-          <option value="hourly">Hourly</option>
-          <option value="fixed">Fixed price</option>
-          <option value="estimate">Estimate after inspection</option>
-        </select>
-        {errors.servicePricing && <p className="text-xs text-destructive">{errors.servicePricing}</p>}
-      </div>
-
-      <div className="field-block">
-        <label htmlFor="service-rate" className="field-label">
-          Rate
+        <label htmlFor="listing-price" className="field-label">
+          Price
         </label>
         <input
-          id="service-rate"
+          id="listing-price"
           className="input field-input"
-          value={values.serviceRate}
-          onChange={(event) => onChange("serviceRate", event.target.value)}
-          placeholder="e.g. 35 €/hour"
+          value={values.price}
+          onChange={(event) => onChange("price", event.target.value)}
+          placeholder="e.g. 300€"
         />
-        {errors.serviceRate && <p className="text-xs text-destructive">{errors.serviceRate}</p>}
+        {errors.price && <p className="text-xs text-destructive">{errors.price}</p>}
       </div>
 
       </section>

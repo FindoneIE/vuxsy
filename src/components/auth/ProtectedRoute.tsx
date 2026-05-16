@@ -5,8 +5,18 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+// Inner component isolates the useSearchParams() call so it can be wrapped in
+// a local Suspense boundary. Required after the root src/app/loading.tsx was
+// removed (Fix 1) — without that root boundary, every prerendered route that
+// reached ProtectedRoute would fail with "useSearchParams() should be wrapped
+// in a suspense boundary".
+function ProtectedRouteRedirect({
+  user,
+  loading,
+}: {
+  user: ReturnType<typeof useAuth>["user"];
+  loading: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -21,12 +31,25 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
   }, [loading, user, router, pathname, searchParams]);
 
-  if (loading) {
-    return null;
-  }
+  return null;
+}
+
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  // `loading` is always false now: AuthProvider is SSR-seeded with the
+  // authoritative user from the root layout (see src/app/layout.tsx). We
+  // therefore render children immediately when authenticated — no blank
+  // first-paint phase, no footer jump on /dashboard, /messages, /publish.
+  const { user, loading } = useAuth();
 
   if (!user) {
-    return null;
+    // Unauthenticated: kick off a client redirect to /login. Wrapped in
+    // Suspense only because useSearchParams() requires a CSR-bailout
+    // boundary; this branch already renders nothing visually.
+    return (
+      <React.Suspense fallback={null}>
+        <ProtectedRouteRedirect user={user} loading={loading} />
+      </React.Suspense>
+    );
   }
 
   return <>{children}</>;

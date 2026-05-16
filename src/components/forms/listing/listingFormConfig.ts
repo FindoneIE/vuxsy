@@ -28,20 +28,12 @@ export type ListingFormValues = {
   requestYoutubeUrl: string;
   marketplaceYoutubeUrl: string;
   serviceCategory: string;
-  servicePricing: string;
-  serviceRate: string;
   serviceAvailability: string;
   requestCategory: string;
-  requestBudget: string;
-  requestNeededBy: string;
-  requestUrgency: string;
   marketplaceCategory: string;
-  marketplaceQuantity: string;
-  marketplacePrice: string;
-  marketplaceCondition: string;
   category_id: string | null;
   city: string | null;
-  price: number | null;
+  price: string;
   status: Listing["status"] | null;
   listing_type: ListingType | null;
 };
@@ -79,32 +71,24 @@ export const defaultListingFormValues: ListingFormValues = {
   requestYoutubeUrl: "",
   marketplaceYoutubeUrl: "",
   serviceCategory: "",
-  servicePricing: "",
-  serviceRate: "",
   serviceAvailability: "",
   requestCategory: "",
-  requestBudget: "",
-  requestNeededBy: "",
-  requestUrgency: "",
   marketplaceCategory: "",
-  marketplaceQuantity: "",
-  marketplacePrice: "",
-  marketplaceCondition: "",
   category_id: null,
   city: null,
-  price: null,
+  price: "",
   status: null,
   listing_type: null,
 };
 
 export const requiredFieldsByType: Record<ListingType, Array<keyof ListingFormValues>> = {
-  service: ["title", "description", "county", "serviceCategory", "servicePricing"],
-  request: ["title", "description", "county", "requestCategory", "requestBudget"],
+  service: ["title", "description", "county", "serviceCategory", "price"],
+  request: ["title", "description", "county", "requestCategory", "price"],
   marketplace: [
     "title",
     "description",
     "county",
     "marketplaceCategory",
-    "marketplacePrice",
+    "price",
   ],
 };

@@ -5,6 +5,7 @@ import ListingsGrid from "@/components/listings/ListingsGrid";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
 import { resolveDisplayNameValue } from "@/lib/display-name";
+import { resolveListingPrice } from "@/lib/listings/normalizePrice";
 import type { ListingCardItem } from "@/components/listings/ListingCard";
 
 type SellerAdsPageProps = {
@@ -23,9 +24,7 @@ export default async function SellerAdsPage({ params }: SellerAdsPageProps) {
       .maybeSingle(),
     supabase
       .from("listings")
-      .select(
-        "id, title, category_id, county, city, area, price, currency, created_at, listing_type, seller, status"
-      )
+      .select("*")
       .eq("user_id", sellerId)
       .eq("status", "active")
       .order("created_at", { ascending: false }),
@@ -106,7 +105,7 @@ export default async function SellerAdsPage({ params }: SellerAdsPageProps) {
       county: listing.county,
       city: listing.city,
       area: listing.area,
-      price: listing.price,
+  price: resolveListingPrice(listing as Record<string, unknown>),
       currency: listing.currency,
       created_at: listing.created_at,
       listing_type: listing.listing_type,

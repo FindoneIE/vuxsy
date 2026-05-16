@@ -13,6 +13,7 @@ type ListingFiltersSidebarProps = {
   // optional override for base path used when pushing URLs (defaults to `/${mode}`)
   basePath?: string;
   variant?: "sidebar" | "drawer";
+  initialCounts?: Record<string, number>;
   headerActions?: React.ReactNode;
   onCategoryChange?: (category: string | null) => void;
 };
@@ -21,6 +22,7 @@ export default function ListingFiltersSidebar({
   mode = "services",
   basePath,
   variant = "sidebar",
+  initialCounts,
   headerActions,
   onCategoryChange,
 }: ListingFiltersSidebarProps) {
@@ -29,19 +31,49 @@ export default function ListingFiltersSidebar({
 
   const categories = CATEGORIES_BY_MODE[mode];
 
+  const targetBase = basePath ?? `/${mode}`;
+
+  const currentPriceMin =
+    searchParams?.get("price_min") ??
+    searchParams?.get("min_price") ??
+    searchParams?.get("priceMin") ??
+    "";
+  const currentPriceMax =
+    searchParams?.get("price_max") ??
+    searchParams?.get("max_price") ??
+    searchParams?.get("priceMax") ??
+    "";
+  const currentSellerParam =
+    searchParams?.get("seller_type") ??
+    searchParams?.get("sellerType") ??
+    searchParams?.get("seller") ??
+    "";
+  const parsedSellerTypes = currentSellerParam
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value): value is "business" | "private" => value === "business" || value === "private");
+
   // single-select category state (keeps URL in sync)
   const [activeCategory, setActiveCategory] = React.useState<string | null>(
     () => searchParams?.get("category") ?? null
   );
 
   // counts start at 0 for all categories and update live via API refreshes
-  const initialCounts = React.useMemo(() => {
+  const defaultCounts = React.useMemo(() => {
     const map: Record<string, number> = {};
     categories.forEach((c) => (map[c.id] = 0));
     return map;
   }, [categories]);
 
-  const [counts, setCounts] = React.useState<Record<string, number>>(initialCounts);
+  const [counts, setCounts] = React.useState<Record<string, number>>(() => {
+    const seeded: Record<string, number> = { ...defaultCounts };
+    categories.forEach((category) => {
+      seeded[category.id] = initialCounts?.[category.id] ?? seeded[category.id] ?? 0;
+    });
+    return seeded;
+  });
+  const businessChecked = parsedSellerTypes.includes("business");
+  const privateChecked = parsedSellerTypes.includes("private");
 
   const refreshCounts = React.useCallback(async () => {
     try {
@@ -54,24 +86,93 @@ export default function ListingFiltersSidebar({
       if (!res.ok) return;
       const data = (await res.json()) as { counts?: Record<string, number> };
       if (!data?.counts) return;
-      setCounts((prev) => {
-        const next = { ...prev };
-        Object.keys(next).forEach((key) => {
-          next[key] = data.counts?.[key] ?? 0;
-        });
-        return next;
+      const nextCounts: Record<string, number> = {};
+      categories.forEach((category) => {
+        nextCounts[category.id] = data.counts?.[category.id] ?? 0;
+      });
+      setCounts(nextCounts);
+      queueMicrotask(() => {
+        window.dispatchEvent(
+          new CustomEvent("listing:counts-updated", {
+            detail: { mode },
+          })
+        );
       });
     } catch {
       // ignore fetch errors
     } finally {
       // no-op
     }
-  }, [mode]);
+  }, [categories, mode, setCounts]);
 
   // Sync local state when URL changes (e.g., back/forward navigation)
   React.useEffect(() => {
     queueMicrotask(() => setActiveCategory(searchParams?.get("category") ?? null));
   }, [searchParams]);
+
+  const pushParams = React.useCallback(
+    (nextParams: URLSearchParams) => {
+      const qs = nextParams.toString();
+      router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
+    },
+    [router, targetBase]
+  );
+
+  const applySellerTypes = React.useCallback(
+    (nextBusiness: boolean, nextPrivate: boolean) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      ["seller", "sellerType", "seller_type"].forEach((key) => params.delete(key));
+
+      const selected: string[] = [];
+      if (nextBusiness) selected.push("business");
+      if (nextPrivate) selected.push("private");
+
+      if (selected.length > 0) {
+        params.set("seller_type", selected.join(","));
+      }
+
+      pushParams(params);
+    },
+    [pushParams, searchParams]
+  );
+
+  const applyPriceFilter = React.useCallback(
+    (field: "price_min" | "price_max", value: string) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      ["price_min", "price_max", "min_price", "max_price", "priceMin", "priceMax", "min", "max"].forEach(
+        (key) => {
+          if (key === field) return;
+          if (field === "price_min" && ["min_price", "priceMin", "min"].includes(key)) params.delete(key);
+          if (field === "price_max" && ["max_price", "priceMax", "max"].includes(key)) params.delete(key);
+        }
+      );
+
+      if (!value.trim()) {
+        params.delete(field);
+        if (field === "price_min") {
+          ["min_price", "priceMin", "min"].forEach((key) => params.delete(key));
+        }
+        if (field === "price_max") {
+          ["max_price", "priceMax", "max"].forEach((key) => params.delete(key));
+        }
+        pushParams(params);
+        return;
+      }
+
+      if (!/^\d*(\.\d*)?$/.test(value)) {
+        return;
+      }
+
+      const parsed = Number(value);
+      if (Number.isNaN(parsed)) {
+        return;
+      }
+
+      params.set(field, String(parsed));
+      pushParams(params);
+    },
+    [pushParams, searchParams]
+  );
 
   React.useEffect(() => {
     queueMicrotask(() => refreshCounts());
@@ -114,7 +215,6 @@ export default function ListingFiltersSidebar({
 
     const qs = params.toString();
     // Determine target base path: prefer provided basePath, otherwise use mode-based path
-    const targetBase = basePath ?? `/${mode}`;
     if (typeof window !== "undefined") {
       window.history.pushState({}, "", `${targetBase}${qs ? `?${qs}` : ""}`);
     }
@@ -127,7 +227,6 @@ export default function ListingFiltersSidebar({
     // clear area when county changes
     params.delete("area");
     const qs = params.toString();
-    const targetBase = basePath ?? `/${mode}`;
     router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
   }
 
@@ -136,7 +235,6 @@ export default function ListingFiltersSidebar({
     if (value) params.set("area", value);
     else params.delete("area");
     const qs = params.toString();
-    const targetBase = basePath ?? `/${mode}`;
     router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
   }
 
@@ -172,8 +270,7 @@ export default function ListingFiltersSidebar({
 
     // Preserve category and any other unrelated params. Push new URL.
   const qs = params.toString();
-  const targetBase = basePath ?? `/${mode}`;
-  router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
+    router.push(`${targetBase}${qs ? `?${qs}` : ""}`);
 
     // Reset DOM inputs/checkboxes directly to avoid re-renders or layout shifts
     try {
@@ -266,8 +363,36 @@ export default function ListingFiltersSidebar({
       <div className="filters-sidebar__section">
         <div className="filters-sidebar__label">Price</div>
         <div className="filters-sidebar__field-grid">
-          <input ref={priceMinRef} className="input" placeholder="Min" />
-          <input ref={priceMaxRef} className="input" placeholder="Max" />
+          <input
+            ref={priceMinRef}
+            className="input"
+            placeholder="Min"
+            inputMode="decimal"
+            type="number"
+            min="0"
+            step="any"
+            value={currentPriceMin}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (!/^\d*(\.\d*)?$/.test(nextValue) && nextValue !== "") return;
+              applyPriceFilter("price_min", nextValue);
+            }}
+          />
+          <input
+            ref={priceMaxRef}
+            className="input"
+            placeholder="Max"
+            inputMode="decimal"
+            type="number"
+            min="0"
+            step="any"
+            value={currentPriceMax}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (!/^\d*(\.\d*)?$/.test(nextValue) && nextValue !== "") return;
+              applyPriceFilter("price_max", nextValue);
+            }}
+          />
         </div>
       </div>
 
@@ -276,11 +401,29 @@ export default function ListingFiltersSidebar({
       <div className="filters-sidebar__section">
         <div className="filters-sidebar__label">Seller type</div>
         <label className="filters-sidebar__checkbox-row">
-          <input ref={sellerBusinessRef} type="checkbox" aria-label="Business seller" />
+          <input
+            ref={sellerBusinessRef}
+            type="checkbox"
+            aria-label="Business seller"
+            checked={businessChecked}
+            onChange={(event) => {
+              const next = event.target.checked;
+              applySellerTypes(next, privateChecked);
+            }}
+          />
           <span>Business seller</span>
         </label>
         <label className="filters-sidebar__checkbox-row">
-          <input ref={sellerPrivateRef} type="checkbox" aria-label="Private seller" />
+          <input
+            ref={sellerPrivateRef}
+            type="checkbox"
+            aria-label="Private seller"
+            checked={privateChecked}
+            onChange={(event) => {
+              const next = event.target.checked;
+              applySellerTypes(businessChecked, next);
+            }}
+          />
           <span>Private seller</span>
         </label>
       </div>

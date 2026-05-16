@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { getAreasByCounty } from "@/lib/location";
+import { getAreasByCountySync } from "@/lib/location";
 
 type Props = {
   county?: string | null;
@@ -13,6 +13,14 @@ type Props = {
   className?: string;
 };
 
+// Synchronous list lookup via useMemo. The previous implementation kept areas
+// in state and populated them in a useEffect via an "async" call (whose
+// underlying lookup was already synchronous). Consequence: on first paint
+// the `<select>` had only the placeholder `<option>`, so the controlled
+// `value` (e.g. the user's saved area) had no matching option — the dropdown
+// showed the placeholder text, then "swapped" to the real area name once
+// the effect resolved on the next render. That was the remaining dropdown
+// text repaint reported on /dashboard/settings.
 export default function AreaSelect({
   county,
   value,
@@ -22,32 +30,10 @@ export default function AreaSelect({
   placeholder = "All areas",
   className,
 }: Props) {
-  const [areas, setAreas] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState(false);
-
-  React.useEffect(() => {
-    let mounted = true;
-    if (!county) {
-      queueMicrotask(() => setAreas([]));
-      return;
-    }
-
-    queueMicrotask(() => setLoading(true));
-    // getAreasByCounty returns a Promise to allow lazy loading or future remote calls
-    getAreasByCounty(county)
-      .then((list) => {
-        if (!mounted) return;
-        setAreas(list);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [county]);
+  const areas = React.useMemo(
+    () => (county ? getAreasByCountySync(county) : []),
+    [county],
+  );
 
   return (
     <select
@@ -56,7 +42,7 @@ export default function AreaSelect({
       aria-label={ariaLabel}
       value={value ?? ""}
       onChange={(e) => onChange?.(e.target.value)}
-      disabled={!county || loading}
+      disabled={!county}
     >
       <option value="">{placeholder}</option>
       {areas.map((a) => (

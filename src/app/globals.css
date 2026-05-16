@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -38,7 +37,10 @@
   --text-inverse: var(--white);
 
   /* Typography */
-  --font-ui: "Inter", sans-serif;
+  /* `--font-inter` is injected by next/font (see src/app/layout.tsx). It is
+     available from first paint — no external font request, no FOUT. */
+  --font-ui: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
   --btn-font-size: 15px;
   --btn-line-height: 1.2;
   --btn-secondary-weight: 500;
@@ -50,6 +52,23 @@
   --bg-hover: #F4F6FA;
   --bg-soft: #F4F6FA;
   --bg-input-soft: var(--surface);
+
+  /* --------------------------------------------------------------------------
+     UI INTERACTION TOKENS — single source of truth for hover + active states
+     across nav, sidebar filters, dropdowns, menu rows and buttons.
+
+       --ui-hover-bg   : subtle slate-blue. Must NOT look like a selected state.
+       --ui-active-bg  : visibly stronger blue tint than hover.
+       --ui-active-text: dark brand-blue used for selected text + icons.
+       --ui-active-weight: bolder weight for active labels.
+
+     Rule: hover and active must always be visually distinct. Active is
+     stronger than hover. Use these tokens — do not invent ad-hoc colors.
+     ------------------------------------------------------------------------ */
+  --ui-hover-bg: #f1f5f9;
+  --ui-active-bg: #e8eef8;
+  --ui-active-text: #1f3f7a;
+  --ui-active-weight: 600;
 
   /* BORDERS */
   --border-default: #E1E6EF;
@@ -186,8 +205,7 @@ button,
 input,
 textarea,
 select {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-ui);
 }
 
 html {
@@ -244,6 +262,56 @@ a {
 a:hover,
 a:focus {
   color: var(--color-primary-hover);
+}
+
+/* Footer link colors must stay readable on gray background regardless of global anchor styles */
+.site-footer a,
+.site-footer a:visited {
+  color: rgb(241 245 249);
+}
+
+.site-footer a:hover,
+.site-footer a:focus,
+.site-footer a:focus-visible {
+  color: rgb(255 255 255);
+}
+
+.site-footer .footer-link {
+  position: relative;
+  display: inline-block;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.site-footer .footer-link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 100%;
+  bottom: -2px;
+  height: 1px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.site-footer .footer-link:hover::after,
+.site-footer .footer-link:focus-visible::after {
+  opacity: 0.52;
+  transform: translateX(-50%) scaleX(0.84);
+}
+
+.site-footer .footer-link.is-active,
+.site-footer .footer-link[aria-current="page"] {
+  color: #ffffff;
+}
+
+.site-footer .footer-link.is-active::after,
+.site-footer .footer-link[aria-current="page"]::after {
+  opacity: 0.9;
+  transform: translateX(-50%) scaleX(1);
 }
 
 img {
@@ -373,10 +441,8 @@ img {
   min-height: var(--site-header-height);
 }
 
-header {
+.site-header {
   white-space: nowrap;
-  position: relative;
-  z-index: 1000;
 }
 
 /* Ensure the Create listing button in the header always shows white text */
@@ -1375,11 +1441,17 @@ header {
   aspect-ratio: auto;
   clip-path: none;
   box-shadow: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  /* No transform/box-shadow transition. Previously the nav buttons sat
+     OVER the gallery image and had `transition: transform 0.18s ease,
+     box-shadow 0.18s ease, filter 0.18s ease` with a `translateY +
+     scale` on hover — during route restart the compositor layer-promotion
+     of the button could trigger a paint over the first gallery image. */
+  transition: color 160ms ease;
 }
 
 .listing-media__nav-btn:hover {
-  transform: translateY(-1px) scale(1.04);
+  /* No transform — keep gallery rect stable. Use a colour change only. */
+  color: #1f2937;
   box-shadow: none;
   filter: none;
 }
@@ -2644,7 +2716,7 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   color: var(--text-secondary);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  transition: none;
+  transition: color 180ms ease, background-color 180ms ease;
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -2697,13 +2769,14 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 }
 
 .site-nav__link:hover {
-  background: var(--bg-hover);
+  background: rgba(var(--color-primary-rgb), 0.06);
   color: var(--text-primary);
 }
 
-.site-nav__link.is-active {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.site-nav__link.is-active,
+.site-nav__link[aria-current="page"] {
+  background: transparent;
+  color: var(--text-secondary);
 }
 
 .listings-tab--active {
@@ -3176,18 +3249,28 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   min-height: 22px;
   margin: 0;
   border-radius: 4px;
-  border: 1px solid #d1d5db;
+  border: 1px solid rgba(15, 23, 42, 0.22);
   background: #fff;
   display: inline-block;
   vertical-align: middle;
   position: relative;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease;
   cursor: pointer;
+}
+
+.messages-checkbox:hover {
+  border-color: rgba(15, 23, 42, 0.32);
+  background: rgba(15, 23, 42, 0.03);
 }
 
 .messages-checkbox:focus {
   outline: none;
   box-shadow: none;
+}
+
+.messages-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.16);
 }
 
 .messages-checkbox:checked {
@@ -3198,6 +3281,11 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   background-position: center;
   background-size: 14px 14px;
   box-shadow: none;
+}
+
+.messages-checkbox:checked:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .filters-sidebar__divider {
@@ -3230,7 +3318,13 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   font-size: 15px;
   line-height: 1.2;
   font-weight: 500;
-  transition: all 0.2s ease;
+  /* Vuxsy canonical transition. Was `transition: all 0.2s ease` — that
+     animated every property change including ones React mutates during
+     hydration, producing a subtle button repaint. */
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
@@ -3250,11 +3344,11 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 }
 
 .btn-outline:hover {
-  background: #F9FAFB;
+  background: var(--ui-hover-bg);
 }
 
 .btn-outline:active {
-  background: #F3F4F6;
+  background: var(--ui-active-bg);
 }
 
 .btn-outline-muted {
@@ -3304,7 +3398,6 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 
 .btn-primary:hover {
   background: var(--color-primary-hover);
-  transform: translateY(-1px);
 }
 
 /* Use brand accent (green) for the hero search primary button to match branding */
@@ -3320,7 +3413,6 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 
 .hero-card .hero-search-row .btn-primary:hover {
   background: var(--color-primary-hover) !important; /* slightly darker for hover */
-  transform: translateY(-1px);
 }
 
 /* Extra defensive rule: if a wrapper (overlay/modal) sets colors, ensure the search button
@@ -3341,7 +3433,13 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   background: #fff;
   color: var(--text-primary);
   border-radius: var(--radius-input);
-  transition: 0.2s ease;
+  /* Only transition the properties that change on user-driven states
+     (hover/focus). Previously `transition: 0.2s ease` defaulted to
+     `transition-property: all`, which animated every property change —
+     including the ones React mutates during hydration (className swaps,
+     value reconciliation), producing the subtle text/dropdown repaint
+     observed on /dashboard/settings on refresh. */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   font-size: 14px;
 }
 
@@ -3368,7 +3466,7 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   width: 100%;
   height: 52px; /* taller button for prominence */
   border-radius: var(--radius-md);
-  transition: background 0.2s ease, transform 0.12s ease;
+  transition: background-color 160ms ease, color 160ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3378,7 +3476,6 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 
 .hero-card form .btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover); /* slightly darker */
-  transform: translateY(-1px);
 }
 
 .hero-card form .btn-primary:disabled {
@@ -3467,7 +3564,7 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 }
 
 .listing-sort-select:hover {
-  background-color: #e5e7eb;
+  background-color: var(--ui-hover-bg);
 }
 
 /* Grid/List chip styling to match sort chip */
@@ -3511,9 +3608,10 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   box-shadow: var(--shadow-card);
 }
 
-.card:hover {
-  transform: translateY(-2px);
-}
+/* No `.card:hover { transform: translateY(-2px) }` — card lift on hover
+   caused subpixel repaint flicker and a 2px layout shift on every list/
+   grid. Hover signaling on individual listing cards is handled at the
+   anchor/Link level by the card subclass rules. */
 
 .card--padded {
   padding: var(--card-padding);
@@ -3568,7 +3666,13 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   padding: 0;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  /* No transition on transform/box-shadow here. Earlier this rule had
+     `transition: transform 180ms ease, box-shadow 180ms ease, ...` even
+     though `.listing-card:hover` explicitly sets `transform: none` (no
+     actual lift). During hydration / route restart the compositor would
+     still animate any sub-pixel transform recalculation, producing a
+     visible image flicker on cards in both grid and list views. */
+  transition: border-color 160ms ease;
 }
 
 .listing-card:hover {
@@ -3594,6 +3698,52 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   border-top-right-radius: 8px;
 }
 
+/* ----------------------------------------------------------------------
+   IMAGE STABILITY — reserve final image dimensions BEFORE the image
+   decodes so the listing card / gallery / logo never visually shift.
+   Applies to every <img> rendered by next/image inside a listing card
+   image wrapper or listing gallery frame. next/image with `fill` mode
+   already injects `position:absolute; inset:0` inline, but we lock the
+   final box-model values via CSS too so the wrapper rect is identical
+   at 0ms / DCL / +100ms / +1000ms. No skeleton, no opacity fade.
+   ---------------------------------------------------------------------- */
+.listing-card__image-wrapper img,
+.listing-card__image-wrapper picture,
+.listing-media__frame img,
+.listing-media__frame picture,
+.listing-media img,
+.listing-media picture,
+.fullscreen-gallery__image-frame img,
+.fullscreen-gallery__image-frame picture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  /* Kill any inherited transition (we never want a fade-in / size
+     transition on a media image — that is the actual "image pop" the
+     user sees on refresh). */
+  transition: none;
+  /* Help the browser avoid recomputing layout for the wrapper after
+     the image decodes. */
+  contain: paint;
+}
+
+/* Logo must be stable from first paint: no transition, never lazy. */
+.site-header__logo img,
+.site-header__logo picture,
+.mobile-menu__logo img,
+.mobile-menu__logo picture,
+.site-footer img.logo-img {
+  transition: none;
+}
+
+/* The image wrappers themselves reserve dimensions ahead of decode. */
+.listing-card__image-wrapper,
+.listing-media__frame,
+.listing-media__layout > div:first-child {
+  contain: layout paint;
+}
+
 .listing-card__title {
   margin: 0 0 6px;
   font-size: clamp(16px, 1.1vw + 14px, 18px);
@@ -3613,6 +3763,15 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   font-weight: 700;
   font-size: clamp(17px, 1.2vw + 15px, 20px);
   color: #111827;
+}
+
+.listing-card__price-balance > span:first-child {
+  font-size: 1.05rem;
+}
+
+.listing-card__price-balance > span:last-child {
+  font-size: 2rem;
+  font-weight: 650;
 }
 
 .listing-card__meta {
@@ -3842,12 +4001,12 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   background: #fff;
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-card);
-  transition: 0.18s ease;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .quick-card:hover {
   border-color: var(--border-hover);
-  transform: translateY(-2px);
+  background-color: var(--ui-hover-bg);
 }
 
 .quick-card__title {
@@ -4100,7 +4259,8 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 
 .filters-sidebar__category-row.is-active {
   background: var(--brand-light);
-  border-left: 4px solid var(--brand);
+  border-left: 3px solid var(--brand);
+  box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.12), 0 4px 12px rgba(var(--color-primary-rgb), 0.08);
   color: var(--brand);
 }
 
@@ -4226,8 +4386,8 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
 
 .filters-sidebar__category-row.is-active {
   background: var(--brand-light);
-  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.04);
-  border-left: 4px solid var(--brand);
+  box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.12), 0 4px 12px rgba(var(--color-primary-rgb), 0.08);
+  border-left: 3px solid var(--brand);
   color: var(--brand);
 }
 
@@ -4641,3 +4801,164 @@ input[type="submit"]:hover {
   backdrop-filter: blur(4px);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
 }
+
+/* ============================================================================
+   UNIFIED HOVER + ACTIVE STATES — single source of truth.
+   ----------------------------------------------------------------------------
+   Placed LAST in the file so cascade source order beats every earlier
+   ad-hoc hover/active rule (header nav, mobile subheader, mobile menu rows,
+   menu items, filter sidebar category/checkbox rows, avatar dropdown,
+   close button). All states use the tokens defined in :root:
+       --ui-hover-bg / --ui-active-bg / --ui-active-text / --ui-active-weight
+   Constraints honored:
+     * Hover MUST be visually subtler than Active.
+     * No layout shift: never change padding, margin, border-width or
+       transform on hover/active — only background-color, color, font-weight.
+     * Transitions are limited to background-color + color (font-weight
+       does not animate but does not need to — its width delta is absorbed
+       by the existing flex/padding of these rows).
+   ============================================================================ */
+
+/* Base: animate only the properties we actually change on hover/active.
+   Explicit list (no `transition: all`) means hydration-time class swaps
+   never trigger a visible animation. The canonical Vuxsy transition. */
+.site-nav__link,
+.mobile-subheader__link,
+.filters-sidebar__category-row,
+.filters-sidebar__checkbox-row,
+.dashboard-sidebar-item,
+.menu-item,
+.mobile-menu__row,
+.avatar-dropdown__logout,
+.avatar-dropdown__item,
+.listing-view-toggle__button,
+.listing-sort-select,
+.btn-outline,
+.btn-outline-muted,
+.quick-card,
+.publish-card,
+.app-close-button {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+/* ---------- HOVER (subtle) ---------- */
+.site-nav__link:hover,
+.site-nav__link:focus-visible,
+.mobile-subheader__link:hover,
+.mobile-subheader__link:focus-visible,
+.filters-sidebar__category-row:hover,
+.filters-sidebar__checkbox-row:hover,
+.filters-sidebar--drawer .filters-sidebar__category-row:hover,
+.filters-sidebar--drawer .filters-sidebar__checkbox-row:hover,
+.dashboard-sidebar-item:hover,
+.menu-item:hover,
+.mobile-menu__row:hover,
+.avatar-dropdown__logout:hover,
+.avatar-dropdown__item:hover,
+.listing-view-toggle__button:hover,
+.app-close-button:hover {
+  background-color: var(--ui-hover-bg);
+  color: var(--text-primary);
+  /* Reset every property older rules used to mutate on hover, so hover
+     never causes a visual jump (border, shadow, transform, translate). */
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* Hover SHOULD NOT change the mobile-subheader pill's border — keep the
+   pill outline stable so the row doesn't visually shift. */
+.mobile-subheader__link:hover,
+.mobile-subheader__link:focus-visible {
+  border-color: #c9d3e3;
+}
+
+/* Logout-style menu rows keep their red text on hover so the destructive
+   action stays signalled. They still use the shared hover background so
+   the row width/height never shifts. */
+.dashboard-sidebar-item--logout:hover,
+.avatar-dropdown__logout:hover {
+  color: #dc2626;
+}
+
+/* ---------- ACTIVE / SELECTED (clearly stronger) ---------- */
+.site-nav__link.is-active,
+.site-nav__link[aria-current="page"],
+.mobile-subheader__link.is-active,
+.filters-sidebar__category-row.is-active,
+.filters-sidebar__category-row[aria-current="page"],
+.filters-sidebar__category-row[data-active="true"],
+.dashboard-sidebar-item.is-active,
+.dashboard-sidebar-item[aria-current="page"],
+.menu-item.is-active,
+.mobile-menu__row.is-active,
+.avatar-dropdown__item.is-active,
+.avatar-dropdown__item[aria-current="page"],
+.listing-view-toggle__button.is-active,
+.listing-view-toggle__button[aria-pressed="true"] {
+  background-color: var(--ui-active-bg);
+  color: var(--ui-active-text);
+  font-weight: var(--ui-active-weight);
+  /* Kill all decorative borders / shadows / left-stripes that older rules
+     used to mark the active state — they caused layout shift (4px stripe
+     pushed content), and the stronger background + dark text now carries
+     the active signal on its own. */
+  border-color: transparent;
+  border-left-color: transparent;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* Mobile subheader pill keeps its 1px outline so the pill geometry is
+   unchanged between idle / hover / active (no width shift). */
+.mobile-subheader__link.is-active {
+  border-color: var(--ui-active-text);
+}
+
+/* Active icons inherit the active text color so the whole row reads as
+   one selected unit. */
+.filters-sidebar__category-row.is-active .filters-sidebar__category-icon,
+.dashboard-sidebar-item.is-active .filters-sidebar__category-icon,
+.dashboard-sidebar-item.is-active svg,
+.menu-item.is-active .mobile-menu__icon,
+.mobile-menu__row.is-active .mobile-menu__icon,
+.menu-item.is-active svg,
+.mobile-menu__row.is-active svg,
+.avatar-dropdown__item.is-active svg,
+.listing-view-toggle__button.is-active svg {
+  color: var(--ui-active-text);
+}
+
+/* When a row is BOTH selected AND hovered, keep the active styling — hover
+   must never weaken a selected state. */
+.site-nav__link.is-active:hover,
+.site-nav__link[aria-current="page"]:hover,
+.mobile-subheader__link.is-active:hover,
+.filters-sidebar__category-row.is-active:hover,
+.dashboard-sidebar-item.is-active:hover,
+.menu-item.is-active:hover,
+.mobile-menu__row.is-active:hover,
+.avatar-dropdown__item.is-active:hover,
+.listing-view-toggle__button.is-active:hover {
+  background-color: var(--ui-active-bg);
+  color: var(--ui-active-text);
+}
+
+/* ---------- LEGACY NEUTRALIZATION ----------------------------------------
+   Some earlier rules added decorative effects that fight the unified
+   system (border-left stripes, opacity changes, transforms, separate
+   hover backgrounds). Explicitly neutralize them so the unified block
+   above is the only thing rendering hover/active visuals. */
+.dashboard-sidebar-item,
+.dashboard-sidebar-item.is-active,
+.listing-view-toggle__button,
+.listing-view-toggle__button.is-active {
+  border-left-width: 0;
+  opacity: 1;
+}
+

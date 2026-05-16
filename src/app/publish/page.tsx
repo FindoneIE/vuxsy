@@ -4,6 +4,10 @@ import ListingForm from '@/components/forms/listing/ListingForm'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import type { ListingType } from '@/types/listing'
 
+// Opt out of prerendering: ProtectedRoute uses useSearchParams(). The root
+// src/app/loading.tsx Suspense boundary was removed (Fix 1). Auth-gated.
+export const dynamic = "force-dynamic";
+
 type PublishPageProps = {
   searchParams?: Record<string, string | string[] | undefined>
 }

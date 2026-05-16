@@ -36,16 +36,62 @@ const formatProfileError = (error: {
 });
 
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
+let authProviderRenderCount = 0;
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(null);
+type AuthProviderProps = {
+  children: React.ReactNode;
+  /**
+   * Server-resolved Supabase user, read from auth cookies via
+   * `createSupabaseServerClient` in the root layout. The root layout always
+   * resolves this synchronously (either a `User` or `null`), so the provider
+   * starts with `loading=false` — we already know the authoritative answer.
+   *
+   * The client still calls `getSession()` + `onAuthStateChange` below for
+   * reactivity (login/logout during the same tab), but those run silently
+   * in the background and never trigger a blank-while-loading phase.
+   *
+   * This eliminates the protected-route flash where every dashboard/messages/
+   * publish page used to render `null` while `getSession()` resolved.
+   */
+  initialUser?: User | null;
+};
+
+export function AuthProvider({ children, initialUser = null }: AuthProviderProps) {
+  const DEV = process.env.NODE_ENV !== "production";
+  const renderCount = ++authProviderRenderCount;
+
+  const [user, setUser] = React.useState<User | null>(initialUser);
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [avatarData, setAvatarData] = React.useState<AvatarData | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  // Auth is resolved at SSR via the root layout — never "loading" from the
+  // consumer's perspective.
+  const [loading, setLoading] = React.useState(false);
   const [profileLoading, setProfileLoading] = React.useState(true);
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const latestProfileRef = React.useRef<UserProfile | null>(null);
   const latestAvatarDataRef = React.useRef<AvatarData | null>(null);
+
+  if (DEV) {
+    console.debug("[mount-trace] AuthProvider render", {
+      renderCount,
+      userId: user?.id ?? null,
+      loading,
+      profileLoading,
+      hasProfile: Boolean(profile),
+      hasAvatarData: Boolean(avatarData),
+    });
+    if (typeof performance !== "undefined") {
+      performance.mark(`AuthProvider:render:${renderCount}`);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!DEV) return;
+    console.debug("[mount-trace] AuthProvider mount");
+    return () => {
+      console.debug("[mount-trace] AuthProvider unmount");
+    };
+  }, [DEV]);
 
   React.useEffect(() => {
     latestProfileRef.current = profile;
@@ -67,12 +113,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data } = supabase.auth.onAuthStateChange(
       (_event: string, session: Session | null) => {
         if (!isMounted) return;
+        if (DEV) {
+          console.debug("[mount-trace] AuthProvider onAuthStateChange", {
+            event: _event,
+            nextUserId: session?.user?.id ?? null,
+            hadProfile: Boolean(latestProfileRef.current),
+            hadAvatarData: Boolean(latestAvatarDataRef.current),
+          });
+          if (typeof performance !== "undefined") {
+            performance.mark(`AuthProvider:onAuthStateChange:${_event}`);
+          }
+        }
         runtimeLog("AUTH STATE CHANGE", {
           event: _event,
           nextUserId: session?.user?.id ?? null,
         });
 
         if (!session?.user) {
+          if (DEV) {
+            console.debug("[mount-trace] AuthProvider logout cache clear", {
+              event: _event,
+              previousProfileAvatarUrl: latestProfileRef.current?.avatarUrl ?? null,
+              previousAvatarDataUrl: latestAvatarDataRef.current?.avatarUrl ?? null,
+            });
+          }
           runtimeLog("LOGOUT CACHE CLEAR", {
             userId: null,
             previousProfileAvatarUrl: latestProfileRef.current?.avatarUrl ?? null,
@@ -94,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
       data.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [DEV, supabase]);
 
   const refreshProfile = React.useCallback(async () => {
     if (!user) {

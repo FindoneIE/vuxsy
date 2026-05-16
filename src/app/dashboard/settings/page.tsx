@@ -10,6 +10,10 @@ import AreaSelect from "@/components/location/AreaSelect";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { removeAvatar, uploadImage } from "@/lib/supabase/storage";
 import { updateUserProfile } from "@/lib/users";
+
+// Opt out of prerendering: ProtectedRoute uses useSearchParams(). The root
+// src/app/loading.tsx Suspense boundary was removed (Fix 1). Auth-gated.
+export const dynamic = "force-dynamic";
 import type { UserProfile } from "@/types/user";
 import { validateDisplayName } from "@/lib/display-name-policy";
 import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
@@ -90,26 +94,64 @@ export default function DashboardSettingsPage() {
   const [phoneError, setPhoneError] = React.useState<string | null>(null);
   const [locationError, setLocationError] = React.useState<string | null>(null);
   const [displayNameError, setDisplayNameError] = React.useState<string | null>(null);
-  const [personalForm, setPersonalForm] = React.useState({
-    displayName: "",
-    email: "",
-    phoneCountry: "+353" as "+353" | "+44",
-    phoneLocal: "",
-    county: "",
-    area: "",
-    businessSeller: false,
-    companyName: "",
-    businessAddress: "",
-    vatNumber: "",
-    website: "",
-    registrationNumber: "",
-  });
-  const [preferencesForm, setPreferencesForm] = React.useState({
-    language: "en",
-    emailNotifications: true,
-    marketplaceAlerts: true,
-    messageNotifications: true,
-  });
+  // Lazy-initialize from `profile` so the form's inputs/dropdowns render
+  // with their final values on first paint. Previously the form started
+  // with empty strings and a useEffect populated it after mount, causing
+  // every text input and dropdown to visibly flash from "" → real value.
+  const initialPhone = React.useMemo(() => splitPhoneNumber(profile?.phone), [profile?.phone]);
+  const [personalForm, setPersonalForm] = React.useState(() => ({
+    displayName: profile?.displayName ?? "",
+    email: profile?.email ?? user?.email ?? "",
+    phoneCountry: initialPhone.country,
+    phoneLocal: initialPhone.local,
+    county: profile?.county ?? "",
+    area: profile?.area ?? "",
+    businessSeller: profile?.businessSeller ?? false,
+    companyName: profile?.companyName ?? "",
+    businessAddress: profile?.businessAddress ?? "",
+    vatNumber: profile?.vatNumber ?? "",
+    website: profile?.website ?? "",
+    registrationNumber: profile?.registrationNumber ?? "",
+  }));
+  const [preferencesForm, setPreferencesForm] = React.useState(() => ({
+    language: profile?.language ?? "en",
+    emailNotifications: profile?.emailNotifications ?? true,
+    marketplaceAlerts: profile?.marketplaceAlerts ?? true,
+    messageNotifications: profile?.messageNotifications ?? true,
+  }));
+
+  // React 19 "adjust state during render" pattern. When `profile` changes
+  // identity (e.g. after a profile refresh from AuthProvider), we re-derive
+  // the form values inline — no useEffect, no extra commit, no flash. This
+  // replaces the previous useEffect+setState chain that produced a visible
+  // dropdown/input text repaint every time the profile re-resolved.
+  const [profileSnapshot, setProfileSnapshot] = React.useState(profile);
+  if (profile !== profileSnapshot) {
+    setProfileSnapshot(profile);
+    if (profile) {
+      const phoneParts = splitPhoneNumber(profile.phone);
+      setPersonalForm({
+        displayName: profile.displayName ?? "",
+        email: profile.email ?? user?.email ?? "",
+        phoneCountry: phoneParts.country,
+        phoneLocal: phoneParts.local,
+        county: profile.county ?? "",
+        area: profile.area ?? "",
+        businessSeller: profile.businessSeller ?? false,
+        companyName: profile.companyName ?? "",
+        businessAddress: profile.businessAddress ?? "",
+        vatNumber: profile.vatNumber ?? "",
+        website: profile.website ?? "",
+        registrationNumber: profile.registrationNumber ?? "",
+      });
+      setPreferencesForm({
+        language: profile.language ?? "en",
+        emailNotifications: profile.emailNotifications ?? true,
+        marketplaceAlerts: profile.marketplaceAlerts ?? true,
+        messageNotifications: profile.messageNotifications ?? true,
+      });
+    }
+  }
   const photoInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const metadata = user?.user_metadata as Record<string, unknown> | undefined;
@@ -175,86 +217,22 @@ export default function DashboardSettingsPage() {
     }
   };
 
-  React.useEffect(() => {
-    if (!profile) return;
-    console.info("SETTINGS LOAD: profile.phone", profile.phone);
-    const phoneParts = splitPhoneNumber(profile.phone);
-    console.info("SETTINGS LOAD: split phone", phoneParts);
-    queueMicrotask(() => {
-      setPersonalForm({
-        displayName: profile.displayName ?? "",
-        email: profile.email ?? user?.email ?? "",
-        phoneCountry: phoneParts.country,
-        phoneLocal: phoneParts.local,
-        county: profile.county ?? "",
-        area: profile.area ?? "",
-        businessSeller: profile.businessSeller ?? false,
-        companyName: profile.companyName ?? "",
-        businessAddress: profile.businessAddress ?? "",
-        vatNumber: profile.vatNumber ?? "",
-        website: profile.website ?? "",
-        registrationNumber: profile.registrationNumber ?? "",
-      });
-      setPreferencesForm({
-        language: profile.language ?? "en",
-        emailNotifications: profile.emailNotifications ?? true,
-        marketplaceAlerts: profile.marketplaceAlerts ?? true,
-        messageNotifications: profile.messageNotifications ?? true,
-      });
-    });
-  }, [profile, user?.email]);
-
-  React.useEffect(() => {
-    if (!profile?.phone) return;
-    const { country, local } = splitPhoneNumber(profile.phone);
-    console.info("SETTINGS LOAD: split phone (effect)", { country, local });
-    queueMicrotask(() => {
-      setPersonalForm((prev) => ({
-        ...prev,
-        phoneCountry: country,
-        phoneLocal: local,
-      }));
-    });
-  }, [profile?.phone]);
-
-  React.useEffect(() => {
-    console.info("SETTINGS STATE: phoneCountry", personalForm.phoneCountry);
-  }, [personalForm.phoneCountry]);
-
-  React.useEffect(() => {
-    if (!user?.id) return;
-    let mounted = true;
-
-    const loadLocation = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "county, area, is_business_seller, company_name, business_address, vat_number, website, company_registration_number"
-        )
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!mounted || error) return;
-
-      setPersonalForm((prev) => ({
-        ...prev,
-        county: data?.county ?? "",
-        area: data?.area ?? "",
-        businessSeller: data?.is_business_seller ?? prev.businessSeller,
-        companyName: data?.company_name ?? prev.companyName,
-        businessAddress: data?.business_address ?? prev.businessAddress,
-        vatNumber: data?.vat_number ?? prev.vatNumber,
-        website: data?.website ?? prev.website,
-        registrationNumber: data?.company_registration_number ?? prev.registrationNumber,
-      }));
-    };
-
-    loadLocation();
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase, user?.id]);
+  // Profile→form synchronization is handled above by the React 19
+  // "adjust state during render" block (see `profileSnapshot`). That
+  // approach replaces the previous two `useEffect` calls (one for the
+  // full profile, one specifically for phone) and:
+  //
+  //   1. Eliminates the extra commit pass that those effects forced
+  //      after the form had already rendered — which manifested as the
+  //      subtle text/dropdown repaint on /dashboard/settings.
+  //   2. Satisfies React 19's `react-hooks/set-state-in-effect` rule,
+  //      which disallows synchronous setState inside `useEffect`.
+  //
+  // The duplicate Supabase `loadLocation` fetch that previously lived
+  // here has also been removed — `profile` (from AuthProvider) already
+  // contains county/area/is_business_seller/company_*/business_*/
+  // vat_*/website/registration_*, so re-fetching them only triggered
+  // an additional setState round-trip after first paint.
 
   const statusLabel = (state: "saved" | "saving" | "error") => {
     if (state === "saving") return "Saving";

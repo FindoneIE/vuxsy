@@ -3,6 +3,7 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ListingRecord } from "@/lib/listings/getListings";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
+import { withNormalizedPrice } from "@/lib/listings/normalizePrice";
 
 type ListingImageRow = {
   listing_id?: string | null;
@@ -34,8 +35,7 @@ export async function getSavedListings(userId: string): Promise<ListingRecord[]>
     return [];
   }
 
-  const baseSelect =
-    "id, title, description, price, city, category_id, user_id, created_at, updated_at, contact_email, contact_phone, status, listing_type, promoted_until";
+  const baseSelect = "*";
 
   const { data: listingRows, error: listingError } = await supabase
     .from("listings")
@@ -58,7 +58,7 @@ export async function getSavedListings(userId: string): Promise<ListingRecord[]>
     .map((id) => listingMap.get(id))
     .filter((value): value is ListingRecord => Boolean(value))
     .map((item) => ({
-      ...item,
+      ...withNormalizedPrice(item),
       savedByCurrentUser: true,
     }));
 

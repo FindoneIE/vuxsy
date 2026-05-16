@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Listing, ListingType } from "@/types/listing";
 import { PROMOTED_MAX_ACTIVE } from "@/constants/listingPromotions";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
+import { withNormalizedPrice } from "@/lib/listings/normalizePrice";
 
 type GetPromotedListingsParams = {
   listingType?: ListingType;
@@ -39,8 +40,7 @@ export async function getPromotedListings({
   const nowIso = new Date().toISOString();
 
   const supabase = await createSupabaseServerClient();
-  const baseSelect =
-    "id, title, description, price, city, category_id, user_id, created_at, updated_at, contact_email, contact_phone, status, listing_type, promoted_until, promotion_status, promotion_weight, last_promoted_at";
+  const baseSelect = "*";
 
   let resolvedCategoryId = category ?? undefined;
 
@@ -111,7 +111,7 @@ export async function getPromotedListings({
     return [];
   }
 
-  const items = (data ?? []) as Listing[];
+  const items = ((data ?? []) as Listing[]).map((item) => withNormalizedPrice(item));
 
 
   if (items.length > 0) {

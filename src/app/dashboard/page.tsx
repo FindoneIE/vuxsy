@@ -4,6 +4,10 @@ import Link from "next/link";
 import { ClipboardList, MessageCircle, Settings } from "@/components/ui/Icon";
 import { useAuth } from "@/components/auth/AuthProvider";
 
+// Opt out of prerendering: useAuth/AuthProvider transitively uses
+// useSearchParams. Root Suspense boundary removed (Fix 1). Auth-gated.
+export const dynamic = "force-dynamic";
+
 export default function DashboardPage() {
   const { user } = useAuth();
 

@@ -12,7 +12,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { dialogPadding } from "@/lib/layout/constants";
+import { dialogPadding, modalFooterGlassClass } from "@/lib/layout/constants";
 
 const REPORT_REASONS = [
   "Spam or misleading",
@@ -286,16 +286,11 @@ export default function ReportListingModal({
             ) : null}
           </div>
 
-          <div
-            className={cn(
-              "shrink-0 border-t border-slate-200/70 bg-slate-50/80",
-              dialogPadding
-            )}
-          >
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+          <div className={cn("shrink-0", modalFooterGlassClass, dialogPadding)}>
+            <div className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2 sm:gap-3">
               <button
                 type="button"
-                className="btn btn-outline border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                className="btn btn-outline h-9 w-full border border-transparent bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                 onClick={() => setResolvedOpen(false)}
                 disabled={submitting}
               >
@@ -303,7 +298,7 @@ export default function ReportListingModal({
               </button>
               <button
                 type="submit"
-                className="btn btn-primary shadow-none transition hover:brightness-95 disabled:bg-gray-300 disabled:text-gray-500 disabled:opacity-100"
+                className="btn btn-primary h-9 w-full shadow-none transition hover:brightness-95 disabled:bg-gray-300 disabled:text-gray-500 disabled:opacity-100"
                 disabled={!reason || submitting}
               >
                 {submitting ? (

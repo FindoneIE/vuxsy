@@ -10,14 +10,26 @@ import type { Listing } from "@/types/listing";
 
 type ListingDetailsLoaderProps = {
   listingId?: string;
+  /**
+   * Fix 4: SSR-fetched listing passed from the server page. When provided, the
+   * loader seeds its state from this value so ListingGallery + SellerCardV2
+   * are rendered in the initial HTML — no client-null first paint.
+   */
+  initialListing?: Listing | null;
 };
 
-export default function ListingDetailsLoader({ listingId }: ListingDetailsLoaderProps) {
+export default function ListingDetailsLoader({
+  listingId,
+  initialListing = null,
+}: ListingDetailsLoaderProps) {
   const { user, loading: authLoading } = useAuth();
   const authUserId = user?.id ?? null;
-  const [listing, setListing] = React.useState<Listing | null>(null);
+  const [listing, setListing] = React.useState<Listing | null>(initialListing);
   const [listingAuthUserId, setListingAuthUserId] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  // Fix 4: if we have an SSR-seeded listing, we are not "loading" on first
+  // paint. The client refetch still runs in the background to re-validate
+  // status/processing state, but never blanks the visible listing.
+  const [loading, setLoading] = React.useState(!initialListing && Boolean(listingId));
   const [processing, setProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const previousAuthUserIdRef = React.useRef<string | null>(null);
@@ -47,15 +59,20 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     const previousAuthUserId = previousAuthUserIdRef.current;
 
     if (previousAuthUserId !== nextAuthUserId) {
-      setListing(null);
+      // Fix 4: do NOT blank `listing` on auth user change. The refetch effect
+      // below will run with the new authUserId and update state in place once
+      // fresh data arrives. Keeping the previous listing visible avoids the
+      // remount-blank that previously caused gallery/seller card flicker on
+      // auth refresh.
       setListingAuthUserId(nextAuthUserId);
       setProcessing(false);
       setError(null);
-      setLoading(Boolean(listingId));
+      // Only enter loading=true if we have nothing to show yet.
+      setLoading((current) => current || (!listing && Boolean(listingId)));
     }
 
     previousAuthUserIdRef.current = nextAuthUserId;
-  }, [listingId, authUserId]);
+  }, [listingId, authUserId, listing]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -167,11 +184,14 @@ export default function ListingDetailsLoader({ listingId }: ListingDetailsLoader
     authLoading,
   ]);
 
-  if (listing && listingAuthUserId !== authUserId) {
-    return null;
+  if (listing && listingAuthUserId !== null && listingAuthUserId !== authUserId) {
+    // Fix 4: auth user changed but refetch hasn't completed yet. Keep the
+    // previously rendered listing visible instead of blanking — the refetch
+    // effect will update state in place once it resolves.
+    return <ListingDetailsPage listing={listing} />;
   }
 
-  if (loading) {
+  if (loading && !listing) {
     return null;
   }
 

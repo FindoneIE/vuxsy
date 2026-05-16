@@ -1,6 +1,7 @@
 import type { ListingInsert } from "@/types/listing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildSellerSnapshotFromProfile } from "@/lib/listings/sellerSnapshot";
+import { validateTitleAndDescription } from "@/lib/listings/titleDescriptionValidation";
 
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -15,6 +16,17 @@ export async function createListing(data: ListingInsert) {
   const tableName = "listings";
   const supabase = createSupabaseBrowserClient();
   const now = new Date().toISOString();
+  const {
+    normalizedTitle,
+    normalizedDescription,
+    titleError,
+    descriptionError,
+  } = validateTitleAndDescription(data.title, data.description ?? null);
+
+  if (titleError || descriptionError) {
+    const message = [titleError, descriptionError].filter(Boolean).join(" ");
+    throw new Error(message || "Invalid listing title/description.");
+  }
 
   const {
     data: { user },
@@ -139,8 +151,8 @@ export async function createListing(data: ListingInsert) {
   });
 
   const payload: Record<string, unknown> = {
-    title: data.title,
-    description: data.description ?? null,
+    title: normalizedTitle,
+    description: normalizedDescription || null,
     price: data.price ?? null,
     youtube_url: (data as { youtubeUrl?: string | null }).youtubeUrl || null,
     category_id: resolvedCategoryId,

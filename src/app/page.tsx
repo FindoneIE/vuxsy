@@ -2,6 +2,14 @@ import Link from "next/link";
 import HeroSearch from "@/components/hero/HeroSearch";
 
 export default function HomePage() {
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[mount-trace] Route page render", {
+      route: "/",
+      file: "src/app/page.tsx",
+      component: "HomePage",
+    });
+  }
+
   return (
     <main>
   <section className="pt-4">
