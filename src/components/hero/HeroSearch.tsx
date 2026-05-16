@@ -58,11 +58,11 @@ export default function HeroSearch() {
   return (
     <form
       onSubmit={onSearch}
-      className="relative isolate rounded-3xl bg-white/95 p-3 shadow-[0_24px_60px_-30px_rgba(31,42,68,0.45)] ring-1 ring-slate-200/70 backdrop-blur supports-[backdrop-filter]:bg-white/85 sm:p-4"
+      className="relative isolate rounded-3xl bg-white/95 p-3 shadow-[0_24px_60px_-30px_rgba(31,42,68,0.45)] ring-1 ring-slate-200/70 backdrop-blur supports-backdrop-filter:bg-white/85 sm:p-4"
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-6 -top-6 -z-10 h-32 rounded-[36px] bg-gradient-to-br from-[rgba(52,87,155,0.18)] via-[rgba(52,87,155,0.05)] to-transparent blur-2xl"
+        className="pointer-events-none absolute -inset-x-6 -top-6 -z-10 h-32 rounded-[36px] bg-linear-to-br from-[rgba(52,87,155,0.18)] via-[rgba(52,87,155,0.05)] to-transparent blur-2xl"
       />
 
       {/* Tabs — 3 equal columns, each tab width = one dropdown column width */}
@@ -81,7 +81,7 @@ export default function HeroSearch() {
               className={cn(
                 "group inline-flex h-12 w-full items-center justify-center gap-1 rounded-2xl px-1.5 text-[12px] font-medium transition sm:gap-1.5 sm:px-3 sm:text-sm",
                 isActive
-                  ? "bg-[color:var(--color-primary)] text-white shadow-[0_6px_16px_-8px_rgba(52,87,155,0.55)]"
+                  ? "bg-(--color-primary) text-white shadow-[0_6px_16px_-8px_rgba(52,87,155,0.55)]"
                   : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               )}
               aria-pressed={isActive}
@@ -113,7 +113,7 @@ export default function HeroSearch() {
           disabled={submitDisabled}
           aria-busy={isLoading}
           aria-label={buttonText}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-0 bg-[color:var(--color-primary)] p-0 text-white transition hover:bg-[color:var(--color-primary-hover)] disabled:opacity-60"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-0 bg-(--color-primary) p-0 text-white transition hover:bg-(--color-primary-hover) disabled:opacity-60"
         >
           {isLoading ? (
             <span className="spinner" aria-hidden />
