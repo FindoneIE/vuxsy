@@ -526,16 +526,16 @@ export default function ClientListings({
     <div ref={listingsContainerRef} className="w-full min-w-0">
       <div className="mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
   <ResultsHeader mode={mode} count={countForHeader} />
-        <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
+        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
           <div className="flex items-center">
             {drawerFilters ? (
               <Sheet open={isMobileFiltersOpen} onOpenChange={setIsMobileFiltersOpen}>
                 <SheetTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center gap-2 rounded-full border border-(--color-accent) bg-(--color-accent) px-3 text-xs font-medium text-white lg:hidden"
+                    className="inline-flex h-12 items-center gap-2 rounded-xl border border-(--color-accent) bg-(--color-accent) px-4 text-base font-medium text-white transition hover:bg-(--color-primary-hover) lg:hidden sm:h-9 sm:rounded-full sm:px-3 sm:text-xs"
                   >
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="h-5.5 w-5.5 sm:h-4 sm:w-4" weight="regular" />
                     Filters
                   </button>
                 </SheetTrigger>
@@ -568,7 +568,7 @@ export default function ClientListings({
               </Sheet>
             ) : null}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <ListingViewToggle value={viewMode} onChange={setViewMode} />
             <select
               className="select listing-sort-select"

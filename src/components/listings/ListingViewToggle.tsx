@@ -23,7 +23,7 @@ export default function ListingViewToggle({ value, onChange, className }: Props)
         aria-pressed={value === "grid"}
         aria-label="Grid view"
       >
-    <LayoutGrid size={24} weight="regular" />
+        <LayoutGrid size={28} weight="regular" />
       </button>
       <button
         type="button"
@@ -35,7 +35,7 @@ export default function ListingViewToggle({ value, onChange, className }: Props)
         aria-pressed={value === "list"}
         aria-label="List view"
       >
-    <List size={24} weight="regular" />
+        <List size={28} weight="regular" />
       </button>
     </div>
   );
