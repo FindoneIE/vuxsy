@@ -146,15 +146,15 @@ export default function ListingsList({ items, className, eagerCount = 4 }: Props
 
             <Link
               href={href}
-              className="group relative hidden overflow-hidden rounded-xl bg-white shadow-sm transition last:lg:mb-0 lg:mb-3 lg:grid lg:h-45 lg:grid-cols-[260px_1fr]"
+              className="group relative hidden overflow-hidden rounded-xl bg-white shadow-sm transition last:lg:mb-0 lg:mb-3 lg:grid lg:h-70 lg:grid-cols-[280px_1fr]"
             >
-              <div className="relative h-45 w-full overflow-hidden">
+              <div className="relative h-70 w-full overflow-hidden">
                 {imageSrc ? (
                   <Image
                     src={imageSrc}
                     alt={title}
                     fill
-                    sizes="260px"
+                    sizes="280px"
                     priority={isEager}
                     loading={isEager ? "eager" : "lazy"}
                     fetchPriority={isEager ? "high" : "auto"}

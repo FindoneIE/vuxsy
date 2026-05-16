@@ -4161,6 +4161,8 @@ body.fullscreen-gallery-open [data-slot="dialog-overlay"] * {
   border-left: 0 !important;
   border-color: transparent !important;
   box-shadow: none !important;
+  /* Push content below fixed mobile header + iOS safe-area inset */
+  padding-top: calc(var(--site-header-height) + env(safe-area-inset-top, 0px) + 12px) !important;
 }
 
 .filters-sidebar__header {
