@@ -144,6 +144,12 @@ export default function Header() {
 
     try {
       const count = await getVisibleUnreadMessageCountForCurrentUser(activeConversationId);
+      // [diag-unread] Remove once badges confirmed working.
+      console.info("[diag-unread] Header fetchUnreadCount result", {
+        activeConversationId,
+        count,
+        staleRequest: requestId !== unreadFetchRequestIdRef.current,
+      });
       if (requestId !== unreadFetchRequestIdRef.current) return;
       setUnreadCount(count);
     } catch (error) {
@@ -237,6 +243,15 @@ export default function Header() {
           const recipientId = row.recipient_id ?? null;
           const senderId = row.sender_id ?? null;
 
+          // [diag-unread] Remove once badges confirmed working.
+          console.info("[diag-unread] Header INSERT received", {
+            conversationId,
+            senderId,
+            recipientId,
+            currentUserId,
+            activeIdFromRef: activeConversationIdRef.current,
+          });
+
           if (!conversationId) return;
           if (recipientId !== currentUserId) return;
           if (senderId === currentUserId) return;
@@ -244,6 +259,12 @@ export default function Header() {
           void (async () => {
             const activeId = activeConversationIdRef.current;
             const isActiveConversation = Boolean(activeId) && conversationId === activeId;
+
+            console.info("[diag-unread] Header INSERT branch", {
+              isActiveConversation,
+              activeId,
+              conversationId,
+            });
 
             if (isActiveConversation) {
               try {
@@ -325,6 +346,10 @@ export default function Header() {
   const canAccessAdminLink = (isAuthReady && isAdmin) || (!isAuthReady && onAdminRoute);
   const showAdminBadge = Boolean(showAdminLink && visiblePendingReports && visiblePendingReports > 0);
   const showMessageIcon = isAuthReady ? Boolean(userId) : true;
+  // On mobile, hide action icons (Search/Messages/Saved) for logged-out users
+  // to keep the header clean. While auth is still resolving, keep them
+  // visible to avoid a flash for logged-in users on first paint.
+  const showMobileActionIcons = isAuthReady ? Boolean(userId) : true;
   const messageHref = userId ? "/dashboard/messages" : "/login";
   const isServicesActive = pathname?.startsWith("/services") ?? false;
   const isRequestsActive = pathname?.startsWith("/requests") ?? false;
@@ -365,57 +390,61 @@ export default function Header() {
               </div>
 
               <div className="site-header__mobile-icons flex items-center gap-2 sm:gap-3">
-                <button
-                  className="mobile-icon"
-                  aria-label="Search"
-                  type="button"
-                  onClick={() => setMobileSearchOpen(true)}
-                >
-                  <Search className="w-7 h-7" weight="regular" />
-                </button>
+                {showMobileActionIcons ? (
+                  <>
+                    <button
+                      className="mobile-icon"
+                      aria-label="Search"
+                      type="button"
+                      onClick={() => setMobileSearchOpen(true)}
+                    >
+                      <Search className="w-7 h-7" weight="regular" />
+                    </button>
 
-                {showMessageIcon ? (
-                  <Link
-                    href={isAuthReady ? messageHref : "#"}
-                    className="mobile-icon relative"
-                    aria-label="Messages"
-                    aria-disabled={!isAuthReady}
-                    tabIndex={isAuthReady ? undefined : -1}
-                    onClick={(event) => {
-                      if (!isAuthReady) {
-                        event.preventDefault();
-                      }
-                    }}
-                  >
-                    <MessageCircle className="w-7 h-7 text-[#111827]" weight="regular" />
-                    {showUnreadBadge ? (
-                      <span
-                        className="site-header__unread-badge"
-                        aria-label={`${unreadBadgeLabel} unread messages`}
+                    {showMessageIcon ? (
+                      <Link
+                        href={isAuthReady ? messageHref : "#"}
+                        className="mobile-icon relative"
+                        aria-label="Messages"
+                        aria-disabled={!isAuthReady}
+                        tabIndex={isAuthReady ? undefined : -1}
+                        onClick={(event) => {
+                          if (!isAuthReady) {
+                            event.preventDefault();
+                          }
+                        }}
                       >
-                        {unreadBadgeLabel}
-                      </span>
-                    ) : null}
-                  </Link>
-                ) : (
-                  <span className="mobile-icon mobile-icon--placeholder" aria-hidden="true" />
-                )}
+                        <MessageCircle className="w-7 h-7 text-[#111827]" weight="regular" />
+                        {showUnreadBadge ? (
+                          <span
+                            className="site-header__unread-badge"
+                            aria-label={`${unreadBadgeLabel} unread messages`}
+                          >
+                            {unreadBadgeLabel}
+                          </span>
+                        ) : null}
+                      </Link>
+                    ) : (
+                      <span className="mobile-icon mobile-icon--placeholder" aria-hidden="true" />
+                    )}
 
-                <Link
-                  href={savedHref}
-                  className="mobile-icon relative"
-                  aria-label="Saved listings"
-                >
-                  <Heart
-                    className={`w-7 h-7 ${savedLoaded && savedCount > 0 ? "text-[#111827]" : "text-[#6b7280]"}`}
-                    weight={savedLoaded && savedCount > 0 ? "fill" : "regular"}
-                  />
-                  {showSavedBadge && savedLoaded && savedCount > 0 ? (
-                    <span className="absolute -right-1 -top-1 flex min-w-4.5 items-center justify-center rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
-                      {savedCount > 99 ? "99+" : savedCount}
-                    </span>
-                  ) : null}
-                </Link>
+                    <Link
+                      href={savedHref}
+                      className="mobile-icon relative"
+                      aria-label="Saved listings"
+                    >
+                      <Heart
+                        className={`w-7 h-7 ${savedLoaded && savedCount > 0 ? "text-[#111827]" : "text-[#6b7280]"}`}
+                        weight={savedLoaded && savedCount > 0 ? "fill" : "regular"}
+                      />
+                      {showSavedBadge && savedLoaded && savedCount > 0 ? (
+                        <span className="absolute -right-1 -top-1 flex min-w-4.5 items-center justify-center rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
+                          {savedCount > 99 ? "99+" : savedCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </>
+                ) : null}
 
                 <button
                   className="site-header__mobile-toggle mobile-icon"

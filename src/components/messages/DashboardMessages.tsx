@@ -253,6 +253,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
   const handleIncomingMessage = React.useCallback(
     async (message: MessageItem) => {
+      // [diag-unread] Remove these console.* lines once badges are confirmed working.
+      console.info("[diag-unread] handleIncomingMessage entry", {
+        messageId: message.id,
+        incomingConversationId: message.conversationId,
+        senderId: message.senderId,
+        recipientId: message.recipientId,
+        activeId,
+        shouldIncrementUnread: message.conversationId !== activeId,
+        readAt: message.readAt,
+      });
       setMessages((prev) => {
         if (message.conversationId !== activeId) return prev;
         if (prev.some((item) => item.id === message.id)) return prev;
@@ -265,7 +275,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         const next = prev.map((item) => {
           if (item.id !== message.conversationId) return item;
           conversationFound = true;
-          return {
+          const updated = {
             ...item,
             lastMessage: message.body,
             lastMessageAt: message.createdAt,
@@ -273,6 +283,13 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
               ? item.unreadCount + 1
               : item.unreadCount,
           };
+          console.info("[diag-unread] conversation row updated", {
+            conversationId: item.id,
+            shouldIncrementUnread,
+            previousUnread: item.unreadCount,
+            nextUnread: updated.unreadCount,
+          });
+          return updated;
         });
 
         return sortConversations(next);
@@ -309,11 +326,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           return sortConversations([optimisticConversation, ...prev]);
         });
 
+        console.info("[diag-unread] conversation not in local list — calling loadConversations()", {
+          incomingConversationId: message.conversationId,
+          shouldIncrementUnread,
+        });
         await restoreConversationVisibilityForCurrentUser(message.conversationId);
         await loadConversations();
       }
 
       if (shouldIncrementUnread) {
+        console.info("[diag-unread] dispatching messages:unread-updated to Header");
         notifyUnreadCounterUpdated();
       }
 

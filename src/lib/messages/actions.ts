@@ -4,6 +4,7 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildListingImageMap } from "@/lib/listings/listingImages";
+import { getListingHref } from "@/lib/listings/getListingHref";
 import { revalidatePath } from "next/cache";
 import { sendMessageNotificationEmail } from "@/lib/email/sendMessageNotificationEmail";
 import type { ConversationSummary, MessageItem } from "@/lib/messages/types";
@@ -752,7 +753,7 @@ export async function sendMessage(conversationId: string, body: string) {
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
     .select(
-      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
+      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, category_id, seller)"
     )
     .eq("id", conversationId)
     .maybeSingle();
@@ -1008,6 +1009,8 @@ export async function sendMessage(conversationId: string, body: string) {
                     county?: string | null;
                     area?: string | null;
                     city?: string | null;
+                    listing_type?: string | null;
+                    category_id?: string | null;
                   }
                 | Array<{
                     id?: string | null;
@@ -1016,6 +1019,8 @@ export async function sendMessage(conversationId: string, body: string) {
                     county?: string | null;
                     area?: string | null;
                     city?: string | null;
+                    listing_type?: string | null;
+                    category_id?: string | null;
                   }>
                 | null;
             }
@@ -1093,11 +1098,24 @@ export async function sendMessage(conversationId: string, body: string) {
             ? listingImageEntry?.coverImage ?? listingImageEntry?.images?.[0] ?? null
             : null;
 
-          const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
+          const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vuxsy.ie").replace(
             /\/$/,
             ""
           );
           const conversationUrl = `${baseUrl}/dashboard/messages/${conversationId}`;
+          const listingPath = listingRaw?.id
+            ? getListingHref({
+                id: listingRaw.id,
+                type: ((listingRaw.listing_type as
+                  | "service"
+                  | "request"
+                  | "marketplace"
+                  | null
+                  | undefined) ?? undefined) || undefined,
+                category: listingRaw.category_id ?? undefined,
+              })
+            : null;
+          const listingUrl = listingPath ? `${baseUrl}${listingPath}` : null;
 
           console.info("message_notification_send_invoked", {
             conversationId,
@@ -1123,6 +1141,7 @@ export async function sendMessage(conversationId: string, body: string) {
             listingPrice,
             listingLocation: listingLocation || null,
             listingImageUrl,
+            listingUrl,
             conversationUrl,
             rawConversationListing: (conversation as { listing?: unknown }).listing ?? null,
           });
@@ -1132,6 +1151,7 @@ export async function sendMessage(conversationId: string, body: string) {
             conversationUrl,
             senderDisplayName,
             listingTitle,
+            listingUrl,
             listingLocation: listingLocation || null,
             listingPrice,
             listingImageUrl,

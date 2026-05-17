@@ -5,6 +5,7 @@ type MessageNotificationPayload = {
   conversationUrl: string;
   senderDisplayName: string;
   listingTitle: string;
+  listingUrl?: string | null;
   listingLocation?: string | null;
   listingPrice?: string | null;
   listingImageUrl?: string | null;
@@ -27,6 +28,7 @@ export async function sendMessageNotificationEmail({
   conversationUrl,
   senderDisplayName,
   listingTitle,
+  listingUrl,
   listingLocation,
   listingPrice,
   listingImageUrl,
@@ -60,6 +62,11 @@ export async function sendMessageNotificationEmail({
   const safeListingImageUrl = listingImageUrl ? escapeHtml(listingImageUrl) : null;
   const safePreview = escapeHtml(messagePreview);
   const safeConversationUrl = escapeHtml(conversationUrl);
+  // Only allow absolute http(s) URLs for the listing link to keep emails safe
+  // and ensure links open the live site (never a relative or javascript: URL).
+  const isAbsoluteHttpUrl = (value: string | null | undefined): value is string =>
+    typeof value === "string" && /^https?:\/\//i.test(value);
+  const safeListingUrl = isAbsoluteHttpUrl(listingUrl) ? escapeHtml(listingUrl) : null;
   const preheaderText = `New message from ${visibleSenderName} about ${listingTitle}`;
   const safePreheaderText = escapeHtml(preheaderText);
   const preheaderSpacer = Array.from({ length: 36 }, () => "&#8204;&nbsp;").join("");
@@ -72,14 +79,21 @@ export async function sendMessageNotificationEmail({
       }).format(sentAt);
   const safeSentAtLabel = escapeHtml(sentAtLabel);
   const listingImageCell = safeListingImageUrl
-    ? `<img src="${safeListingImageUrl}" alt="Listing image" width="112" height="112" style="display:block;width:112px;height:112px;object-fit:cover;border-radius:8px;" />`
+    ? `<img src="${safeListingImageUrl}" alt="Listing image" width="112" height="112" style="display:block;width:112px;height:112px;object-fit:cover;border-radius:8px;border:0;outline:none;text-decoration:none;" />`
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="112" height="112" style="width:112px;height:112px;background:#f8fafc;border-radius:8px;"><tr><td align="center" valign="middle" style="font-size:11px;color:#94a3b8;font-family:Arial,sans-serif;">No image</td></tr></table>`;
+  const listingImageContent = safeListingUrl
+    ? `<a href="${safeListingUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;line-height:0;">${listingImageCell}</a>`
+    : listingImageCell;
+  const listingTitleContent = safeListingUrl
+    ? `<a href="${safeListingUrl}" target="_blank" rel="noopener" style="color:#0f172a;text-decoration:none;">${safeListingTitle}</a>`
+    : safeListingTitle;
 
   const textBody = [
     "You have a new message",
     "",
     "You received a new chat message about this listing.",
     `Listing: ${listingTitle}`,
+    safeListingUrl ? `View listing: ${listingUrl}` : null,
     listingPrice ? `Price: ${listingPrice}` : null,
     listingLocation ? `Location: ${listingLocation}` : null,
   `From: ${visibleSenderName}`,
@@ -88,7 +102,7 @@ export async function sendMessageNotificationEmail({
     "",
     `Reply Now: ${conversationUrl}`,
     "",
-  "For your safety, keep communication and payments inside Vuxsy chat.",
+  "For your safety, keep communication inside Vuxsy chat.",
     "",
     "Vuxsy",
     "Vuxsy, Ireland",
@@ -121,9 +135,9 @@ export async function sendMessageNotificationEmail({
             <td style="padding:0 24px 16px 24px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border:1px solid #e6ebf2;border-radius:8px;background:#ffffff;">
                 <tr>
-                  <td width="128" valign="middle" style="width:128px;vertical-align:middle;padding:8px;border-right:1px solid #eef2f7;">${listingImageCell}</td>
+                  <td width="128" valign="middle" style="width:128px;vertical-align:middle;padding:8px;border-right:1px solid #eef2f7;">${listingImageContent}</td>
                   <td valign="top" style="padding:12px 14px 12px 12px;vertical-align:top;">
-                    <div style="margin:0 0 8px 0;font-size:16px;line-height:1.35;font-weight:700;color:#0f172a;word-break:break-word;max-height:2.7em;overflow:hidden;">${safeListingTitle}</div>
+                    <div style="margin:0 0 8px 0;font-size:16px;line-height:1.35;font-weight:700;color:#0f172a;word-break:break-word;max-height:2.7em;overflow:hidden;">${listingTitleContent}</div>
                     ${safeListingPrice ? `<p style="margin:0 0 6px 0;font-size:15px;line-height:1.35;font-weight:700;color:#0f172a;">${safeListingPrice}</p>` : ""}
                     ${safeListingLocation ? `<p style="margin:0;font-size:13px;line-height:1.4;color:#64748b;">${safeListingLocation}</p>` : ""}
                   </td>
@@ -179,7 +193,7 @@ export async function sendMessageNotificationEmail({
             <td style="padding:0 24px 22px 24px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border:1px solid #fde8b1;background:#fffdf5;border-radius:8px;">
                 <tr>
-                  <td style="padding:16px;font-size:12px;line-height:1.6;color:#92400e;">For your safety, keep communication and payments inside Vuxsy chat.</td>
+                  <td style="padding:16px;font-size:12px;line-height:1.6;color:#92400e;">For your safety, keep communication inside Vuxsy chat.</td>
                 </tr>
               </table>
             </td>
