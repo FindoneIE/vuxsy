@@ -1,5 +1,6 @@
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import ListingStatusBadge, { type ListingStatus } from "@/components/listings/ListingStatusBadge";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,12 @@ export type UserListingCardProps = {
   status: ListingStatus;
   views?: number | null;
   coverImage?: string | null;
+  /**
+   * Public listing URL. When provided, the cover image becomes an
+   * interactive preview that opens the listing page (My Listings UX
+   * improvement). The existing View button is preserved separately.
+   */
+  href?: string | null;
   createdAt?: Date | string | number | null;
   updatedAt?: Date | string | number | null;
   actions?: React.ReactNode;
@@ -53,6 +60,7 @@ export default function UserListingCard({
   status,
   views,
   coverImage,
+  href,
   createdAt,
   updatedAt,
   actions,
@@ -69,6 +77,34 @@ export default function UserListingCard({
     ? `Updated ${updatedShort}`
     : createdShort ?? null;
 
+  const imageInner = coverImage ? (
+    <Image
+      src={coverImage}
+      alt={title}
+      fill
+      sizes="280px"
+      className="h-full w-full object-cover object-center"
+      draggable={false}
+    />
+  ) : (
+    <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
+      <span className="text-[10px] sm:text-xs">No image</span>
+    </div>
+  );
+
+  // Common image-wrapper classes. When `href` is provided we render a
+  // Next.js <Link> so the entire image area is a real anchor (right-click
+  // "Open in new tab", keyboard focus, prefetching). When no href is
+  // available we fall back to a plain <div> with the same layout.
+  const imageWrapperClass = cn(
+    "group/image relative shrink-0 self-start overflow-hidden rounded-none bg-transparent p-0 m-0",
+    "max-sm:aspect-square max-sm:w-[38%] max-sm:max-w-44",
+    "sm:row-span-2 sm:h-70 sm:w-70",
+    href
+      ? "cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2"
+      : null
+  );
+
   return (
     <div
       className={cn(
@@ -78,21 +114,22 @@ export default function UserListingCard({
       data-listing-id={id}
     >
       <div className="max-sm:flex sm:contents">
-        <div className="relative shrink-0 self-start overflow-hidden rounded-none bg-transparent p-0 m-0 max-sm:aspect-square max-sm:w-[38%] max-sm:max-w-44 sm:row-span-2 sm:h-70 sm:w-70">
-          {coverImage ? (
-            <Image
-              src={coverImage}
-              alt={title}
-              fill
-              sizes="280px"
-              className="h-full w-full object-cover object-center"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-slate-50 text-muted-foreground">
-              <span className="text-[10px] sm:text-xs">No image</span>
-            </div>
-          )}
-        </div>
+        {href ? (
+          <Link
+            href={href}
+            aria-label={`Open listing: ${title}`}
+            className={imageWrapperClass}
+            // Allow native drag (e.g. swipe galleries) to bubble — we
+            // don't stopPropagation here. Only the <img> has
+            // draggable={false} to prevent the browser's ghost-image
+            // drag from hijacking pointer gestures.
+            prefetch={false}
+          >
+            {imageInner}
+          </Link>
+        ) : (
+          <div className={imageWrapperClass}>{imageInner}</div>
+        )}
 
         <div className="flex min-w-0 flex-1 flex-col max-sm:gap-1 max-sm:py-3 max-sm:pr-3 max-sm:pl-2 sm:col-start-2 sm:row-start-1 sm:p-5">
           <div className="flex min-w-0 items-start justify-between gap-2 sm:block">

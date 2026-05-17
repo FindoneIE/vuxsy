@@ -21,9 +21,14 @@ export default function ListingsGrid({ items, className, wrap = true }: Props) {
 
   const grid = (
     <div
+      data-listings-grid=""
       className={
         className ??
-        "grid grid-cols-2 gap-2 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
+        // `listings-grid-responsive` is a hook for the mobile-landscape
+        // breakpoint defined in globals.css (orientation: landscape and
+        // 700px–950px) that promotes the grid to 3 columns to match the
+        // Saved Listings layout on phones in landscape mode.
+        "listings-grid-responsive grid grid-cols-2 gap-2 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
       }
     >
       {items.map((it, idx) => (

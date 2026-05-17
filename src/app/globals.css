@@ -5037,3 +5037,49 @@ input[type="submit"]:hover {
   opacity: 1;
 }
 
+/* ----------------------------------------------------------------------
+   Mobile landscape breakpoint for listings grids (Services, Marketplace,
+   Saved Listings — they all share `ListingsGrid` + `listing-card--square`).
+
+   On phones in landscape orientation between roughly 700px and 950px
+   wide, the default Tailwind grid (`grid-cols-2`, with `md:grid-cols-3`
+   only kicking in at 768px) produces tall, narrow cards with too much
+   wasted horizontal space. The rules below promote that grid to a
+   3-column layout that visually matches the Saved Listings cards in the
+   reference screenshots, while leaving mobile portrait (orientation:
+   portrait) and desktop (>950px) layouts untouched.
+
+   Scope is intentionally narrow:
+   - `(orientation: landscape)` excludes portrait phones.
+   - `(min-width: 700px) and (max-width: 950px)` excludes tablets and
+     desktops, where the existing `md:`/`lg:` Tailwind classes already
+     do the right thing.
+   ---------------------------------------------------------------------- */
+@media (orientation: landscape) and (min-width: 700px) and (max-width: 950px) {
+  /* 3-column grid for the shared ListingsGrid default layout. The
+     `!important` is required to override the Tailwind utility classes
+     (`grid-cols-2`, `sm:grid-cols-2`) baked into the element. */
+  .listings-grid-responsive {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  /* Keep the Services / Marketplace toolbar (Results header + Filters
+     button + grid/list toggle + Newest sort) aligned on a single row,
+     matching the Saved Listings header. */
+  .listings-toolbar-row {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+  }
+
+  .listings-toolbar-row .listings-toolbar-actions {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+  }
+}
+

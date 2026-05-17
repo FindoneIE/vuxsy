@@ -524,9 +524,9 @@ export default function ClientListings({
 
   return (
     <div ref={listingsContainerRef} className="w-full min-w-0">
-      <div className="mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="listings-toolbar-row mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
   <ResultsHeader mode={mode} count={countForHeader} />
-        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
+        <div className="listings-toolbar-actions flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
           <div className="flex items-center">
             {drawerFilters ? (
               <Sheet open={isMobileFiltersOpen} onOpenChange={setIsMobileFiltersOpen}>

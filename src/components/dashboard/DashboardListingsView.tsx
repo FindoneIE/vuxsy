@@ -455,16 +455,23 @@ export default function DashboardListingsView({ title, type }: Props) {
           {filteredItems.map((item) => {
             const itemStatus = (item.status as ListingStatus) ?? "draft";
             const isPendingAction = pendingAction?.id === item.id ? pendingAction.action : null;
+            const resolvedTypeForItem = (resolvedType ?? item.listing_type ?? "service") as ListingType;
+            const listingHref = getListingHref({
+              id: item.id,
+              type: resolvedTypeForItem,
+              category: item.category_id ?? undefined,
+            });
             return (
               <UserListingCard
                 key={item.id}
                 id={item.id}
                 title={item.title ?? "Untitled listing"}
-                type={(resolvedType ?? item.listing_type ?? "service") as ListingType}
+                type={resolvedTypeForItem}
                 location={item.city ?? null}
                 status={itemStatus}
                 views={0}
                 coverImage={item.coverImage ?? null}
+                href={listingHref}
                 createdAt={item.created_at as Date | string | number | null}
                 updatedAt={item.updated_at as Date | string | number | null}
                 actions={

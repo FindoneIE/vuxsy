@@ -56,8 +56,16 @@ export default function DashboardSavedPage() {
 
   return (
     <div className="space-y-6">
-  <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div>
+      {/*
+        Header: title on the left, grid/list toggle on the right.
+        Using `flex-row` at every breakpoint (instead of stacking on
+        mobile) so the toggle sits inline with the title on mobile
+        portrait, matching the Services/Marketplace toolbar style and
+        removing the large empty gap. Desktop and mobile landscape were
+        already row-aligned, so they are unaffected.
+      */}
+      <div className="flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-slate-900">Saved listings</h1>
         </div>
         <ListingViewToggle value={mode} onChange={setMode} />
