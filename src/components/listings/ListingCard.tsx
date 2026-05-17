@@ -199,7 +199,7 @@ export default function ListingCard({
               size="sm"
             />
           </div>
-          {(showPromotedBadge || promotedActive) && promotedActive ? (
+          {showPromotedBadge && promotedActive ? (
             <span className="promoted-badge" aria-label="Promoted listing">
               Promoted
             </span>
