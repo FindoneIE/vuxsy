@@ -35,7 +35,18 @@ export default function ListingPageLayout({ title, count, actionLabel, actionHre
           {/* Mobile filters button removed — filters are shown only inside the sidebar card */}
         </div>
 
-  <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-8">
+        {/*
+          Grid template MUST match the sidebar's visibility breakpoint.
+          The <aside> below is `hidden lg:block`, so the 320px sidebar
+          track must only be reserved at `lg:` as well. Previously the
+          grid switched to `md:grid-cols-[320px_1fr]` at 768px, which
+          reserved 320px (plus 32px gap) for a sidebar that was still
+          hidden — making the content column on mobile landscape phones
+          (~700–950px wide) narrower than mobile portrait. This is the
+          exact pattern `dashboard/layout.tsx` uses (lg:flex-row), and
+          why Saved Listings already renders full-width in landscape.
+        */}
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8">
           {filters && (
             <aside className="listing-layout__sidebar hidden lg:block w-75 xl:w-80">
               {filters}
