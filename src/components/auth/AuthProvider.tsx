@@ -70,6 +70,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const latestProfileRef = React.useRef<UserProfile | null>(null);
   const latestAvatarDataRef = React.useRef<AvatarData | null>(null);
+  const userRef = React.useRef<User | null>(user);
 
   if (DEV) {
     console.debug("[mount-trace] AuthProvider render", {
@@ -100,6 +101,10 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   React.useEffect(() => {
     latestAvatarDataRef.current = avatarData;
   }, [avatarData]);
+
+  React.useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -161,6 +166,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   }, [DEV, supabase]);
 
   const refreshProfile = React.useCallback(async () => {
+    const user = userRef.current;
     if (!user) {
       setProfile(null);
       setAvatarData(null);
@@ -191,8 +197,6 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
       setProfileLoading(false);
       return;
     }
-
-    console.info("TEMP LOG: fetched profile row", data);
 
     const googlePhotoUrl = data?.google_photo_url ?? fallbackGooglePhotoUrl;
     const displayName = data?.display_name ?? null;
@@ -229,11 +233,11 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
       email,
     });
     setProfileLoading(false);
-  }, [supabase, user]);
+  }, [supabase]);
 
   React.useEffect(() => {
+    if (!user?.id) return;
     let isMounted = true;
-    if (!user) return;
 
     queueMicrotask(() => {
       if (!isMounted) return;
@@ -243,7 +247,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
     return () => {
       isMounted = false;
     };
-  }, [refreshProfile, user]);
+  }, [refreshProfile, user?.id]);
 
   const value = React.useMemo(
     () => ({ user, profile, avatarData, loading, profileLoading, refreshProfile }),

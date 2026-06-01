@@ -65,7 +65,6 @@ export const updateUserProfile = async (
   if ("createdAt" in safeUpdates) payload.created_at = safeUpdates.createdAt ?? null;
   if ("updatedAt" in safeUpdates) payload.updated_at = safeUpdates.updatedAt ?? now;
 
-  console.info("TEMP LOG: profile save payload", payload);
 
   let profileBefore: {
     avatar_url?: string | null;
@@ -96,7 +95,6 @@ export const updateUserProfile = async (
     .maybeSingle();
 
   if (error) {
-    console.error("TEMP LOG: profile upsert error", error);
     throw error;
   }
 
@@ -202,6 +200,5 @@ export const updateUserProfile = async (
     }
   }
 
-  console.info("TEMP LOG: profile upsert result", data);
   return data;
 };

@@ -78,6 +78,7 @@ export default function Header() {
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
   const fetchUnreadCountRef = useRef<() => Promise<void>>(async () => {});
   const unreadFetchRequestIdRef = useRef(0);
+  const lastMarkedConvRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!DEV) return;
@@ -144,12 +145,6 @@ export default function Header() {
 
     try {
       const count = await getVisibleUnreadMessageCountForCurrentUser(activeConversationId);
-      // [diag-unread] Remove once badges confirmed working.
-      console.info("[diag-unread] Header fetchUnreadCount result", {
-        activeConversationId,
-        count,
-        staleRequest: requestId !== unreadFetchRequestIdRef.current,
-      });
       if (requestId !== unreadFetchRequestIdRef.current) return;
       setUnreadCount(count);
     } catch (error) {
@@ -162,15 +157,6 @@ export default function Header() {
   useEffect(() => {
     fetchUnreadCountRef.current = fetchUnreadCount;
   }, [fetchUnreadCount]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const id = window.setTimeout(() => {
-      void fetchUnreadCountRef.current();
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -193,7 +179,8 @@ export default function Header() {
 
   useEffect(() => {
     if (!user || !activeConversationId) return;
-
+    if (lastMarkedConvRef.current === activeConversationId) return;
+    lastMarkedConvRef.current = activeConversationId;
     void (async () => {
       try {
         await markConversationRead(activeConversationId);
@@ -243,15 +230,6 @@ export default function Header() {
           const recipientId = row.recipient_id ?? null;
           const senderId = row.sender_id ?? null;
 
-          // [diag-unread] Remove once badges confirmed working.
-          console.info("[diag-unread] Header INSERT received", {
-            conversationId,
-            senderId,
-            recipientId,
-            currentUserId,
-            activeIdFromRef: activeConversationIdRef.current,
-          });
-
           if (!conversationId) return;
           if (recipientId !== currentUserId) return;
           if (senderId === currentUserId) return;
@@ -259,12 +237,6 @@ export default function Header() {
           void (async () => {
             const activeId = activeConversationIdRef.current;
             const isActiveConversation = Boolean(activeId) && conversationId === activeId;
-
-            console.info("[diag-unread] Header INSERT branch", {
-              isActiveConversation,
-              activeId,
-              conversationId,
-            });
 
             if (isActiveConversation) {
               try {

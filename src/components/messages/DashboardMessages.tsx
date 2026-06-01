@@ -100,19 +100,55 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const typingTimeoutRef = React.useRef<number | null>(null);
+  const threadSectionRef = React.useRef<HTMLElement | null>(null);
   const selectAllRef = React.useRef<HTMLInputElement | null>(null);
   const routerRef = React.useRef(router);
   const bootstrapKeyRef = React.useRef<string | null>(null);
   const latestThreadRequestRef = React.useRef(0);
+  const activeIdRef = React.useRef(activeId);
 
   React.useEffect(() => {
     routerRef.current = router;
   }, [router]);
 
+  React.useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
   const selectedConversation = React.useMemo(
     () => conversations.find((conversation) => conversation.id === activeId) ?? null,
     [conversations, activeId]
   );
+
+  const messageGroups = React.useMemo(() => {
+    const groups: { label: string; items: typeof messages }[] = [];
+    const labelFor = (iso: string) => {
+      try {
+        const d = new Date(iso);
+        const now = new Date();
+        const diffDays = Math.floor(
+          (now.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) /
+            (24 * 60 * 60 * 1000)
+        );
+        if (diffDays === 0) return "Today";
+        if (diffDays === 1) return "Yesterday";
+        return d.toLocaleDateString();
+      } catch {
+        return "";
+      }
+    };
+    let currentLabel = "";
+    messages.forEach((message) => {
+      const label = labelFor(message.createdAt);
+      if (label !== currentLabel) {
+        groups.push({ label, items: [message] as typeof messages });
+        currentLabel = label;
+      } else {
+        groups[groups.length - 1].items.push(message);
+      }
+    });
+    return groups;
+  }, [messages]);
 
   const notifyUnreadCounterUpdated = React.useCallback(() => {
     if (typeof window === "undefined") return;
@@ -258,24 +294,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
   const handleIncomingMessage = React.useCallback(
     async (message: MessageItem) => {
-      // [diag-unread] Remove these console.* lines once badges are confirmed working.
-      console.info("[diag-unread] handleIncomingMessage entry", {
-        messageId: message.id,
-        incomingConversationId: message.conversationId,
-        senderId: message.senderId,
-        recipientId: message.recipientId,
-        activeId,
-        shouldIncrementUnread: message.conversationId !== activeId,
-        readAt: message.readAt,
-      });
+      const currentActiveId = activeIdRef.current;
       setMessages((prev) => {
-        if (message.conversationId !== activeId) return prev;
+        if (message.conversationId !== currentActiveId) return prev;
         if (prev.some((item) => item.id === message.id)) return prev;
         return [...prev, message];
       });
 
       let conversationFound = false;
-      const shouldIncrementUnread = message.conversationId !== activeId;
+      const shouldIncrementUnread = message.conversationId !== currentActiveId;
       setConversations((prev) => {
         const next = prev.map((item) => {
           if (item.id !== message.conversationId) return item;
@@ -288,12 +315,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
               ? item.unreadCount + 1
               : item.unreadCount,
           };
-          console.info("[diag-unread] conversation row updated", {
-            conversationId: item.id,
-            shouldIncrementUnread,
-            previousUnread: item.unreadCount,
-            nextUnread: updated.unreadCount,
-          });
           return updated;
         });
 
@@ -331,38 +352,34 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           return sortConversations([optimisticConversation, ...prev]);
         });
 
-        console.info("[diag-unread] conversation not in local list — calling loadConversations()", {
-          incomingConversationId: message.conversationId,
-          shouldIncrementUnread,
-        });
         await restoreConversationVisibilityForCurrentUser(message.conversationId);
         await loadConversations();
       }
 
       if (shouldIncrementUnread) {
-        console.info("[diag-unread] dispatching messages:unread-updated to Header");
         notifyUnreadCounterUpdated();
       }
 
-      if (message.conversationId === activeId) {
+      if (message.conversationId === currentActiveId) {
         syncConversationReadState(message.conversationId);
       }
     },
-    [activeId, loadConversations, notifyUnreadCounterUpdated, syncConversationReadState]
+    [loadConversations, notifyUnreadCounterUpdated, syncConversationReadState]
   );
 
   React.useEffect(() => {
-    if (!user) return;
+    const userId = user?.id;
+    if (!userId) return;
 
     const channel = supabase
-      .channel(`messages-${user.id}`)
+      .channel(`messages-${userId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `recipient_id=eq.${user.id}`,
+          filter: `recipient_id=eq.${userId}`,
         },
         (payload) => {
           const row = payload.new as MessageItem & {
@@ -392,7 +409,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [handleIncomingMessage, supabase, user]);
+  }, [handleIncomingMessage, supabase, user?.id]);
 
   React.useEffect(() => {
     scrollToBottom();
@@ -457,6 +474,29 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   React.useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
+  // Lift the fixed thread section above the iOS soft keyboard by tracking
+  // the visual viewport. The layout viewport (window.innerHeight) stays fixed
+  // when keyboard opens; the visual viewport shrinks — the difference is the
+  // keyboard height. Setting section bottom = keyboard height keeps the
+  // composer always above the keyboard on mobile Safari.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportChange = () => {
+      const el = threadSectionRef.current;
+      if (!el || window.innerWidth >= 1024) return;
+      const keyboardOffset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+      el.style.bottom = keyboardOffset > 0 ? `${keyboardOffset}px` : "";
+    };
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv.removeEventListener("resize", onViewportChange);
+      vv.removeEventListener("scroll", onViewportChange);
     };
   }, []);
 
@@ -526,7 +566,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     }
   }, [hasSelected]);
 
-  const toggleConversationSelection = (conversationId: string) => {
+  const toggleConversationSelection = React.useCallback((conversationId: string) => {
     setSelectedConversations((prev) => {
       const next = new Set(prev);
       if (next.has(conversationId)) {
@@ -536,7 +576,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       }
       return next;
     });
-  };
+  }, []);
 
   const toggleSelectAll = () => {
     setSelectedConversations((prev) => {
@@ -607,8 +647,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const composerBlock = (
     // shrink-0 keeps the composer in the flex column so the scroll area
     // always stops exactly above it — no fixed positioning or magic padding needed.
-    <div className="shrink-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:border-0 sm:bg-transparent sm:p-0">
-      <div className="mx-auto w-full max-w-107.5 sm:max-w-none sm:px-4 sm:py-3">
+    <div className="shrink-0 w-full min-w-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:border-0 sm:bg-transparent sm:p-0">
+      <div className="mx-auto w-full min-w-0 max-w-107.5 sm:max-w-none sm:px-4 sm:py-3">
         {!emptyDetail && conversationBlocked ? (
           <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/65 px-3 py-2 sm:mb-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
@@ -984,7 +1024,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             // in-flow composer at the bottom of the flex column is never clipped by the
             // section's overflow-hidden. On desktop (lg+) the section reverts to static
             // and the inner div uses an explicit height calc.
-            <section style={{ top: "var(--site-header-height, 64px)" }} className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:top-auto lg:inset-auto lg:z-auto lg:bg-transparent lg:h-[calc(100vh-180px)] lg:overflow-hidden">
+            <section ref={threadSectionRef} style={{ top: "var(--site-header-height, 64px)" }} className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:top-auto lg:inset-auto lg:z-auto lg:bg-transparent lg:h-[calc(100vh-180px)] lg:overflow-hidden">
               <div className="flex h-full flex-col lg:flex-row lg:gap-4">
           {isThreadReady ? (
                   <>
@@ -1121,49 +1161,21 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                         ) : messages.length === 0 && !isLoadingConversations ? (
                           <div className="text-sm text-slate-500">No messages yet. Say hello!</div>
                         ) : (
-                          (() => {
-                            // Group messages by day label (Today / Yesterday / Date)
-                            const groups: { label: string; items: typeof messages }[] = [];
-                            const labelFor = (iso: string) => {
-                              try {
-                                const d = new Date(iso);
-                                const now = new Date();
-                                const diffDays = Math.floor((now.setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / (24*60*60*1000));
-                                if (diffDays === 0) return "Today";
-                                if (diffDays === 1) return "Yesterday";
-                                return d.toLocaleDateString();
-                              } catch {
-                                return "";
-                              }
-                            };
-
-                            let currentLabel = "";
-                            messages.forEach((message) => {
-                              const label = labelFor(message.createdAt);
-                              if (label !== currentLabel) {
-                                groups.push({ label, items: [message] as any });
-                                currentLabel = label;
-                              } else {
-                                groups[groups.length - 1].items.push(message);
-                              }
-                            });
-
-                            return groups.map((group) => (
-                              <React.Fragment key={group.label}>
-                                <DateSeparator label={group.label} />
-                                {group.items.map((message) => {
-                                  const isMine = message.senderId === user?.id;
-                                  return (
-                                    <div key={message.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-                                      <div className={cn("max-w-[78%] px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
-                                        <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p>
-                                      </div>
+                          messageGroups.map((group) => (
+                            <React.Fragment key={`${group.label}-${group.items[0]?.id ?? group.label}`}>
+                              <DateSeparator label={group.label} />
+                              {group.items.map((message) => {
+                                const isMine = message.senderId === user?.id;
+                                return (
+                                  <div key={message.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
+                                    <div className={cn("max-w-[78%] px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
+                                      <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p>
                                     </div>
-                                  );
-                                })}
-                              </React.Fragment>
-                            ));
-                          })()
+                                  </div>
+                                );
+                              })}
+                            </React.Fragment>
+                          ))
                         )}
                         <div
                           ref={messagesEndRef}
