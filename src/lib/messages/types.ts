@@ -18,6 +18,7 @@ export type ConversationListing = {
   area?: string | null;
   city?: string | null;
   listing_type?: string | null;
+  status?: string | null;
 };
 
 export type ConversationSummary = {

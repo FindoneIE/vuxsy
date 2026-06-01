@@ -36,6 +36,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Role-based protection for admin routes. The user is already confirmed
+  // authenticated above. Query profiles.role to verify admin access before
+  // any page component renders — this is the server-side gate.
+  const isAdminRoute =
+    user &&
+    (pathname === "/dashboard/admin" ||
+      pathname.startsWith("/dashboard/admin/"));
+
+  if (isAdminRoute) {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileData?.role !== "admin") {
+      const adminRedirectUrl = request.nextUrl.clone();
+      adminRedirectUrl.pathname = "/dashboard";
+      adminRedirectUrl.search = "";
+      return NextResponse.redirect(adminRedirectUrl);
+    }
+  }
+
   return response;
 }
 

@@ -341,10 +341,12 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
   const { data: conversations, error } = await supabase
     .from("conversations")
     .select(
-      "id, listing_id, buyer_id, seller_id, created_at, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
+      "id, listing_id, buyer_id, seller_id, last_message, last_message_at, created_at, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, status, seller)"
     )
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-    .order("created_at", { ascending: false });
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   if (error || !conversations) {
     console.warn("Failed to load conversations", error);
@@ -405,22 +407,37 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
     return conversation.id;
   });
 
-  const { data: profiles } = await supabase
+  // Parallelize independent lookups for profiles, listing images and unread counts
+  const profilesPromise = supabase
     .from("profiles")
     .select("id, display_name, full_name, name, email, avatar_url, google_photo_url")
     .in("id", Array.from(participantIds));
 
-  const profileMap = new Map(
-    (profiles ?? []).map((profile) => [profile.id, profile])
-  );
-
-  const { data: imageRows } = listingIds.size
-    ? await supabase
+  const imageRowsPromise = listingIds.size
+    ? supabase
         .from("listing_images")
         .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
         .in("listing_id", Array.from(listingIds))
         .order("sort_order", { ascending: true })
-    : { data: [] };
+    : Promise.resolve({ data: [] });
+
+  const unreadRowsPromise = conversationIds.length
+    ? supabase
+        .from("messages")
+        .select("conversation_id")
+        .eq("recipient_id", user.id)
+        .neq("sender_id", user.id)
+        .is("read_at", null)
+        .in("conversation_id", conversationIds)
+    : Promise.resolve({ data: [] });
+
+  const [{ data: profiles }, { data: imageRows }, { data: unreadRows }] = await Promise.all([
+    profilesPromise,
+    imageRowsPromise,
+    unreadRowsPromise,
+  ]);
+
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
 
   const listingImageMap = buildListingImageMap(
     supabase,
@@ -432,16 +449,6 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
       sort_order?: number | null;
     }[]
   );
-
-  const { data: unreadRows } = conversationIds.length
-    ? await supabase
-        .from("messages")
-        .select("conversation_id")
-        .eq("recipient_id", user.id)
-        .neq("sender_id", user.id)
-        .is("read_at", null)
-        .in("conversation_id", conversationIds)
-    : { data: [] };
 
   const unreadMap = new Map<string, number>();
   (unreadRows ?? []).forEach((row) => {
@@ -465,26 +472,8 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
     });
   }
 
-  const latestMessageMap = new Map<string, { body: string; createdAt: string }>();
-  if (conversationIds.length > 0) {
-    const { data: latestRows } = await supabase
-      .from("messages")
-      .select("conversation_id, content, created_at")
-      .in("conversation_id", conversationIds)
-      .order("created_at", { ascending: false });
-
-    (latestRows ?? []).forEach((row) => {
-      if (!row.conversation_id || latestMessageMap.has(row.conversation_id)) return;
-      latestMessageMap.set(row.conversation_id, {
-        body: row.content ?? "",
-        createdAt: row.created_at,
-      });
-    });
-  }
-
   return conversationsForInbox
     .map((conversation) => {
-      const latest = latestMessageMap.get(conversation.id) ?? null;
       const otherId =
         conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id;
       const otherProfile = profileMap.get(otherId);
@@ -507,6 +496,7 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
             area: listingRaw.area ?? null,
             city: listingRaw.city ?? null,
             listing_type: listingRaw.listing_type ?? null,
+            status: (listingRaw as { status?: string | null }).status ?? null,
           }
         : null;
 
@@ -515,8 +505,8 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
         listingId: conversation.listing_id,
         buyerId: conversation.buyer_id,
         sellerId: conversation.seller_id,
-        lastMessage: latest?.body ?? null,
-        lastMessageAt: latest?.createdAt ?? null,
+        lastMessage: (conversation.last_message as string | null) ?? null,
+        lastMessageAt: (conversation.last_message_at as string | null) ?? null,
         createdAt: conversation.created_at ?? null,
   updatedAt: null,
         listing,
@@ -854,347 +844,128 @@ export async function sendMessage(conversationId: string, body: string) {
   });
 
   if (recipientId !== user.id) {
-    console.info("sendMessage_notification_block_entered", {
-      conversationId,
-      messageId: inserted.id,
-      senderId: user.id,
-      recipientId,
-    });
-
-    console.info("message_notification_attempted", {
-      conversationId,
-      messageId: inserted.id,
-      senderId: user.id,
-      recipientId,
-      debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
-    });
-
-    const { data: recipientProfile } = await supabase
-      .from("profiles")
-      .select("email, message_notifications")
-      .eq("id", recipientId)
-      .maybeSingle();
-
-    let resolvedRecipientEmail = recipientProfile?.email?.trim() || null;
-    let sourceUsed: "profiles.email" | "auth.users.email" | "auth.user_metadata.email" | "none" =
-      resolvedRecipientEmail ? "profiles.email" : "none";
-
-    if (!resolvedRecipientEmail) {
+    // offload heavier notification work so this function can return quickly
+    void (async () => {
       try {
-        const adminSupabase = createSupabaseAdminClient();
-        const { data: authUserData, error: authUserError } =
-          await adminSupabase.auth.admin.getUserById(recipientId);
+        const supabaseInner = await createSupabaseServerClient();
 
-        if (authUserError) {
-          console.warn("message_notification_email_fallback_auth_lookup_failed", {
-            conversationId,
-            messageId: inserted.id,
-            recipientId,
-            error: authUserError.message,
-            code: authUserError.code,
-          });
-        } else {
-          const authUserEmail = authUserData.user?.email?.trim() || null;
-          const authMetadata = authUserData.user?.user_metadata as
-            | Record<string, unknown>
-            | undefined;
-          const metadataEmailRaw = authMetadata?.email;
-          const metadataEmail =
-            typeof metadataEmailRaw === "string" ? metadataEmailRaw.trim() : null;
+        const { data: recipientProfile } = await supabaseInner
+          .from("profiles")
+          .select("email, message_notifications")
+          .eq("id", recipientId)
+          .maybeSingle();
 
-          if (authUserEmail) {
-            resolvedRecipientEmail = authUserEmail;
-            sourceUsed = "auth.users.email";
-          } else if (metadataEmail) {
-            resolvedRecipientEmail = metadataEmail;
-            sourceUsed = "auth.user_metadata.email";
+        let resolvedRecipientEmail = recipientProfile?.email?.trim() || null;
+
+        if (!resolvedRecipientEmail) {
+          try {
+            const adminSupabase = createSupabaseAdminClient();
+            const { data: authUserData } = await adminSupabase.auth.admin.getUserById(recipientId);
+            const authUserEmail = authUserData.user?.email?.trim() || null;
+            const authMetadata = authUserData.user?.user_metadata as Record<string, unknown> | undefined;
+            const metadataEmailRaw = authMetadata?.email;
+            const metadataEmail = typeof metadataEmailRaw === "string" ? metadataEmailRaw.trim() : null;
+            if (authUserEmail) resolvedRecipientEmail = authUserEmail;
+            else if (metadataEmail) resolvedRecipientEmail = metadataEmail;
+          } catch {
+            // swallow admin lookup errors in detached flow
           }
         }
-      } catch (error) {
-        console.warn("message_notification_email_fallback_admin_client_unavailable", {
-          conversationId,
-          messageId: inserted.id,
-          recipientId,
-          error: (error as Error).message,
+
+        if (!resolvedRecipientEmail) return;
+        if (recipientProfile?.message_notifications === false) return;
+
+        const [{ data: senderProfile }, { data: listingImageRows }] = await Promise.all([
+          supabaseInner
+            .from("profiles")
+            .select("display_name, full_name, name")
+            .eq("id", user.id)
+            .maybeSingle(),
+          conversation.listing_id
+            ? supabaseInner
+                .from("listing_images")
+                .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
+                .eq("listing_id", conversation.listing_id)
+                .order("sort_order", { ascending: true })
+            : Promise.resolve({ data: [] }),
+        ]);
+
+        const listingRawFromConversation = (conversation as any).listing;
+        const listingRaw = Array.isArray(listingRawFromConversation)
+          ? listingRawFromConversation[0] ?? null
+          : listingRawFromConversation ?? null;
+
+        const listingSeller = (listingRaw as any)?.seller;
+
+        const senderDisplayName =
+          resolveDisplayNameValue(
+            listingSeller?.displayName,
+            listingSeller?.display_name,
+            listingSeller?.fullName,
+            listingSeller?.full_name,
+            listingSeller?.name,
+            listingSeller?.username,
+            senderProfile?.display_name,
+            senderProfile?.full_name,
+            senderProfile?.name
+          ) ?? "User";
+
+        const listingTitle = listingRaw?.title?.trim() ?? "";
+        const listingLocation = formatListingLocation([
+          listingRaw?.county ?? null,
+          listingRaw?.area ?? null,
+          listingRaw?.city ?? null,
+        ]);
+
+        const listingPrice =
+          listingRaw?.price !== null && listingRaw?.price !== undefined
+            ? (() => {
+                const numericPrice = typeof listingRaw.price === "number" ? listingRaw.price : Number.parseFloat(String(listingRaw.price));
+                if (!Number.isFinite(numericPrice)) return null;
+                return `${new Intl.NumberFormat("en-IE", { maximumFractionDigits: 0 }).format(numericPrice)} €`;
+              })()
+            : null;
+
+        const listingImageMap = buildListingImageMap(
+          supabaseInner,
+          (listingImageRows ?? []) as {
+            listing_id?: string | null;
+            image_url?: string | null;
+            storage_path_600?: string | null;
+            storage_path_1800?: string | null;
+            sort_order?: number | null;
+          }[]
+        );
+        const listingImageEntry = conversation.listing_id ? listingImageMap.get(conversation.listing_id) ?? null : null;
+        const listingImageUrl = conversation.listing_id ? listingImageEntry?.coverImage ?? listingImageEntry?.images?.[0] ?? null : null;
+
+        const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vuxsy.ie").replace(/\/$/, "");
+        const conversationUrl = `${baseUrl}/dashboard/messages/${conversationId}`;
+        const listingPath = listingRaw?.id
+          ? getListingHref({
+              id: listingRaw.id,
+              type: (listingRaw.listing_type as any) ?? undefined,
+              category: listingRaw.category_id ?? undefined,
+            })
+          : null;
+        const listingUrl = listingPath ? `${baseUrl}${listingPath}` : null;
+
+        await sendMessageNotificationEmail({
+          to: resolvedRecipientEmail,
+          conversationUrl,
+          senderDisplayName,
+          listingTitle,
+          listingUrl,
+          listingLocation: listingLocation || null,
+          listingPrice,
+          listingImageUrl,
+          messagePreview: truncateMessagePreview(trimmed),
+          messageSentAt: inserted.created_at,
         });
+      } catch {
+        // ignore notification errors in detached flow
       }
-    }
-
-    console.info("message_notification_recipient_email_resolved", {
-      conversationId,
-      messageId: inserted.id,
-      recipientId,
-      resolvedRecipientEmail,
-      sourceUsed,
-    });
-
-    if (!resolvedRecipientEmail) {
-      console.info("message_notification_skipped", {
-        conversationId,
-        messageId: inserted.id,
-        recipientId,
-        reason: "missing_email",
-      });
-    } else if (recipientProfile?.message_notifications === false) {
-      console.info("message_notification_skipped", {
-        conversationId,
-        messageId: inserted.id,
-        recipientId,
-        reason: "opted_out",
-      });
-    } else {
-      console.info("message_notification_active_window_config", {
-        conversationId,
-        messageId: inserted.id,
-        recipientId,
-        rawMessageEmailActiveReadWindowSeconds:
-          process.env.MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS ?? null,
-        activeWindowSeconds: MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
-      });
-
-      const recipientActiveInConversation = await hasRecentConversationReadActivity(
-        supabase,
-        conversationId,
-        recipientId,
-        MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS
-      );
-
-      if (recipientActiveInConversation) {
-        console.info("message_notification_skipped", {
-          conversationId,
-          messageId: inserted.id,
-          recipientId,
-          reason: "active_conversation",
-          activeWindowSeconds: MESSAGE_EMAIL_ACTIVE_READ_WINDOW_SECONDS,
-        });
-      } else {
-        const reservation = await reserveMessageEmailNotificationSlot(supabase, {
-          conversationId,
-          recipientId,
-          messageId: inserted.id,
-          debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
-        });
-
-        if (!reservation.allowed) {
-          console.info("message_notification_skipped", {
-            conversationId,
-            messageId: inserted.id,
-            recipientId,
-            reason: reservation.reason === "debounced" ? "debounce" : reservation.reason,
-            debounceSeconds: MESSAGE_EMAIL_DEBOUNCE_SECONDS,
-          });
-        } else {
-          const [{ data: senderProfile }, { data: listingImageRows }] = await Promise.all([
-            supabase
-              .from("profiles")
-              .select("display_name, full_name, name")
-              .eq("id", user.id)
-              .maybeSingle(),
-            conversation.listing_id
-              ? supabase
-                  .from("listing_images")
-                  .select("listing_id, image_url, storage_path_600, storage_path_1800, sort_order")
-                  .eq("listing_id", conversation.listing_id)
-                  .order("sort_order", { ascending: true })
-              : Promise.resolve({ data: [] }),
-            ]);
-
-          const listingRawFromConversation = (
-            conversation as {
-              listing?:
-                | {
-                    id?: string | null;
-                    title?: string | null;
-                    price?: number | null;
-                    county?: string | null;
-                    area?: string | null;
-                    city?: string | null;
-                    listing_type?: string | null;
-                    category_id?: string | null;
-                  }
-                | Array<{
-                    id?: string | null;
-                    title?: string | null;
-                    price?: number | null;
-                    county?: string | null;
-                    area?: string | null;
-                    city?: string | null;
-                    listing_type?: string | null;
-                    category_id?: string | null;
-                  }>
-                | null;
-            }
-          ).listing;
-
-          const listingRaw = Array.isArray(listingRawFromConversation)
-            ? listingRawFromConversation[0] ?? null
-            : listingRawFromConversation ?? null;
-
-          const listingSeller = (
-            listingRaw as {
-              seller?: {
-                displayName?: string | null;
-                display_name?: string | null;
-                fullName?: string | null;
-                full_name?: string | null;
-                name?: string | null;
-                username?: string | null;
-              } | null;
-            } | null
-          )?.seller;
-
-          const senderDisplayName =
-            resolveDisplayNameValue(
-              listingSeller?.displayName,
-              listingSeller?.display_name,
-              listingSeller?.fullName,
-              listingSeller?.full_name,
-              listingSeller?.name,
-              listingSeller?.username,
-              senderProfile?.display_name,
-              senderProfile?.full_name,
-              senderProfile?.name
-            ) ?? "User";
-
-          const listingTitle = listingRaw?.title?.trim() ?? "";
-          const listingLocation = formatListingLocation([
-            listingRaw?.county ?? null,
-            listingRaw?.area ?? null,
-            listingRaw?.city ?? null,
-          ]);
-
-          const listingPrice =
-            listingRaw?.price !== null && listingRaw?.price !== undefined
-              ? (() => {
-                  const numericPrice =
-                    typeof listingRaw.price === "number"
-                      ? listingRaw.price
-                      : Number.parseFloat(String(listingRaw.price));
-
-                  if (!Number.isFinite(numericPrice)) {
-                    return null;
-                  }
-
-                  return `${new Intl.NumberFormat("en-IE", {
-                    maximumFractionDigits: 0,
-                  }).format(numericPrice)} €`;
-                })()
-              : null;
-
-          const listingImageMap = buildListingImageMap(
-            supabase,
-            (listingImageRows ?? []) as {
-              listing_id?: string | null;
-              image_url?: string | null;
-              storage_path_600?: string | null;
-              storage_path_1800?: string | null;
-              sort_order?: number | null;
-            }[]
-          );
-          const listingImageEntry = conversation.listing_id
-            ? listingImageMap.get(conversation.listing_id) ?? null
-            : null;
-          const listingImageUrl = conversation.listing_id
-            ? listingImageEntry?.coverImage ?? listingImageEntry?.images?.[0] ?? null
-            : null;
-
-          const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vuxsy.ie").replace(
-            /\/$/,
-            ""
-          );
-          const conversationUrl = `${baseUrl}/dashboard/messages/${conversationId}`;
-          const listingPath = listingRaw?.id
-            ? getListingHref({
-                id: listingRaw.id,
-                type: ((listingRaw.listing_type as
-                  | "service"
-                  | "request"
-                  | "marketplace"
-                  | null
-                  | undefined) ?? undefined) || undefined,
-                category: listingRaw.category_id ?? undefined,
-              })
-            : null;
-          const listingUrl = listingPath ? `${baseUrl}${listingPath}` : null;
-
-          console.info("message_notification_send_invoked", {
-            conversationId,
-            messageId: inserted.id,
-            recipientId,
-            resolvedRecipientEmail,
-            sourceUsed,
-          });
-
-          console.info("email_listing_payload_source", {
-            conversationId,
-            messageId: inserted.id,
-            listingId: conversation.listing_id ?? null,
-            listingTitle,
-            listingPrice,
-            listingLocation: listingLocation || null,
-            listingImageUrl,
-          });
-
-          console.info("email_notification_payload_final", {
-            senderDisplayName,
-            listingTitle,
-            listingPrice,
-            listingLocation: listingLocation || null,
-            listingImageUrl,
-            listingUrl,
-            conversationUrl,
-            rawConversationListing: (conversation as { listing?: unknown }).listing ?? null,
-          });
-
-          const emailResult = await sendMessageNotificationEmail({
-            to: resolvedRecipientEmail,
-            conversationUrl,
-            senderDisplayName,
-            listingTitle,
-            listingUrl,
-            listingLocation: listingLocation || null,
-            listingPrice,
-            listingImageUrl,
-            messagePreview: truncateMessagePreview(trimmed),
-            messageSentAt: inserted.created_at,
-          });
-
-          if (emailResult.delivered) {
-            console.info("message_notification_sent", {
-              conversationId,
-              messageId: inserted.id,
-              recipientId,
-              reservationReason: reservation.reason,
-            });
-          } else if (emailResult.skipped) {
-            console.info("message_notification_skipped", {
-              conversationId,
-              messageId: inserted.id,
-              recipientId,
-              reason:
-                emailResult.reason === "missing_smtp_config"
-                  ? "missing_smtp_config"
-                  : "email_provider_not_configured",
-            });
-          } else {
-            console.error("message_notification_failed", {
-              conversationId,
-              messageId: inserted.id,
-              recipientId,
-              error: emailResult.error ?? "Unknown email failure",
-            });
-          }
-        }
-      }
-    }
-  } else {
-    console.info("sendMessage_notification_block_skipped", {
-      conversationId,
-      messageId: inserted.id,
-      senderId: user.id,
-      recipientId,
-      reason: "recipient_is_sender",
-    });
+    })();
   }
 
   return {

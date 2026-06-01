@@ -12,6 +12,7 @@ import { getListingHref } from "@/lib/listings/getListingHref";
 import { useAuth } from "@/components/auth/AuthProvider";
 import VuxsyVerifiedBadge from "@/components/ui/VuxsyVerifiedBadge";
 import { cn } from "@/lib/utils";
+import ConversationRow from "@/components/messages/ConversationRow";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { resolveDisplayNameValue } from "@/lib/display-name";
 import {
@@ -43,6 +44,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
+import DateSeparator from "@/components/messages/DateSeparator";
+import TypingIndicator from "@/components/messages/TypingIndicator";
 
 const MESSAGES_UNREAD_UPDATED_EVENT = "messages:unread-updated";
 
@@ -73,6 +76,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   );
   const [messages, setMessages] = React.useState<MessageItem[]>([]);
   const [draft, setDraft] = React.useState("");
+  const [isTyping, setIsTyping] = React.useState(false);
   const [loadingConversations, setLoadingConversations] = React.useState(true);
   const [loadingMessages, setLoadingMessages] = React.useState(false);
   const [sending, setSending] = React.useState(false);
@@ -95,6 +99,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const typingTimeoutRef = React.useRef<number | null>(null);
   const selectAllRef = React.useRef<HTMLInputElement | null>(null);
   const routerRef = React.useRef(router);
   const bootstrapKeyRef = React.useRef<string | null>(null);
@@ -433,6 +438,28 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     []
   );
 
+  const handleDraftChange = React.useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = event.target.value;
+    setDraft(val);
+    resizeComposerTextarea(event.currentTarget);
+
+    setIsTyping(true);
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+    }
+    // hide typing indicator after 1200ms of inactivity
+    typingTimeoutRef.current = window.setTimeout(() => {
+      setIsTyping(false);
+      typingTimeoutRef.current = null;
+    }, 1200);
+  }, [resizeComposerTextarea]);
+
+  React.useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
   const handleSelectConversation = async (conversation: ConversationSummary) => {
     await syncConversationReadState(conversation.id);
     if (showThread) {
@@ -577,14 +604,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const composerPlaceholder = conversationBlocked
     ? "Conversation blocked"
     : "Write a message…";
-  const mobileMessageBottomSpacingClass = !emptyDetail && conversationBlocked
-    ? "pb-[calc(288px+env(safe-area-inset-bottom))] scroll-pb-[calc(288px+env(safe-area-inset-bottom))]"
-    : "pb-[calc(228px+env(safe-area-inset-bottom))] scroll-pb-[calc(228px+env(safe-area-inset-bottom))]";
-  const mobileMessageEndAnchorSpacingClass = !emptyDetail && conversationBlocked
-    ? "scroll-mb-[calc(288px+env(safe-area-inset-bottom))]"
-    : "scroll-mb-[calc(228px+env(safe-area-inset-bottom))]";
   const composerBlock = (
-    <div className="fixed bottom-0 left-0 right-0 z-50 shrink-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:static sm:border-0 sm:bg-transparent sm:p-0">
+    // shrink-0 keeps the composer in the flex column so the scroll area
+    // always stops exactly above it — no fixed positioning or magic padding needed.
+    <div className="shrink-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:border-0 sm:bg-transparent sm:p-0">
       <div className="mx-auto w-full max-w-107.5 sm:max-w-none sm:px-4 sm:py-3">
         {!emptyDetail && conversationBlocked ? (
           <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/65 px-3 py-2 sm:mb-2.5">
@@ -626,10 +649,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           <textarea
             ref={textareaRef}
             value={draft}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              resizeComposerTextarea(event.currentTarget);
-            }}
+            onChange={handleDraftChange}
             onInput={(event) => resizeComposerTextarea(event.currentTarget)}
             onKeyDown={handleKeyDown}
             rows={1}
@@ -873,7 +893,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         <div
           className={cn(
             "flex w-full flex-col gap-1.5 sm:gap-2",
-            showThread ? "lg:flex-row lg:gap-8" : ""
+            showThread ? "lg:flex-row lg:gap-4" : ""
           )}
         >
           {!showThread ? (
@@ -921,144 +941,37 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                       </div>
                     </div>
                     <div className="mt-2">
-                      {conversations.map((conversation) => {
+                      {isLoadingConversations ? (
+                        <div className="space-y-2 px-3">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="mb-2 flex items-center gap-3">
+                              <div className="h-12 w-12 rounded-lg bg-slate-100 animate-pulse" />
+                              <div className="flex-1">
+                                <div className="h-3 w-3/4 rounded bg-slate-100 animate-pulse mb-2" />
+                                <div className="h-3 w-1/2 rounded bg-slate-100 animate-pulse" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        conversations.map((conversation) => {
                         const isActive = showThread && conversation.id === activeId;
-                        const timeLabel =
-                          formatRelativeTime(
-                            conversation.lastMessageAt ?? conversation.createdAt ?? null
-                          ) ?? "";
-                        const listingTitle = conversation.listing?.title ?? "Listing";
-                        const conversationDisplayName =
-                          resolveDisplayNameValue(conversation.otherParticipant.displayName) ??
-                          "User";
                         const isSelected = selectedConversations.has(conversation.id);
-                        const isBlockedConversation = Boolean(conversation.isBlocked);
 
                         return (
-                          <button
+                          <ConversationRow
                             key={conversation.id}
-                            type="button"
-                            onClick={() => handleSelectConversation(conversation)}
-                            className={cn(
-                              "mb-1.5 md:mb-2 flex h-24 w-full min-w-0 items-center overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition last:mb-0 md:overflow-visible",
-                              isActive
-                                ? "border-l-4 border-l-[#34579B] bg-[#eff6ff] pl-2"
-                                : isBlockedConversation
-                                ? "border-slate-200 bg-slate-50/40 hover:bg-slate-50/70"
-                                : "hover:bg-slate-50"
-                            )}
-                          >
-                            <div className="mr-2.5 flex shrink-0 items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleConversationSelection(conversation.id)}
-                                onClick={(event) => event.stopPropagation()}
-                                className="messages-checkbox"
-                                aria-label="Select conversation"
-                              />
-                            </div>
-                            <div className="relative mr-3 h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                              {conversation.listing?.coverImage || conversation.listing?.images?.length ? (
-                                <Image
-                                  src={
-                                    conversation.listing?.coverImage ||
-                                    conversation.listing?.images?.[0] ||
-                                    ""
-                                  }
-                                  alt={listingTitle}
-                                  fill
-                                  className="object-cover"
-                                  sizes="64px"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-slate-400">
-                                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="min-w-0 flex-1 overflow-hidden">
-                              <div className="flex min-w-0 items-center justify-between gap-2.5">
-                                <div className="min-w-0">
-                                  <p
-                                    className={cn(
-                                      "truncate text-sm leading-5 font-semibold",
-                                      isBlockedConversation ? "text-slate-800" : "text-slate-900"
-                                    )}
-                                  >
-                                    {listingTitle}
-                                  </p>
-                                  <p
-                                    className={cn(
-                                      "truncate text-[11px] leading-4",
-                                      isBlockedConversation ? "text-slate-400" : "text-slate-500"
-                                    )}
-                                  >
-                                    {conversationDisplayName === "VUXSY" ? (
-                                      <span className="inline-flex items-center gap-1">
-                                        VUXSY
-                                        <VuxsyVerifiedBadge
-                                          displayName={conversationDisplayName}
-                                          size={16}
-                                        />
-                                      </span>
-                                    ) : (
-                                      conversationDisplayName
-                                    )}
-                                  </p>
-                                </div>
-                                <div className="flex w-20 shrink-0 flex-col items-end justify-center gap-0.5 text-right md:w-auto">
-                                  <span
-                                    className={cn(
-                                      "text-[11px]",
-                                      isBlockedConversation ? "text-slate-400" : "text-slate-400"
-                                    )}
-                                  >
-                                    {timeLabel}
-                                  </span>
-                                  {conversation.unreadCount > 0 ? (
-                                    <span
-                                      className={cn(
-                                        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-2 text-[11px] font-semibold",
-                                        isBlockedConversation
-                                          ? "bg-slate-300 text-slate-700"
-                                          : "bg-[#34579B] text-white"
-                                      )}
-                                    >
-                                      {conversation.unreadCount}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <p
-                                className={cn(
-                                  "mt-0.5 truncate text-[11px] leading-4",
-                                  isBlockedConversation ? "text-slate-400" : "text-slate-500"
-                                )}
-                              >
-                                {conversation.lastMessage?.trim()
-                                  ? conversation.lastMessage
-                                  : "Conversation started"}
-                              </p>
-                              {isBlockedConversation ? (
-                                <span
-                                  className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md bg-rose-50/60 px-2 py-0.5 text-[11px] font-medium text-rose-700/80"
-                                  aria-label="Blocked conversation"
-                                >
-                                  <LockSimple
-                                    size={12}
-                                    weight="fill"
-                                    className="shrink-0"
-                                    aria-hidden="true"
-                                  />
-                                  <span className="truncate">Blocked</span>
-                                </span>
-                              ) : null}
-                            </div>
-                          </button>
+                            conversation={conversation}
+                            isActive={isActive}
+                            isSelected={isSelected}
+                            onSelect={handleSelectConversation}
+                            onToggleSelected={toggleConversationSelection}
+                            showThread={showThread}
+                            activeId={activeId}
+                          />
                         );
-                      })}
+                        })
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1067,22 +980,28 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           ) : null}
 
           {showThread ? (
-            <section className="w-full min-h-dvh overflow-hidden lg:min-h-0">
-              <div className="flex h-dvh min-h-dvh flex-col overflow-hidden lg:h-[calc(100vh-180px)] lg:min-h-0 lg:flex-row lg:gap-8">
-                {isThreadReady ? (
+            // On mobile the thread takes over the full viewport (fixed inset-0) so the
+            // in-flow composer at the bottom of the flex column is never clipped by the
+            // section's overflow-hidden. On desktop (lg+) the section reverts to static
+            // and the inner div uses an explicit height calc.
+            <section style={{ top: "var(--site-header-height, 64px)" }} className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:top-auto lg:inset-auto lg:z-auto lg:bg-transparent lg:h-[calc(100vh-180px)] lg:overflow-hidden">
+              <div className="flex h-full flex-col lg:flex-row lg:gap-4">
+          {isThreadReady ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                      <div className="shrink-0 mb-2 flex flex-wrap items-start gap-1 border-b border-slate-200 px-2 pt-0.5 pb-2 md:items-center md:gap-1.5 md:px-4 md:pt-1 md:pb-1.5">
-                        {pathname?.includes("/dashboard/messages/") ? (
+                    <div className="flex min-h-0 min-w-0 flex-1 lg:flex-3 flex-col h-full">
+                      {pathname?.includes("/dashboard/messages/") ? (
+                        <div className="shrink-0 flex items-center border-b border-slate-200 bg-slate-50 px-4 py-3 lg:hidden">
                           <Link
                             href="/dashboard/messages"
-                            className="inline-flex w-full items-center gap-1 text-sm font-semibold text-[#0b4ea2] hover:text-[#09438c] lg:hidden -mt-1"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
                           >
                             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                             Back
                           </Link>
-                        ) : null}
-                        <div className="flex w-full min-w-0 items-center gap-2 md:gap-2.5">
+                        </div>
+                      ) : null}
+                      <div className="shrink-0 mb-2 flex items-center border-b border-slate-200 px-4 py-3 lg:flex-wrap lg:items-center lg:gap-1.5 lg:px-4 lg:pt-1 lg:pb-1.5">
+                        <div className="flex w-full min-w-0 items-center gap-3 md:gap-2.5">
                           <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
                             {listingImage ? (
                               <Image
@@ -1191,59 +1110,77 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
                       <div
                         ref={scrollRef}
-                        className={cn(
-                          "min-h-0 flex-1 overflow-y-auto space-y-2 px-2 pt-0 sm:space-y-2 sm:pb-2.5 sm:scroll-pb-2.5 md:px-4 md:pt-0 md:pb-3 md:scroll-pb-3",
-                          mobileMessageBottomSpacingClass
-                        )}
+                        className="min-h-0 flex-1 overflow-y-auto space-y-2 px-2 pt-0 pb-4 md:px-4"
                       >
-                        {messages.length === 0 && !loadingMessages && !isLoadingConversations ? (
+                        {loadingMessages ? (
+                          <div className="space-y-3 p-2">
+                            <div className="h-3 w-3/4 rounded bg-slate-100 animate-pulse" />
+                            <div className="h-3 w-1/2 rounded bg-slate-100 animate-pulse" />
+                            <div className="h-3 w-2/3 rounded bg-slate-100 animate-pulse" />
+                          </div>
+                        ) : messages.length === 0 && !isLoadingConversations ? (
                           <div className="text-sm text-slate-500">No messages yet. Say hello!</div>
                         ) : (
-                          messages.map((message) => {
-                            const isMine = message.senderId === user?.id;
-                            const timestamp = formatRelativeTime(message.createdAt) ?? "Just now";
+                          (() => {
+                            // Group messages by day label (Today / Yesterday / Date)
+                            const groups: { label: string; items: typeof messages }[] = [];
+                            const labelFor = (iso: string) => {
+                              try {
+                                const d = new Date(iso);
+                                const now = new Date();
+                                const diffDays = Math.floor((now.setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / (24*60*60*1000));
+                                if (diffDays === 0) return "Today";
+                                if (diffDays === 1) return "Yesterday";
+                                return d.toLocaleDateString();
+                              } catch {
+                                return "";
+                              }
+                            };
 
-                            return (
-                              <div
-                                key={message.id}
-                                className={cn("flex", isMine ? "justify-end" : "justify-start")}
-                              >
-                                <div
-                                  className={cn(
-                                    "max-w-[68%] px-3.5 py-3 text-sm leading-relaxed",
-                                    isMine
-                                      ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white"
-                                      : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
-                                  )}
-                                >
-                                  <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p>
-                                  <p
-                                    className={cn(
-                                      "mt-1.5 text-[11px]",
-                                      isMine ? "text-white/75" : "text-slate-500"
-                                    )}
-                                  >
-                                    {timestamp}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })
+                            let currentLabel = "";
+                            messages.forEach((message) => {
+                              const label = labelFor(message.createdAt);
+                              if (label !== currentLabel) {
+                                groups.push({ label, items: [message] as any });
+                                currentLabel = label;
+                              } else {
+                                groups[groups.length - 1].items.push(message);
+                              }
+                            });
+
+                            return groups.map((group) => (
+                              <React.Fragment key={group.label}>
+                                <DateSeparator label={group.label} />
+                                {group.items.map((message) => {
+                                  const isMine = message.senderId === user?.id;
+                                  return (
+                                    <div key={message.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
+                                      <div className={cn("max-w-[78%] px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
+                                        <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ));
+                          })()
                         )}
                         <div
                           ref={messagesEndRef}
-                          className={cn(
-                            "h-px w-full sm:scroll-mb-0",
-                            mobileMessageEndAnchorSpacingClass
-                          )}
+                          className="h-px w-full"
                           aria-hidden="true"
                         />
+                        {isTyping ? (
+                          <div className="px-3 py-2">
+                            <TypingIndicator />
+                          </div>
+                        ) : null}
                       </div>
 
                       {composerBlock}
                     </div>
 
-                    <aside className="hidden w-80 shrink-0 lg:block">
+                    <aside className="hidden w-64 shrink-0 lg:block">
                       {listingHref ? (
                         <Link
                           href={listingHref}

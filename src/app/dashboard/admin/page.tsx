@@ -10,8 +10,6 @@ import AdminModerationClient from "@/components/admin/AdminModerationClient";
 // removed (Fix 1). Admin is auth-gated so dynamic is the correct mode anyway.
 export const dynamic = "force-dynamic";
 
-const ADMIN_EMAIL = "info@vuxsy.com";
-
 type ListingReport = {
   id: string;
   listing_id: string;
@@ -79,14 +77,15 @@ type AdminAuditLog = {
 async function getAdminUser() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    return null;
-  }
+  if (error || !data.user) return null;
 
-  const normalizedEmail = data.user.email?.trim().toLowerCase();
-  if (normalizedEmail !== ADMIN_EMAIL) {
-    return null;
-  }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "admin") return null;
 
   return data.user;
 }
@@ -94,14 +93,15 @@ async function getAdminUser() {
 async function getModeratorUser() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    return null;
-  }
+  if (error || !data.user) return null;
 
-  const normalizedEmail = data.user.email?.trim().toLowerCase();
-  if (normalizedEmail !== ADMIN_EMAIL) {
-    return null;
-  }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "admin") return null;
 
   return { user: data.user, role: "admin" as const };
 }
@@ -150,7 +150,7 @@ async function logAdminAction(
 }
 
 const loadAdminDataCached = unstable_cache(
-  async (adminUserId: string, currentRole: "admin" | "moderator") => {
+  async (_adminUserId: string, currentRole: "admin" | "moderator") => {
     const adminClient = createSupabaseAdminClient();
   const debugLogs =
     process.env.NODE_ENV === "development" &&
