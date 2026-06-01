@@ -655,7 +655,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             rows={1}
             placeholder={composerPlaceholder}
             className={cn(
-              "min-h-0 min-w-0 flex-1 resize-none overflow-y-hidden whitespace-pre-wrap wrap-break-word px-0 pt-0 pb-2 text-[15px] leading-4 placeholder:text-[15px] border-0! outline-none! ring-0! shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none",
+              "min-h-0 min-w-0 flex-1 resize-none overflow-y-hidden whitespace-pre-wrap wrap-break-word px-0 pt-0 pb-2 text-base lg:text-[15px] leading-4 placeholder:text-base lg:placeholder:text-[15px] border-0! outline-none! ring-0! shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none",
               composerDisabled
                 ? "cursor-not-allowed bg-transparent text-slate-400 placeholder:text-slate-400 disabled:focus:outline-none disabled:focus:ring-0"
                 : "bg-transparent"
