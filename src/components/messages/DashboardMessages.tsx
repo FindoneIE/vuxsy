@@ -763,10 +763,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       const el = threadSectionRef.current;
       if (!el || window.innerWidth >= 1024) return;
       // vv.height: visible viewport height (shrinks when keyboard opens).
-      // vv.offsetTop: how far the visual viewport has scrolled from the layout
-      //   viewport top (non-zero only in unusual zoom/scroll scenarios).
-      // The panel spans from the header bottom to the bottom of the visual viewport.
-      const panelHeight = Math.max(0, vv.height + vv.offsetTop - headerHeight);
+      // vv.offsetTop: how far the visual viewport has been pushed down from the
+      //   layout viewport top. On iOS Safari, when the keyboard opens the browser
+      //   may shift the visual viewport, leaving fixed elements (which anchor to
+      //   the LAYOUT viewport) partly off-screen. We track that shift on `top` so
+      //   the panel always starts just below the header *in the visible area*, and
+      //   size `height` to the remaining visible space so the composer sits exactly
+      //   above the keyboard / Safari toolbar — never under it, never off-screen.
+      const top = headerHeight + vv.offsetTop;
+      const panelHeight = Math.max(0, vv.height - headerHeight);
+      el.style.top = `${top}px`;
       el.style.height = `${panelHeight}px`;
       scrollToBottom();
     };
@@ -781,6 +787,57 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       vv.removeEventListener("scroll", update);
     };
   }, [scrollToBottom]);
+
+  // TEMP DIAGNOSTIC — mobile chat horizontal overflow. Dev-only (compiles out in
+  // production via DIAG). Logs viewport vs. document widths, the composer and
+  // last outgoing bubble rects, and scans the thread panel for any element whose
+  // right edge exceeds window.innerWidth (the exact element causing overflow).
+  // Remove once the layout is confirmed on iPhone Safari with the keyboard open.
+  React.useEffect(() => {
+    if (!DIAG) return;
+    if (!showThread) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+
+    const sample = (label: string) => {
+      const iw = window.innerWidth;
+      const composer = document.querySelector<HTMLElement>('[data-mobile-composer]');
+      const bubbles = document.querySelectorAll<HTMLElement>('[data-msg-bubble="mine"]');
+      const lastBubble = bubbles[bubbles.length - 1] ?? null;
+      const panel = threadSectionRef.current;
+
+      const offenders: Array<{ el: string; right: number; width: number }> = [];
+      if (panel) {
+        panel.querySelectorAll<HTMLElement>("*").forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.right > iw + 0.5) {
+            offenders.push({
+              el: `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")}`,
+              right: Math.round(r.right),
+              width: Math.round(r.width),
+            });
+          }
+        });
+      }
+
+      console.log(`[DIAG:overflow] (${label})`, {
+        innerWidth: iw,
+        docScrollWidth: document.documentElement.scrollWidth,
+        bodyScrollWidth: document.body.scrollWidth,
+        composerRect: composer ? composer.getBoundingClientRect() : null,
+        lastOutgoingBubbleRect: lastBubble ? lastBubble.getBoundingClientRect() : null,
+        offendersBeyondViewport: offenders.slice(0, 12),
+      });
+    };
+
+    sample("mount");
+    const r = requestAnimationFrame(() => sample("raf"));
+    const t = window.setTimeout(() => sample("+500ms"), 500);
+    return () => {
+      cancelAnimationFrame(r);
+      window.clearTimeout(t);
+    };
+  }, [showThread, activeThreadStatus, messages.length]);
 
   const handleSelectConversation = (conversation: ConversationSummary) => {
     // Fire-and-forget: don't block navigation on the server round-trip.
@@ -950,8 +1007,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const composerBlock = (
     // shrink-0 keeps the composer in the flex column so the scroll area
     // always stops exactly above it — no fixed positioning or magic padding needed.
-    <div className="shrink-0 w-full min-w-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] lg:border-0 lg:bg-transparent lg:p-0">
-      <div className="mx-auto w-full min-w-0 max-w-107.5 lg:max-w-none lg:px-4 lg:py-3">
+    <div data-mobile-composer className="shrink-0 w-full min-w-0 max-w-[100vw] box-border border-t border-slate-200 bg-white px-3 py-1.5 pb-[calc(env(safe-area-inset-bottom)+8px)] lg:border-0 lg:bg-transparent lg:p-0">
+      <div className="mx-auto w-full min-w-0 max-w-107.5 box-border lg:max-w-none lg:px-4 lg:py-3">
         {!emptyDetail && conversationBlocked ? (
           <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/65 px-3 py-2 sm:mb-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
@@ -982,7 +1039,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         ) : null}
         <div
           className={cn(
-            "flex min-w-0 items-end gap-2 rounded-2xl border px-2 py-1 lg:px-4 lg:py-3",
+            "flex w-full min-w-0 max-w-full box-border items-end gap-2 rounded-2xl border px-2 py-1 lg:px-4 lg:py-3",
             composerDisabled
               ? "border-slate-200 bg-slate-50/80 lg:max-w-190"
               : "border-slate-300 bg-white"
@@ -1318,9 +1375,9 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             <section
               ref={threadSectionRef}
               style={{ top: "var(--site-header-height, 64px)" }}
-              className="fixed inset-x-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:overflow-hidden lg:bg-transparent"
+              className="fixed inset-x-0 left-0 z-50 box-border w-screen max-w-[100vw] overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:max-w-none lg:overflow-hidden lg:bg-transparent"
             >
-              <div className="flex h-full w-full flex-col overflow-hidden lg:flex-row lg:gap-4">
+              <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden box-border lg:flex-row lg:gap-4">
                 {/* Back button — always visible on mobile when in a conversation, even during loading */}
                 {pathname?.includes("/dashboard/messages/") ? (
                   <div className="shrink-0 flex items-center border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden">
@@ -1336,7 +1393,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
           {isThreadReady || isMessageLoadError ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col overflow-hidden">
+                    <div className="flex min-h-0 min-w-0 w-full max-w-full box-border flex-1 lg:flex-3 flex-col overflow-hidden">
                       <div className="shrink-0 mb-0 flex items-center border-b border-slate-200 px-4 py-3 lg:flex-wrap lg:items-center lg:gap-1.5 lg:px-4 lg:pt-1 lg:pb-1.5">
                         <div className="flex w-full min-w-0 items-center gap-3 md:gap-2.5">
                           <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
@@ -1447,7 +1504,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
                       <div
                         ref={scrollRef}
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-2 pb-2 md:px-4"
+                        className="min-h-0 w-full max-w-full min-w-0 box-border flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-3 pt-2 pb-2"
                       >
                         {hasMoreMessages && !loadingMessages ? (
                           <div className="flex justify-center py-2">
@@ -1494,16 +1551,17 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                               {group.items.map((message) => {
                                 const isMine = message.senderId === user?.id;
                                 return (
-                                  <div key={message.id} className={cn("flex w-full px-3", isMine ? "justify-end" : "justify-start")}>
+                                  <div key={message.id} className={cn("flex w-full min-w-0 max-w-full box-border overflow-x-hidden", isMine ? "justify-end" : "justify-start")}>
                                     <div
+                                      data-msg-bubble={isMine ? "mine" : "theirs"}
                                       className={cn(
-                                        "min-w-0 max-w-[72%] overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed wrap-anywhere",
+                                        "min-w-0 max-w-[72vw] box-border overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed wrap-anywhere [word-break:break-word]",
                                         isMine
                                           ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
                                           : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
                                       )}
                                     >
-                                      <p className="whitespace-pre-wrap">{message.body}</p>
+                                      <p className="whitespace-pre-wrap wrap-anywhere [word-break:break-word]">{message.body}</p>
                                     </div>
                                   </div>
                                 );
