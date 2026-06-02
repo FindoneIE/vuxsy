@@ -60,7 +60,7 @@ type DashboardMessagesProps = {
   conversationId?: string | null;
 };
 
-type ActiveThreadStatus = "idle" | "loading" | "ready" | "not_found" | "error";
+type ActiveThreadStatus = "idle" | "loading" | "ready" | "not_found" | "error" | "message_error";
 
 export default function DashboardMessages({ conversationId }: DashboardMessagesProps) {
   const router = useRouter();
@@ -185,9 +185,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     // duplicate getUserConversations calls when multiple code paths trigger
     // a refresh simultaneously (e.g. bootstrap + realtime event on mount).
     if (loadConversationsInFlightRef.current) {
+      console.log("[chat:loadConversations] deduped — returning in-flight promise");
       return loadConversationsInFlightRef.current;
     }
 
+    console.log("[chat:loadConversations] start");
     setLoadingConversations(true);
     setError(null);
 
@@ -196,9 +198,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         const data = await getUserConversations();
         const sorted = sortConversations(data);
         setConversations(sorted);
+        console.log("[chat:loadConversations] done", { count: sorted.length });
         return sorted;
       } catch (err) {
-        console.error("Failed to load conversations", err);
+        console.error("[chat:loadConversations] error", err);
         setError("We couldn’t load your conversations.");
         return [];
       } finally {
@@ -215,17 +218,22 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const requestId = latestThreadRequestRef.current + 1;
     latestThreadRequestRef.current = requestId;
 
+    console.log("[chat:loadMessages] start", { conversation, requestId });
     setLoadingMessages(true);
     setError(null);
     try {
       const result = await getConversationMessages(conversation);
-      if (latestThreadRequestRef.current !== requestId) return;
+      if (latestThreadRequestRef.current !== requestId) {
+        console.log("[chat:loadMessages] stale — superseded by newer request", { requestId });
+        return;
+      }
 
       setMessages(result.items);
       setHasMoreMessages(result.hasMore);
+      console.log("[chat:loadMessages] done", { conversation, itemCount: result.items.length });
       return true;
     } catch (err) {
-      console.error("Failed to load messages", err);
+      console.error("[chat:loadMessages] error", { conversation, err });
       setError("We couldn’t load this conversation.");
       return false;
     } finally {
@@ -288,6 +296,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     if (bootstrapKeyRef.current === key) return;
     bootstrapKeyRef.current = key;
 
+    console.log("[chat:bootstrap] start", { routeConversationId, userId: user.id, key });
+
     void (async () => {
       // Conversations are loaded once per user. On subsequent conversation
       // switches the cached list is reused — no extra getUserConversations call.
@@ -311,6 +321,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       let conversationRows: ConversationSummary[];
       if (conversationsAlreadyLoaded) {
         conversationRows = conversationsRef.current;
+        console.log("[chat:bootstrap] conversations from cache", { count: conversationRows.length });
       } else {
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
@@ -320,14 +331,26 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         (conversation) => conversation.id === routeConversationId
       );
 
+      console.log("[chat:bootstrap] conversation lookup", {
+        routeConversationId,
+        found: Boolean(resolvedConversation),
+        totalConversations: conversationRows.length,
+      });
+
       // Conversation not found — retry once to cover auth/DB race conditions
       // on mobile (first load can complete before Supabase session is ready).
       if (!resolvedConversation) {
+        console.log("[chat:bootstrap] retrying loadConversations — conversation not found on first pass");
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
         resolvedConversation = conversationRows.find(
           (conversation) => conversation.id === routeConversationId
         );
+        console.log("[chat:bootstrap] retry result", {
+          routeConversationId,
+          found: Boolean(resolvedConversation),
+          totalConversations: conversationRows.length,
+        });
       }
 
       if (!resolvedConversation) {
@@ -335,12 +358,20 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         setMessages([]);
         setConversationBlocked(false);
         setBlockedByMe(false);
-        setActiveThreadStatus("idle");
+        setActiveThreadStatus("not_found");
         // Only redirect when we have confirmed other conversations exist.
         // An empty list means auth likely wasn't ready — redirecting would be
         // a false negative that sends the user away from a valid conversation.
         if (conversationRows.length > 0) {
+          console.log("[chat:bootstrap] REDIRECT — conversation not found after retry", {
+            routeConversationId,
+            otherConversations: conversationRows.length,
+          });
           routerRef.current.replace("/dashboard/messages");
+        } else {
+          console.log("[chat:bootstrap] conversation not found but list empty — skipping redirect", {
+            routeConversationId,
+          });
         }
         return;
       }
@@ -351,17 +382,18 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // loadMessages returns true on success, false on error, and undefined when
       // a newer request superseded this one (latestThreadRequestRef mismatch).
       // undefined must NOT trigger a redirect — the superseding call will finish.
+      // false (load error) must NOT redirect — the conversation exists, it was a
+      // transient fetch failure; show an error in the UI instead so the user can retry.
       if (loaded === false) {
-        setActiveId(null);
-        setMessages([]);
-        setConversationBlocked(false);
-        setBlockedByMe(false);
-        setActiveThreadStatus("idle");
-        routerRef.current.replace("/dashboard/messages");
+        console.log("[chat:bootstrap] loadMessages failed — showing error, NOT redirecting", {
+          routeConversationId,
+        });
+        setActiveThreadStatus("message_error");
         return;
       }
 
       setActiveThreadStatus("ready");
+      console.log("[chat:bootstrap] ready", { routeConversationId });
     })();
   }, [conversationId, loadConversations, loadMessages, syncConversationReadState, user]);
 
@@ -606,8 +638,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // The panel spans from the header bottom to the bottom of the visual viewport.
       const panelHeight = Math.max(0, vv.height + vv.offsetTop - headerHeight);
       el.style.height = `${panelHeight}px`;
-      // Clear any stale bottom value — height alone now controls panel size.
-      el.style.bottom = "";
       scrollToBottom();
     };
 
@@ -778,8 +808,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const showEmptyInboxState = !isLoadingConversations && conversations.length === 0;
   const isThreadReady = activeThreadStatus === "ready" && Boolean(selectedConversation);
   const isThreadLoading = activeThreadStatus === "loading";
-  const isThreadUnavailable =
-    activeThreadStatus === "not_found" || activeThreadStatus === "error";
+  const isThreadUnavailable = activeThreadStatus === "not_found" || activeThreadStatus === "error";
+  const isMessageLoadError = activeThreadStatus === "message_error";
   const composerDisabled = emptyDetail || conversationBlocked;
   const composerPlaceholder = conversationBlocked
     ? "Conversation blocked"
@@ -787,8 +817,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const composerBlock = (
     // shrink-0 keeps the composer in the flex column so the scroll area
     // always stops exactly above it — no fixed positioning or magic padding needed.
-    <div className="shrink-0 w-full min-w-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:border-0 sm:bg-transparent sm:p-0">
-      <div className="mx-auto w-full min-w-0 max-w-107.5 sm:max-w-none sm:px-4 sm:py-3">
+    <div className="shrink-0 w-full min-w-0 border-t border-slate-200 bg-white px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] lg:border-0 lg:bg-transparent lg:p-0">
+      <div className="mx-auto w-full min-w-0 max-w-107.5 lg:max-w-none lg:px-4 lg:py-3">
         {!emptyDetail && conversationBlocked ? (
           <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/65 px-3 py-2 sm:mb-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
@@ -819,7 +849,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         ) : null}
         <div
           className={cn(
-            "flex min-w-0 items-end gap-2 rounded-2xl border px-2 py-1 sm:px-4 sm:py-3",
+            "flex min-w-0 items-end gap-2 rounded-2xl border px-2 py-1 lg:px-4 lg:py-3",
             composerDisabled
               ? "border-slate-200 bg-slate-50/80 lg:max-w-190"
               : "border-slate-300 bg-white"
@@ -1166,24 +1196,26 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             <section
               ref={threadSectionRef}
               style={{ top: "var(--site-header-height, 64px)" }}
-              className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:overflow-hidden lg:bg-transparent"
+              className="fixed inset-x-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:overflow-hidden lg:bg-transparent"
             >
               <div className="flex h-full w-full flex-col overflow-hidden lg:flex-row lg:gap-4">
-          {isThreadReady ? (
+                {/* Back button — always visible on mobile when in a conversation, even during loading */}
+                {pathname?.includes("/dashboard/messages/") ? (
+                  <div className="shrink-0 flex items-center border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden">
+                    <Link
+                      href="/dashboard/messages"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
+                    >
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      Back
+                    </Link>
+                  </div>
+                ) : null}
+
+          {isThreadReady || isMessageLoadError ? (
                   <>
                     <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col h-full overflow-hidden">
-                      {pathname?.includes("/dashboard/messages/") ? (
-                        <div className="shrink-0 flex items-center border-b border-slate-200 bg-slate-50 px-4 py-3 lg:hidden">
-                          <Link
-                            href="/dashboard/messages"
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
-                          >
-                            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                            Back
-                          </Link>
-                        </div>
-                      ) : null}
-                      <div className="shrink-0 mb-2 flex items-center border-b border-slate-200 px-4 py-3 lg:flex-wrap lg:items-center lg:gap-1.5 lg:px-4 lg:pt-1 lg:pb-1.5">
+                      <div className="shrink-0 mb-0 flex items-center border-b border-slate-200 px-4 py-3 lg:flex-wrap lg:items-center lg:gap-1.5 lg:px-4 lg:pt-1 lg:pb-1.5">
                         <div className="flex w-full min-w-0 items-center gap-3 md:gap-2.5">
                           <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
                             {listingImage ? (
@@ -1293,7 +1325,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
                       <div
                         ref={scrollRef}
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-0 pb-20 lg:pb-4 md:px-4"
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-2 pb-2 md:px-4"
                       >
                         {hasMoreMessages && !loadingMessages ? (
                           <div className="flex justify-center py-2">
@@ -1313,6 +1345,24 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                             <div className="h-3 w-1/2 rounded bg-slate-100 animate-pulse" />
                             <div className="h-3 w-2/3 rounded bg-slate-100 animate-pulse" />
                           </div>
+                        ) : isMessageLoadError ? (
+                          <div className="flex flex-col items-center justify-center gap-2 p-8 text-center text-sm text-slate-500">
+                            <p>Couldn&apos;t load messages.</p>
+                            <button
+                              type="button"
+                              className="text-xs text-[#34579B] hover:underline"
+                              onClick={() => {
+                                if (activeId) {
+                                  void loadMessages(activeId).then((ok) => {
+                                    if (ok === true) setActiveThreadStatus("ready");
+                                    else if (ok === false) setActiveThreadStatus("message_error");
+                                  });
+                                }
+                              }}
+                            >
+                              Try again
+                            </button>
+                          </div>
                         ) : messages.length === 0 && !isLoadingConversations ? (
                           <div className="text-sm text-slate-500">No messages yet. Say hello!</div>
                         ) : (
@@ -1322,14 +1372,13 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                               {group.items.map((message) => {
                                 const isMine = message.senderId === user?.id;
                                 return (
-                                  <div key={message.id} className="flex w-full min-w-0 overflow-hidden">
+                                  <div key={message.id} className={cn("flex w-full px-3", isMine ? "justify-end" : "justify-start")}>
                                     <div
                                       className={cn(
-                                        "min-w-0 overflow-hidden px-3.5 py-3 text-sm leading-relaxed wrap-anywhere",
-                                        "max-w-[min(75vw,calc(100vw-96px))] lg:max-w-[75%]",
+                                        "min-w-0 max-w-[72%] overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed wrap-anywhere",
                                         isMine
-                                          ? "ml-auto mr-4 rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
-                                          : "ml-4 rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
+                                          ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
+                                          : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
                                       )}
                                     >
                                       <p className="whitespace-pre-wrap">{message.body}</p>
