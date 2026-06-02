@@ -798,11 +798,29 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         const panelHeight =
           vv.offsetTop + vv.height - headerHeight - KEYBOARD_SAFETY_GAP;
         el.style.height = `${Math.max(0, panelHeight)}px`;
+
+        // HORIZONTAL: while the keyboard is open iOS can render the *visual*
+        // viewport narrower/offset than the *layout* viewport (focus zoom/pan).
+        // The panel is `position: fixed` against the LAYOUT viewport, so an
+        // `inset-x-0` (left:0 / right:0) panel stays full layout-width and its
+        // right side — plus the right-aligned outgoing bubbles — spills past the
+        // visible right edge and gets clipped. Pin the panel to the VISIBLE
+        // viewport instead: left = vv.offsetLeft, width = vv.width. Every inner
+        // wrapper is `overflow-x-hidden` + `max-w-full`, so nothing can then
+        // exceed the visible width. This is keyboard-open only; the resting
+        // state is cleared below back to the pure CSS left:0/right:0/width:auto.
+        el.style.left = `${vv.offsetLeft}px`;
+        el.style.right = "auto";
+        el.style.width = `${vv.width}px`;
       } else {
-        // CLOSED: clear the inline height so the panel falls back to its CSS box
-        // (top: header-height + bottom: 0) and fills the whole fixed viewport
-        // with no blank strip below the composer.
+        // CLOSED: clear the inline height + horizontal pins so the panel falls
+        // back to its CSS box (top: header-height + bottom: 0; left:0 / right:0)
+        // and fills the whole fixed viewport with no blank strip below the
+        // composer and no inline width.
         el.style.height = "";
+        el.style.left = "";
+        el.style.right = "";
+        el.style.width = "";
       }
       // Re-pin to the latest message AFTER the new height has been applied and
       // painted, so the composer + last bubble are in view once layout settles.
@@ -820,11 +838,14 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, [scrollToBottom]);
 
-  // TEMP DIAGNOSTIC — mobile chat horizontal overflow. Dev-only (compiles out in
-  // production via DIAG). Logs viewport vs. document widths, the composer and
-  // last outgoing bubble rects, and scans the thread panel for any element whose
-  // right edge exceeds window.innerWidth (the exact element causing overflow).
-  // Remove once the layout is confirmed on iPhone Safari with the keyboard open.
+  // TEMP DIAGNOSTIC — mobile chat horizontal overflow WHILE THE KEYBOARD IS OPEN.
+  // Dev-only (compiles out in production via DIAG). The previous version only
+  // sampled on mount/RAF/+500ms, so it never captured the visual viewport while
+  // the iPhone keyboard was open. This version subscribes to the events that
+  // actually fire when the keyboard opens/closes and the textarea is focused/typed
+  // into, then samples at immediate/RAF/+100ms/+300ms/+700ms after each event so
+  // we catch the transient keyboard-open layout. Remove once a keyboardOpen=true
+  // sample is captured and the layout is confirmed on iPhone Safari.
   React.useEffect(() => {
     if (!DIAG) return;
     if (!showThread) return;
@@ -844,7 +865,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       };
     };
 
-    const sample = (label: string) => {
+    const sample = (event: string, phase: string) => {
       const iw = window.innerWidth;
       const vvNow = window.visualViewport;
       const composer = document.querySelector<HTMLElement>('[data-mobile-composer]');
@@ -879,9 +900,24 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       const panelRect = rect(panel);
       const limit = iw - 12;
 
-      console.log(`[DIAG:overflow] (${label})`, {
+      // The keyboard-open detector the brief asks for: when the soft keyboard
+      // is up, the visual viewport height drops well below the layout height.
+      const keyboardOpen =
+        vvHeight !== null ? vvHeight < window.innerHeight - 120 : null;
+
+      console.log(`[DIAG:overflow] (${event} @ ${phase})`, {
+        event,
+        phase,
+        keyboardOpen,
         innerWidth: iw,
         windowInnerHeight: window.innerHeight,
+        // Horizontal divergence between layout and visual viewport is the cause
+        // of right-edge clipping while the keyboard is open: if vvWidth < iw or
+        // vvOffsetLeft > 0 or vvScale != 1, a full-layout-width fixed panel
+        // spills past the visible right edge.
+        visualViewportWidth: vvNow ? Math.round(vvNow.width) : null,
+        visualViewportOffsetLeft: vvNow ? Math.round(vvNow.offsetLeft) : null,
+        visualViewportScale: vvNow ? Number(vvNow.scale.toFixed(3)) : null,
         visualViewportHeight: vvHeight,
         visualViewportOffsetTop: vvNow ? Math.round(vvNow.offsetTop) : null,
         visualViewportBottom: visualBottom,
@@ -904,12 +940,41 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       });
     };
 
-    sample("mount");
-    const r = requestAnimationFrame(() => sample("raf"));
-    const t = window.setTimeout(() => sample("+500ms"), 500);
+    // For each event, sample immediately then again after a RAF and at
+    // +100ms / +300ms / +700ms to catch the transient keyboard-open layout
+    // (iOS reflows the visual viewport asynchronously over several hundred ms).
+    const rafs: number[] = [];
+    const timers: number[] = [];
+    const burst = (event: string) => {
+      sample(event, "immediate");
+      rafs.push(requestAnimationFrame(() => sample(event, "raf")));
+      timers.push(window.setTimeout(() => sample(event, "+100ms"), 100));
+      timers.push(window.setTimeout(() => sample(event, "+300ms"), 300));
+      timers.push(window.setTimeout(() => sample(event, "+700ms"), 700));
+    };
+
+    // Baseline sample on mount so we always have a keyboard-closed reference.
+    burst("mount");
+
+    const vv = window.visualViewport;
+    const onVvResize = () => burst("vv-resize");
+    const onVvScroll = () => burst("vv-scroll");
+    const textarea = textareaRef.current;
+    const onFocus = () => burst("textarea-focus");
+    const onInput = () => burst("textarea-input");
+
+    vv?.addEventListener("resize", onVvResize);
+    vv?.addEventListener("scroll", onVvScroll);
+    textarea?.addEventListener("focus", onFocus);
+    textarea?.addEventListener("input", onInput);
+
     return () => {
-      cancelAnimationFrame(r);
-      window.clearTimeout(t);
+      rafs.forEach((r) => cancelAnimationFrame(r));
+      timers.forEach((t) => window.clearTimeout(t));
+      vv?.removeEventListener("resize", onVvResize);
+      vv?.removeEventListener("scroll", onVvScroll);
+      textarea?.removeEventListener("focus", onFocus);
+      textarea?.removeEventListener("input", onInput);
     };
   }, [showThread, activeThreadStatus, messages.length]);
 
