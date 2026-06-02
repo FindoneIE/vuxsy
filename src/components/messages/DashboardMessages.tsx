@@ -323,13 +323,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // Conversation not found — retry once to cover auth/DB race conditions
       // on mobile (first load can complete before Supabase session is ready).
       if (!resolvedConversation) {
-        console.log("[DashboardMessages] conversation not found on first load, retrying", { routeConversationId, listCount: conversationRows.length });
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
         resolvedConversation = conversationRows.find(
           (conversation) => conversation.id === routeConversationId
         );
-        console.log("[DashboardMessages] retry result", { found: Boolean(resolvedConversation), listCount: conversationRows.length });
       }
 
       if (!resolvedConversation) {
@@ -342,10 +340,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         // An empty list means auth likely wasn't ready — redirecting would be
         // a false negative that sends the user away from a valid conversation.
         if (conversationRows.length > 0) {
-          console.log("[DashboardMessages] conversation confirmed missing, redirecting", { routeConversationId });
           routerRef.current.replace("/dashboard/messages");
-        } else {
-          console.warn("[DashboardMessages] conversations list empty — skipping redirect (possible auth race)", { routeConversationId });
         }
         return;
       }
@@ -353,8 +348,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       setActiveId(routeConversationId);
       await syncConversationReadState(routeConversationId);
       const loaded = await loadMessages(routeConversationId);
-      if (!loaded) {
-        console.warn("[DashboardMessages] loadMessages failed, redirecting", { routeConversationId });
+      // loadMessages returns true on success, false on error, and undefined when
+      // a newer request superseded this one (latestThreadRequestRef mismatch).
+      // undefined must NOT trigger a redirect — the superseding call will finish.
+      if (loaded === false) {
         setActiveId(null);
         setMessages([]);
         setConversationBlocked(false);
@@ -587,29 +584,41 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, []);
 
-  // Lift the fixed thread section above the iOS soft keyboard by tracking
-  // the visual viewport. The layout viewport (window.innerHeight) stays fixed
-  // when keyboard opens; the visual viewport shrinks — the difference is the
-  // keyboard height. Setting section bottom = keyboard height keeps the
-  // composer always above the keyboard on mobile Safari.
+  // Drive the mobile chat panel height directly from the visual viewport so
+  // it always fits exactly between the site header and the top of the keyboard
+  // (or Safari chrome). Adjusting only `bottom` is unreliable on iOS Safari
+  // because the fixed element's flex children do not always recompute when
+  // `bottom` changes; setting `height` explicitly forces a clean relayout.
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const onViewportChange = () => {
+
+    const headerHeight =
+      parseInt(getComputedStyle(document.documentElement).getPropertyValue("--site-header-height")) || 64;
+
+    const update = () => {
       const el = threadSectionRef.current;
       if (!el || window.innerWidth >= 1024) return;
-      const keyboardOffset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
-      el.style.bottom = keyboardOffset > 0 ? `${keyboardOffset}px` : "";
-      if (keyboardOffset > 0) {
-        scrollToBottom();
-      }
+      // vv.height: visible viewport height (shrinks when keyboard opens).
+      // vv.offsetTop: how far the visual viewport has scrolled from the layout
+      //   viewport top (non-zero only in unusual zoom/scroll scenarios).
+      // The panel spans from the header bottom to the bottom of the visual viewport.
+      const panelHeight = Math.max(0, vv.height + vv.offsetTop - headerHeight);
+      el.style.height = `${panelHeight}px`;
+      // Clear any stale bottom value — height alone now controls panel size.
+      el.style.bottom = "";
+      scrollToBottom();
     };
-    vv.addEventListener("resize", onViewportChange);
-    vv.addEventListener("scroll", onViewportChange);
+
+    // Apply immediately on mount (before any keyboard event fires).
+    update();
+
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
     return () => {
-      vv.removeEventListener("resize", onViewportChange);
-      vv.removeEventListener("scroll", onViewportChange);
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
     };
   }, [scrollToBottom]);
 
@@ -1284,7 +1293,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
                       <div
                         ref={scrollRef}
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-0 pb-4 md:px-4"
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-0 pb-20 lg:pb-4 md:px-4"
                       >
                         {hasMoreMessages && !loadingMessages ? (
                           <div className="flex justify-center py-2">
@@ -1313,11 +1322,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                               {group.items.map((message) => {
                                 const isMine = message.senderId === user?.id;
                                 return (
-                                  <div key={message.id} className="flex w-full min-w-0">
+                                  <div key={message.id} className="flex w-full min-w-0 overflow-hidden">
                                     <div
                                       className={cn(
                                         "min-w-0 overflow-hidden px-3.5 py-3 text-sm leading-relaxed wrap-anywhere",
-                                        "max-w-[calc(100vw-96px)] lg:max-w-[75%]",
+                                        "max-w-[min(75vw,calc(100vw-96px))] lg:max-w-[75%]",
                                         isMine
                                           ? "ml-auto mr-4 rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
                                           : "ml-4 rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
