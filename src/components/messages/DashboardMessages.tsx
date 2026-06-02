@@ -607,20 +607,27 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
     body.style.overflow = "hidden";
     body.style.position = "fixed";
-    // Lock the body at top:0 (NOT -scrollY). The site header is position:relative
-    // and lives at the very top of <body>; the mobile chat panel is fixed at
-    // top:var(--site-header-height), so it expects the header to occupy the
-    // 0..header-height strip of the viewport. Anchoring the locked body at
-    // -scrollY (the classic scroll-lock offset) would shift the header up and
-    // off-screen by scrollY, leaving a blank gap above the Back row whenever the
-    // user enters chat while scrolled down — e.g. opening a NEW conversation from
-    // a listing's seller card (router.push from a scrolled listing page).
-    // The chat UI fully covers the viewport (header 0..h, panel h..bottom), so no
-    // background scroll position needs to be visually preserved here; scrollY is
-    // kept only to restore the page scroll when the chat closes.
+    // Lock the body at top:0 (NOT -scrollY). The chat UI fully covers the
+    // viewport, so no background scroll position needs visual preservation;
+    // scrollY is kept only to restore the page scroll when the chat closes.
     body.style.top = "0px";
     body.style.width = "100%";
     html.style.overflow = "hidden";
+
+    // Pin the global site header to the viewport for the duration of the mobile
+    // chat thread. The header is normally `position: relative`, so its on-screen
+    // position depends on the body offset — and that offset is not reliable
+    // across every entry path (a NEW conversation opened from a listing's seller
+    // card arrives via a cross-layout router.push, after a Radix modal scroll
+    // lock, while the listing page is scrolled down; the body can settle in a
+    // state where the relative header ends up shifted out of the 0..header-height
+    // strip, leaving a blank gap above the Back row). Adding this class makes the
+    // header `position: fixed; top: 0` (see globals.css `.mobile-chat-open
+    // .site-header`), so it is always visible at the top of the viewport,
+    // exactly where the fixed chat panel (top: var(--site-header-height))
+    // expects it — identically for existing and newly created conversations.
+    html.classList.add("mobile-chat-open");
+    body.classList.add("mobile-chat-open");
 
     return () => {
       body.style.overflow = prev.bodyOverflow;
@@ -628,9 +635,73 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       body.style.top = prev.bodyTop;
       body.style.width = prev.bodyWidth;
       html.style.overflow = prev.htmlOverflow;
+      html.classList.remove("mobile-chat-open");
+      body.classList.remove("mobile-chat-open");
       window.scrollTo(0, scrollY);
     };
   }, [showThread]);
+
+  // TEMP DIAGNOSTIC — header visibility on mobile chat. Dev-only (compiles out
+  // in production via DIAG). Remove once the header fix is confirmed. Logs
+  // whether `.site-header` is mounted, its geometry, key computed styles, and
+  // what element is actually painted at the header's centre point.
+  React.useEffect(() => {
+    if (!DIAG) return;
+    if (!showThread) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+
+    const sample = (label: string) => {
+      const header = document.querySelector<HTMLElement>(".site-header");
+      if (!header) {
+        console.log(`[DIAG:header] (${label}) .site-header NOT in DOM`);
+        return;
+      }
+      const rect = header.getBoundingClientRect();
+      const cs = getComputedStyle(header);
+      const cx = Math.round(rect.left + rect.width / 2);
+      const cy = Math.round(rect.top + rect.height / 2);
+      const hit = document.elementFromPoint(cx, Math.max(1, cy));
+      console.log(`[DIAG:header] (${label})`, {
+        mounted: true,
+        rect: {
+          top: Math.round(rect.top),
+          left: Math.round(rect.left),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        },
+        styles: {
+          display: cs.display,
+          visibility: cs.visibility,
+          opacity: cs.opacity,
+          position: cs.position,
+          zIndex: cs.zIndex,
+          transform: cs.transform,
+          top: cs.top,
+        },
+        cssVarHeaderHeight: getComputedStyle(document.documentElement)
+          .getPropertyValue("--site-header-height")
+          .trim(),
+        bodyStyle: {
+          position: document.body.style.position,
+          top: document.body.style.top,
+          overflow: document.body.style.overflow,
+        },
+        elementFromHeaderCenter: hit
+          ? `${hit.tagName.toLowerCase()}.${(hit.className || "").toString().split(" ").slice(0, 2).join(".")}`
+          : null,
+        elementIsHeaderOrChild: hit ? header.contains(hit) : false,
+      });
+    };
+
+    sample("mount");
+    const r = requestAnimationFrame(() => sample("raf"));
+    const t = window.setTimeout(() => sample("+300ms"), 300);
+    return () => {
+      cancelAnimationFrame(r);
+      window.clearTimeout(t);
+    };
+  }, [showThread, activeThreadStatus]);
 
   React.useEffect(() => {
     if (!showThread || !activeId) return;

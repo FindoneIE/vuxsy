@@ -447,6 +447,25 @@ img {
   white-space: nowrap;
 }
 
+/* While a mobile chat thread is open (class toggled by DashboardMessages), pin
+   the global header to the top of the viewport. The header is otherwise
+   position:relative, so its on-screen position depends on the body scroll/lock
+   offset, which is not reliable across every entry path into a conversation
+   (notably a NEW conversation opened from a listing's seller card). Pinning it
+   guarantees the Vuxsy header is always visible at 0..--site-header-height,
+   exactly where the fixed chat panel begins. Scoped to mobile only; desktop
+   chat is static and never receives the class. */
+@media (max-width: 1023px) {
+  body.mobile-chat-open .site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1000;
+  }
+}
+
 /* Ensure the Create listing button in the header always shows white text */
 .site-header .btn-primary,
 .site-header .btn-primary * {
