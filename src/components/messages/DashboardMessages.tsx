@@ -320,9 +320,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         (conversation) => conversation.id === routeConversationId
       );
 
-      // Conversation not in cached list — could be a new one the user followed
-      // from an external link. Do a single fresh load before giving up.
-      if (!resolvedConversation && conversationsAlreadyLoaded) {
+      // Conversation not found — retry once regardless of whether the list was
+      // freshly fetched or cached. Covers auth/DB race conditions on mobile
+      // where the first load can complete before the session is fully ready.
+      if (!resolvedConversation) {
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
         resolvedConversation = conversationRows.find(
@@ -571,6 +572,9 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       if (!el || window.innerWidth >= 1024) return;
       const keyboardOffset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
       el.style.bottom = keyboardOffset > 0 ? `${keyboardOffset}px` : "";
+      if (keyboardOffset > 0) {
+        scrollToBottom();
+      }
     };
     vv.addEventListener("resize", onViewportChange);
     vv.addEventListener("scroll", onViewportChange);
@@ -578,7 +582,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       vv.removeEventListener("resize", onViewportChange);
       vv.removeEventListener("scroll", onViewportChange);
     };
-  }, []);
+  }, [scrollToBottom]);
 
   const handleSelectConversation = async (conversation: ConversationSummary) => {
     await syncConversationReadState(conversation.id);
@@ -1025,7 +1029,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   }, [activeId, actionLoading, addToast, loadConversations, router]);
 
   return (
-    <main className="w-full text-[#111827]">
+    <main className="w-full overflow-x-hidden text-[#111827]">
       <div className="flex w-full flex-col gap-1.5 py-0 sm:gap-2">
   <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
         <div
@@ -1123,10 +1127,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             // section's overflow-hidden. On desktop (lg+) the section reverts to static
             // and the inner div uses an explicit height calc.
             <section ref={threadSectionRef} style={{ top: "var(--site-header-height, 64px)" }} className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:top-auto lg:inset-auto lg:z-auto lg:bg-transparent lg:h-[calc(100vh-180px)] lg:overflow-hidden">
-              <div className="flex h-full flex-col lg:flex-row lg:gap-4">
+              <div className="flex h-full w-full flex-col overflow-x-hidden lg:flex-row lg:gap-4">
           {isThreadReady ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 flex-1 lg:flex-3 flex-col h-full">
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col h-full overflow-x-hidden">
                       {pathname?.includes("/dashboard/messages/") ? (
                         <div className="shrink-0 flex items-center border-b border-slate-200 bg-slate-50 px-4 py-3 lg:hidden">
                           <Link
@@ -1248,7 +1252,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
                       <div
                         ref={scrollRef}
-                        className="min-h-0 flex-1 overflow-y-auto space-y-2 px-2 pt-0 pb-4 md:px-4"
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 px-2 pt-0 pb-4 md:px-4"
                       >
                         {hasMoreMessages && !loadingMessages ? (
                           <div className="flex justify-center py-2">
@@ -1277,9 +1281,9 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                               {group.items.map((message) => {
                                 const isMine = message.senderId === user?.id;
                                 return (
-                                  <div key={message.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-                                    <div className={cn("max-w-[78%] px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
-                                      <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p>
+                                  <div key={message.id} className={cn("flex w-full min-w-0", isMine ? "justify-end" : "justify-start")}>
+                                    <div className={cn("max-w-[75%] min-w-0 overflow-hidden px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
+                                      <p className="whitespace-pre-wrap wrap-anywhere">{message.body}</p>
                                     </div>
                                   </div>
                                 );
