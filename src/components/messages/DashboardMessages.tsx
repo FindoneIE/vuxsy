@@ -774,6 +774,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const headerHeight =
       parseInt(getComputedStyle(document.documentElement).getPropertyValue("--site-header-height")) || 64;
 
+    // Optional cushion between the composer and the keyboard. The brief allows
+    // 0–8px; 0 keeps the composer flush on the keyboard with no empty band.
+    const KEYBOARD_SAFETY_GAP = 0;
+
     const update = () => {
       const el = threadSectionRef.current;
       if (!el || window.innerWidth >= 1024) return;
@@ -782,11 +786,27 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // large gap means the keyboard (or another large overlay) is open.
       const keyboardUp = window.innerHeight - vv.height > 120;
       setKeyboardOpen(keyboardUp);
-      // CLOSED: clear the inline height so the panel falls back to its CSS box
-      // (top: header-height + bottom: 0) and fills the whole fixed viewport.
-      // OPEN: pin the panel bottom to the top of the keyboard. Never touch `top`.
-      el.style.height = keyboardUp ? `${Math.max(0, vv.height - headerHeight)}px` : "";
-      scrollToBottom();
+      if (keyboardUp) {
+        // OPEN: size the panel so its BOTTOM lands exactly on the top of the
+        // keyboard, keeping the composer fully visible. We add `vv.offsetTop`
+        // because iOS may pan the visual viewport up to reveal the focused
+        // input (a fixed panel anchored to the layout viewport would otherwise
+        // drift off-screen with the composer behind the keyboard). Adding the
+        // offset makes the panel reach the *true* visible bottom regardless of
+        // the pan. We only ever set `height` — `top` stays pinned to the header
+        // via the inline `style` prop (no translateY, no offsetTop on `top`).
+        const panelHeight =
+          vv.offsetTop + vv.height - headerHeight - KEYBOARD_SAFETY_GAP;
+        el.style.height = `${Math.max(0, panelHeight)}px`;
+      } else {
+        // CLOSED: clear the inline height so the panel falls back to its CSS box
+        // (top: header-height + bottom: 0) and fills the whole fixed viewport
+        // with no blank strip below the composer.
+        el.style.height = "";
+      }
+      // Re-pin to the latest message AFTER the new height has been applied and
+      // painted, so the composer + last bubble are in view once layout settles.
+      requestAnimationFrame(() => scrollToBottom());
     };
 
     // Apply immediately on mount (before any keyboard event fires).
@@ -851,27 +871,33 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // Verification flags the brief explicitly asks for: composer must stay
       // inside the visual viewport bottom, and the send button + last outgoing
       // bubble right edges must be <= innerWidth - 12px.
+      const vvHeight = vvNow ? Math.round(vvNow.height) : null;
       const visualBottom = vvNow ? Math.round(vvNow.offsetTop + vvNow.height) : null;
       const composerRect = rect(composer);
       const sendRect = rect(sendBtn);
       const bubbleRect = rect(lastBubble);
+      const panelRect = rect(panel);
       const limit = iw - 12;
 
       console.log(`[DIAG:overflow] (${label})`, {
         innerWidth: iw,
         windowInnerHeight: window.innerHeight,
-        visualViewportHeight: vvNow ? Math.round(vvNow.height) : null,
+        visualViewportHeight: vvHeight,
         visualViewportOffsetTop: vvNow ? Math.round(vvNow.offsetTop) : null,
         visualViewportBottom: visualBottom,
         docScrollWidth: document.documentElement.scrollWidth,
         bodyScrollWidth: document.body.scrollWidth,
-        panelRect: rect(panel),
+        panelRect,
         messagesRect: rect(messagesArea),
         composerRect,
         sendButtonRect: sendRect,
         lastOutgoingBubbleRect: bubbleRect,
-        FLAG_composerBelowVisualViewport:
-          composerRect && visualBottom !== null ? composerRect.bottom > visualBottom + 1 : null,
+        // Success conditions from the brief: every bottom must sit at/above the
+        // visible viewport bottom (vv.height), and nothing may overflow right.
+        FLAG_composerBelowViewport:
+          composerRect && vvHeight !== null ? composerRect.bottom > vvHeight + 1 : null,
+        FLAG_panelBelowViewport:
+          panelRect && vvHeight !== null ? panelRect.bottom > vvHeight + 1 : null,
         FLAG_sendButtonRightOverflow: sendRect ? sendRect.right > limit : null,
         FLAG_bubbleRightOverflow: bubbleRect ? bubbleRect.right > limit : null,
         offendersBeyondViewport: offenders.slice(0, 12),
@@ -1058,7 +1084,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     <div
       data-mobile-composer
       className={cn(
-        "shrink-0 w-full min-w-0 max-w-full box-border border-t border-slate-200 bg-white px-3 py-1.5 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0",
+        "shrink-0 w-full min-w-0 max-w-full box-border border-t border-slate-200 bg-white px-3 pt-2 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0",
         // No home indicator to clear while the keyboard is up, so drop the
         // safe-area inset — otherwise it adds a gap that pushes the input upward.
         keyboardOpen ? "pb-2" : "pb-[calc(env(safe-area-inset-bottom)+8px)]"
