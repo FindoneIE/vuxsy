@@ -607,7 +607,18 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
     body.style.overflow = "hidden";
     body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
+    // Lock the body at top:0 (NOT -scrollY). The site header is position:relative
+    // and lives at the very top of <body>; the mobile chat panel is fixed at
+    // top:var(--site-header-height), so it expects the header to occupy the
+    // 0..header-height strip of the viewport. Anchoring the locked body at
+    // -scrollY (the classic scroll-lock offset) would shift the header up and
+    // off-screen by scrollY, leaving a blank gap above the Back row whenever the
+    // user enters chat while scrolled down — e.g. opening a NEW conversation from
+    // a listing's seller card (router.push from a scrolled listing page).
+    // The chat UI fully covers the viewport (header 0..h, panel h..bottom), so no
+    // background scroll position needs to be visually preserved here; scrollY is
+    // kept only to restore the page scroll when the chat closes.
+    body.style.top = "0px";
     body.style.width = "100%";
     html.style.overflow = "hidden";
 
