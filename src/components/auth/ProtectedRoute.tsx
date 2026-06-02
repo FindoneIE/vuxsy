@@ -27,6 +27,14 @@ function ProtectedRouteRedirect({
       const query = searchParams?.toString();
       const redirectPath = query ? `${pathname}?${query}` : pathname;
       const encoded = encodeURIComponent(redirectPath || "/");
+      if (process.env.NODE_ENV === "development") {
+        console.log("[DIAG:ProtectedRoute] redirect to login", {
+          pathname,
+          redirectPath,
+          loading,
+          userId: null,
+        });
+      }
       router.replace(`/login?redirect=${encoded}`);
     }
   }, [loading, user, router, pathname, searchParams]);

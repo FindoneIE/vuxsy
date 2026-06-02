@@ -63,9 +63,13 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
   const [user, setUser] = React.useState<User | null>(initialUser);
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [avatarData, setAvatarData] = React.useState<AvatarData | null>(null);
-  // Auth is resolved at SSR via the root layout — never "loading" from the
-  // consumer's perspective.
-  const [loading, setLoading] = React.useState(false);
+  // If the root layout resolved a user from SSR cookies, auth is immediately
+  // known — loading stays false. If initialUser is null (common on mobile
+  // when SSR cookie resolution fails), we don't know yet whether the user is
+  // logged in. Set loading=true so ProtectedRoute doesn't fire a redirect
+  // while onAuthStateChange/getSession is still resolving, which was the
+  // root cause of the mobile "chat → list bounce" on hard refresh.
+  const [loading, setLoading] = React.useState(initialUser == null);
   const [profileLoading, setProfileLoading] = React.useState(true);
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const latestProfileRef = React.useRef<UserProfile | null>(null);
@@ -108,9 +112,21 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
 
   React.useEffect(() => {
     let isMounted = true;
+    // getSession() is the authoritative signal for "no session". onAuthStateChange
+    // can fire INITIAL_SESSION with null while a token refresh is still pending
+    // (e.g., expired JWT on mobile). We should not clear loading — and risk
+    // triggering a ProtectedRoute redirect — until getSession confirms the state.
+    let getSessionResolved = false;
 
-  supabase.auth.getSession().then((result: { data: { session: Session | null } }) => {
+    supabase.auth.getSession().then((result: { data: { session: Session | null } }) => {
       if (!isMounted) return;
+      getSessionResolved = true;
+      if (DEV) {
+        console.debug("[DIAG:auth] getSession resolved", {
+          userId: result.data.session?.user?.id ?? null,
+          hadInitialUser: Boolean(initialUser),
+        });
+      }
       setUser(result.data.session?.user ?? null);
       setLoading(false);
     });
@@ -122,6 +138,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
           console.debug("[mount-trace] AuthProvider onAuthStateChange", {
             event: _event,
             nextUserId: session?.user?.id ?? null,
+            getSessionResolved,
             hadProfile: Boolean(latestProfileRef.current),
             hadAvatarData: Boolean(latestAvatarDataRef.current),
           });
@@ -155,7 +172,13 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
         }
 
         setUser(session?.user ?? null);
-        setLoading(false);
+        // Only clear the loading gate when we have a confirmed user (non-null), or
+        // after getSession has already resolved (so its definitive null is safe to use).
+        // This prevents a null INITIAL_SESSION from clearing loading before getSession
+        // has finished — which was the trigger for the mobile ProtectedRoute bounce.
+        if (session?.user || getSessionResolved) {
+          setLoading(false);
+        }
       }
     );
 
@@ -163,7 +186,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
       isMounted = false;
       data.subscription.unsubscribe();
     };
-  }, [DEV, supabase]);
+  }, [DEV, initialUser, supabase]);
 
   const refreshProfile = React.useCallback(async () => {
     const user = userRef.current;

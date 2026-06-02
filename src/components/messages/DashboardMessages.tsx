@@ -49,6 +49,13 @@ import TypingIndicator from "@/components/messages/TypingIndicator";
 
 const MESSAGES_UNREAD_UPDATED_EVENT = "messages:unread-updated";
 
+// Diagnostic counters — survive HMR but reset per dev server restart.
+// All logs are gated on DIAG so they compile out in production.
+const DIAG = process.env.NODE_ENV === "development";
+let _diagMountSeq = 0;
+let _diagLoadConvSeq = 0;
+let _diagLoadMsgSeq = 0;
+
 const sortConversations = (items: ConversationSummary[]) =>
   [...items].sort((a, b) => {
     const aTime = a.lastMessageAt ?? a.createdAt ?? "";
@@ -65,7 +72,7 @@ type ActiveThreadStatus = "idle" | "loading" | "ready" | "not_found" | "error" |
 export default function DashboardMessages({ conversationId }: DashboardMessagesProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { addToast } = useToast();
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const hasRouteConversationId = Boolean(conversationId);
@@ -114,6 +121,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const conversationsLoadedUserRef = React.useRef<string | null>(null);
   // In-flight deduplication: concurrent callers share the same promise.
   const loadConversationsInFlightRef = React.useRef<Promise<ConversationSummary[]> | null>(null);
+  // Debug: per-instance identifiers (only used when DIAG = true).
+  const diagMountIdRef = React.useRef(0);
+  const diagBootstrapCountRef = React.useRef(0);
+  const diagLoadConvCountRef = React.useRef(0);
+  const diagLoadMsgCountRef = React.useRef(0);
 
   React.useEffect(() => {
     routerRef.current = router;
@@ -130,6 +142,33 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   React.useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
+
+  // Mount / unmount tracking — logged to console in dev only.
+  React.useEffect(() => {
+    if (!DIAG) return;
+    diagMountIdRef.current = ++_diagMountSeq;
+    const mountId = diagMountIdRef.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    console.log(`[DIAG:mount] DashboardMessages #${mountId}`, {
+      conversationId: conversationId ?? null,
+      pathname,
+      authLoading,
+      userId: user?.id ?? null,
+    });
+    return () => {
+      // Capture current values at cleanup time to avoid stale-ref warning.
+      const bCount = diagBootstrapCountRef.current;
+      const lcCount = diagLoadConvCountRef.current;
+      const lmCount = diagLoadMsgCountRef.current;
+      console.log(`[DIAG:unmount] DashboardMessages #${mountId}`, {
+        bootstrapRuns: bCount,
+        loadConvCalls: lcCount,
+        loadMsgCalls: lmCount,
+      });
+    };
+  // Only fires on actual mount/unmount — intentionally omits all deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedConversation = React.useMemo(
     () => conversations.find((c) => c.id === activeId) ?? null,
@@ -185,8 +224,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     // duplicate getUserConversations calls when multiple code paths trigger
     // a refresh simultaneously (e.g. bootstrap + realtime event on mount).
     if (loadConversationsInFlightRef.current) {
+      if (DIAG) console.log(`[DIAG:loadConversations] reusing in-flight`, { mount: diagMountIdRef.current });
       return loadConversationsInFlightRef.current;
     }
+
+    if (DIAG) console.log(`[DIAG:loadConversations] call #${++diagLoadConvCountRef.current}`, {
+      mount: diagMountIdRef.current,
+      bootstrapRun: diagBootstrapCountRef.current,
+      stack: new Error().stack?.split("\n").slice(1, 4).join(" | "),
+    });
 
     setLoadingConversations(true);
     setError(null);
@@ -222,6 +268,12 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   }, []);
 
   const loadMessages = React.useCallback(async (conversation: string) => {
+    if (DIAG) console.log(`[DIAG:loadMessages] call #${++diagLoadMsgCountRef.current} (global #${++_diagLoadMsgSeq})`, {
+      conversation,
+      mount: diagMountIdRef.current,
+      bootstrapRun: diagBootstrapCountRef.current,
+    });
+
     const requestId = latestThreadRequestRef.current + 1;
     latestThreadRequestRef.current = requestId;
 
@@ -293,12 +345,33 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   );
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      if (DIAG) console.log(`[DIAG:bootstrap] skipped — no user`, { mount: diagMountIdRef.current, conversationId: conversationId ?? null, pathname, authLoading });
+      return;
+    }
 
     const routeConversationId = conversationId ?? null;
     const key = `${user.id}:${routeConversationId ?? "none"}`;
+
+    if (DIAG) console.log(`[DIAG:bootstrap] effect triggered`, {
+      mount: diagMountIdRef.current,
+      key,
+      prevKey: bootstrapKeyRef.current,
+      willRun: bootstrapKeyRef.current !== key,
+      conversationId: routeConversationId,
+      activeId,
+      activeThreadStatus,
+      pathname,
+      userId: user.id,
+      authLoading,
+    });
+
     if (bootstrapKeyRef.current === key) return;
     bootstrapKeyRef.current = key;
+
+    const runIndex = ++diagBootstrapCountRef.current;
+    const globalRunIndex = ++_diagLoadConvSeq; // reused as a global bootstrap seq
+    if (DIAG) console.log(`[DIAG:bootstrap] running #${runIndex} (global #${globalRunIndex})`, { key, mount: diagMountIdRef.current });
 
     void (async () => {
       // Conversations are loaded once per user. On subsequent conversation
@@ -354,7 +427,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       }
 
       setActiveId(routeConversationId);
-      await syncConversationReadState(routeConversationId);
+      void syncConversationReadState(routeConversationId); // fire-and-forget inside bootstrap
       const loaded = await loadMessages(routeConversationId);
       // loadMessages returns true on success, false on error, and undefined when
       // a newer request superseded this one (latestThreadRequestRef mismatch).
@@ -362,13 +435,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // false (load error) must NOT redirect — the conversation exists, it was a
       // transient fetch failure; show an error in the UI instead so the user can retry.
       if (loaded === false) {
+        if (DIAG) console.log(`[DIAG:bootstrap] message_error`, { mount: diagMountIdRef.current, runIndex });
         setActiveThreadStatus("message_error");
         return;
       }
 
+      if (DIAG) console.log(`[DIAG:bootstrap] ready`, { mount: diagMountIdRef.current, runIndex, routeConversationId });
       setActiveThreadStatus("ready");
     })();
-  }, [conversationId, loadConversations, loadMessages, syncConversationReadState, user]);
+  }, [conversationId, loadConversations, loadMessages, syncConversationReadState, user]); // eslint-disable-line react-hooks/exhaustive-deps -- activeId/activeThreadStatus/pathname used only for diagnostic logging
 
   React.useEffect(() => {
     if (!showThread || !activeId || activeThreadStatus !== "ready") return;
@@ -625,11 +700,13 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, [scrollToBottom]);
 
-  const handleSelectConversation = async (conversation: ConversationSummary) => {
-    await syncConversationReadState(conversation.id);
+  const handleSelectConversation = (conversation: ConversationSummary) => {
+    // Fire-and-forget: don't block navigation on the server round-trip.
+    void syncConversationReadState(conversation.id);
     if (showThread) {
       setActiveId(conversation.id);
     }
+    if (DIAG) console.log(`[DIAG:router.push] /dashboard/messages/${conversation.id}`, { reason: "handleSelectConversation", mount: diagMountIdRef.current, showThread, activeId, pathname });
     router.push(`/dashboard/messages/${conversation.id}`);
   };
 
@@ -760,6 +837,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
     if (activeId && successfulIds.includes(activeId)) {
       setActiveId(null);
+      if (DIAG) console.log(`[DIAG:router.push] /dashboard/messages`, { reason: "handleRemoveSelected:deleted-active", mount: diagMountIdRef.current });
       router.push("/dashboard/messages");
       setMessages([]);
     }
@@ -991,6 +1069,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       setDeleteModalOpen(false);
       setActiveId(null);
       setMessages([]);
+      if (DIAG) console.log(`[DIAG:router.push] /dashboard/messages`, { reason: "handleDeleteConversation", mount: diagMountIdRef.current });
       router.push("/dashboard/messages");
       notifyUnreadCounterUpdated();
       addToast({
