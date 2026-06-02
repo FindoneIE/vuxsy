@@ -1428,7 +1428,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             <section
               ref={threadSectionRef}
               style={{ top: "var(--site-header-height, 64px)" }}
-              className="fixed inset-x-0 z-50 box-border overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:overflow-hidden lg:bg-transparent"
+              className="fixed inset-x-0 z-50 box-border h-[calc(100dvh-var(--site-header-height))] overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:overflow-hidden lg:bg-transparent"
             >
               <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden box-border lg:flex-row lg:gap-4">
                 {/* Back button — always visible on mobile when in a conversation, even during loading */}
