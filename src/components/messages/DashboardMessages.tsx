@@ -105,6 +105,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   >(new Set());
   const [activeThreadStatus, setActiveThreadStatus] =
     React.useState<ActiveThreadStatus>(hasRouteConversationId ? "loading" : "idle");
+  // True while the on-screen keyboard is open on mobile (visual viewport is
+  // significantly shorter than the layout viewport). Used to drop the composer's
+  // safe-area bottom inset when the keyboard is up — there is no home indicator
+  // to clear then, and the extra gap would otherwise push the input upward.
+  const [keyboardOpen, setKeyboardOpen] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -762,18 +767,21 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const update = () => {
       const el = threadSectionRef.current;
       if (!el || window.innerWidth >= 1024) return;
-      // vv.height: visible viewport height (shrinks when keyboard opens).
-      // vv.offsetTop: how far the visual viewport has been pushed down from the
-      //   layout viewport top. On iOS Safari, when the keyboard opens the browser
-      //   may shift the visual viewport, leaving fixed elements (which anchor to
-      //   the LAYOUT viewport) partly off-screen. We track that shift on `top` so
-      //   the panel always starts just below the header *in the visible area*, and
-      //   size `height` to the remaining visible space so the composer sits exactly
-      //   above the keyboard / Safari toolbar — never under it, never off-screen.
-      const top = headerHeight + vv.offsetTop;
+      // The body is locked (`position: fixed; overflow: hidden`) while a mobile
+      // chat is open, so the page cannot scroll and `vv.offsetTop` stays ~0 even
+      // when the keyboard opens — only `vv.height` shrinks. The global header is
+      // pinned at layout `top: 0` (globals.css `.mobile-chat-open .site-header`),
+      // so the panel must start at exactly `headerHeight` to sit flush beneath it
+      // (adding offsetTop here would make the panel drift away from the header).
+      // Sizing `height` to `vv.height - headerHeight` makes the panel bottom land
+      // exactly on the top of the keyboard / Safari toolbar — composer above it.
       const panelHeight = Math.max(0, vv.height - headerHeight);
-      el.style.top = `${top}px`;
+      el.style.top = `${headerHeight}px`;
       el.style.height = `${panelHeight}px`;
+      // Keyboard heuristic: the layout viewport (window.innerHeight) does not
+      // shrink for the keyboard, but the visual viewport does. A large gap means
+      // the keyboard (or another large overlay) is open.
+      setKeyboardOpen(window.innerHeight - vv.height > 120);
       scrollToBottom();
     };
 
@@ -799,9 +807,25 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     if (typeof window === "undefined") return;
     if (!window.matchMedia("(max-width: 1023px)").matches) return;
 
+    const rect = (el: Element | null) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        top: Math.round(r.top),
+        bottom: Math.round(r.bottom),
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+      };
+    };
+
     const sample = (label: string) => {
       const iw = window.innerWidth;
+      const vvNow = window.visualViewport;
       const composer = document.querySelector<HTMLElement>('[data-mobile-composer]');
+      const sendBtn = document.querySelector<HTMLElement>('[data-msg-send]');
+      const messagesArea = scrollRef.current;
       const bubbles = document.querySelectorAll<HTMLElement>('[data-msg-bubble="mine"]');
       const lastBubble = bubbles[bubbles.length - 1] ?? null;
       const panel = threadSectionRef.current;
@@ -820,12 +844,32 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         });
       }
 
+      // Verification flags the brief explicitly asks for: composer must stay
+      // inside the visual viewport bottom, and the send button + last outgoing
+      // bubble right edges must be <= innerWidth - 12px.
+      const visualBottom = vvNow ? Math.round(vvNow.offsetTop + vvNow.height) : null;
+      const composerRect = rect(composer);
+      const sendRect = rect(sendBtn);
+      const bubbleRect = rect(lastBubble);
+      const limit = iw - 12;
+
       console.log(`[DIAG:overflow] (${label})`, {
         innerWidth: iw,
+        windowInnerHeight: window.innerHeight,
+        visualViewportHeight: vvNow ? Math.round(vvNow.height) : null,
+        visualViewportOffsetTop: vvNow ? Math.round(vvNow.offsetTop) : null,
+        visualViewportBottom: visualBottom,
         docScrollWidth: document.documentElement.scrollWidth,
         bodyScrollWidth: document.body.scrollWidth,
-        composerRect: composer ? composer.getBoundingClientRect() : null,
-        lastOutgoingBubbleRect: lastBubble ? lastBubble.getBoundingClientRect() : null,
+        panelRect: rect(panel),
+        messagesRect: rect(messagesArea),
+        composerRect,
+        sendButtonRect: sendRect,
+        lastOutgoingBubbleRect: bubbleRect,
+        FLAG_composerBelowVisualViewport:
+          composerRect && visualBottom !== null ? composerRect.bottom > visualBottom + 1 : null,
+        FLAG_sendButtonRightOverflow: sendRect ? sendRect.right > limit : null,
+        FLAG_bubbleRightOverflow: bubbleRect ? bubbleRect.right > limit : null,
         offendersBeyondViewport: offenders.slice(0, 12),
       });
     };
@@ -1007,7 +1051,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const composerBlock = (
     // shrink-0 keeps the composer in the flex column so the scroll area
     // always stops exactly above it — no fixed positioning or magic padding needed.
-    <div data-mobile-composer className="shrink-0 w-full min-w-0 max-w-[100vw] box-border border-t border-slate-200 bg-white px-3 py-1.5 pb-[calc(env(safe-area-inset-bottom)+8px)] lg:border-0 lg:bg-transparent lg:p-0">
+    <div
+      data-mobile-composer
+      className={cn(
+        "shrink-0 w-full min-w-0 max-w-full box-border border-t border-slate-200 bg-white px-3 py-1.5 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0",
+        // No home indicator to clear while the keyboard is up, so drop the
+        // safe-area inset — otherwise it adds a gap that pushes the input upward.
+        keyboardOpen ? "pb-2" : "pb-[calc(env(safe-area-inset-bottom)+8px)]"
+      )}
+    >
       <div className="mx-auto w-full min-w-0 max-w-107.5 box-border lg:max-w-none lg:px-4 lg:py-3">
         {!emptyDetail && conversationBlocked ? (
           <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/65 px-3 py-2 sm:mb-2.5">
@@ -1075,6 +1127,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           />
           <button
             type="button"
+            data-msg-send
             onClick={handleSend}
             disabled={sending || !draft.trim() || composerDisabled}
             className={cn(
@@ -1375,7 +1428,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             <section
               ref={threadSectionRef}
               style={{ top: "var(--site-header-height, 64px)" }}
-              className="fixed inset-x-0 left-0 z-50 box-border w-screen max-w-[100vw] overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:max-w-none lg:overflow-hidden lg:bg-transparent"
+              className="fixed inset-x-0 z-50 box-border overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:overflow-hidden lg:bg-transparent"
             >
               <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden box-border lg:flex-row lg:gap-4">
                 {/* Back button — always visible on mobile when in a conversation, even during loading */}
@@ -1555,7 +1608,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                                     <div
                                       data-msg-bubble={isMine ? "mine" : "theirs"}
                                       className={cn(
-                                        "min-w-0 max-w-[72vw] box-border overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed wrap-anywhere [word-break:break-word]",
+                                        "min-w-0 max-w-[78%] box-border overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed wrap-anywhere [word-break:break-word]",
                                         isMine
                                           ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
                                           : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
