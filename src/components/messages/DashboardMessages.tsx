@@ -320,15 +320,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         (conversation) => conversation.id === routeConversationId
       );
 
-      // Conversation not found — retry once regardless of whether the list was
-      // freshly fetched or cached. Covers auth/DB race conditions on mobile
-      // where the first load can complete before the session is fully ready.
+      // Conversation not found — retry once to cover auth/DB race conditions
+      // on mobile (first load can complete before Supabase session is ready).
       if (!resolvedConversation) {
+        console.log("[DashboardMessages] conversation not found on first load, retrying", { routeConversationId, listCount: conversationRows.length });
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
         resolvedConversation = conversationRows.find(
           (conversation) => conversation.id === routeConversationId
         );
+        console.log("[DashboardMessages] retry result", { found: Boolean(resolvedConversation), listCount: conversationRows.length });
       }
 
       if (!resolvedConversation) {
@@ -337,7 +338,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         setConversationBlocked(false);
         setBlockedByMe(false);
         setActiveThreadStatus("idle");
-        routerRef.current.replace("/dashboard/messages");
+        // Only redirect when we have confirmed other conversations exist.
+        // An empty list means auth likely wasn't ready — redirecting would be
+        // a false negative that sends the user away from a valid conversation.
+        if (conversationRows.length > 0) {
+          console.log("[DashboardMessages] conversation confirmed missing, redirecting", { routeConversationId });
+          routerRef.current.replace("/dashboard/messages");
+        } else {
+          console.warn("[DashboardMessages] conversations list empty — skipping redirect (possible auth race)", { routeConversationId });
+        }
         return;
       }
 
@@ -345,6 +354,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       await syncConversationReadState(routeConversationId);
       const loaded = await loadMessages(routeConversationId);
       if (!loaded) {
+        console.warn("[DashboardMessages] loadMessages failed, redirecting", { routeConversationId });
         setActiveId(null);
         setMessages([]);
         setConversationBlocked(false);
@@ -503,15 +513,34 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const isMobile = window.matchMedia("(max-width: 1023px)").matches;
     if (!isMobile) return;
 
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
+    // iOS Safari ignores overflow:hidden on body. The only reliable cross-browser
+    // technique is position:fixed + capturing the current scrollY so we can
+    // restore it on unmount (without this the page jumps to top when chat closes).
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const html = document.documentElement;
 
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    const prev = {
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      htmlOverflow: html.style.overflow,
+    };
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    html.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.top = prev.bodyTop;
+      body.style.width = prev.bodyWidth;
+      html.style.overflow = prev.htmlOverflow;
+      window.scrollTo(0, scrollY);
     };
   }, [showThread]);
 
@@ -1031,7 +1060,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   return (
     <main className="w-full overflow-x-hidden text-[#111827]">
       <div className="flex w-full flex-col gap-1.5 py-0 sm:gap-2">
-  <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
+        <h1 className={cn("text-2xl font-semibold text-slate-900", showThread && "hidden lg:block")}>Messages</h1>
         <div
           className={cn(
             "flex w-full flex-col gap-1.5 sm:gap-2",
@@ -1122,15 +1151,18 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
           ) : null}
 
           {showThread ? (
-            // On mobile the thread takes over the full viewport (fixed inset-0) so the
-            // in-flow composer at the bottom of the flex column is never clipped by the
-            // section's overflow-hidden. On desktop (lg+) the section reverts to static
-            // and the inner div uses an explicit height calc.
-            <section ref={threadSectionRef} style={{ top: "var(--site-header-height, 64px)" }} className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:top-auto lg:inset-auto lg:z-auto lg:bg-transparent lg:h-[calc(100vh-180px)] lg:overflow-hidden">
-              <div className="flex h-full w-full flex-col overflow-x-hidden lg:flex-row lg:gap-4">
+            // Mobile: fixed panel that sits BELOW the site header (top = header
+            // height). z-50 keeps it above subheader (z-45) and page content but
+            // below the site header (z-1000 in globals.css). Desktop (lg+): static.
+            <section
+              ref={threadSectionRef}
+              style={{ top: "var(--site-header-height, 64px)" }}
+              className="fixed inset-x-0 bottom-0 z-50 overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:overflow-hidden lg:bg-transparent"
+            >
+              <div className="flex h-full w-full flex-col overflow-hidden lg:flex-row lg:gap-4">
           {isThreadReady ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col h-full overflow-x-hidden">
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col h-full overflow-hidden">
                       {pathname?.includes("/dashboard/messages/") ? (
                         <div className="shrink-0 flex items-center border-b border-slate-200 bg-slate-50 px-4 py-3 lg:hidden">
                           <Link
@@ -1281,9 +1313,17 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                               {group.items.map((message) => {
                                 const isMine = message.senderId === user?.id;
                                 return (
-                                  <div key={message.id} className={cn("flex w-full min-w-0", isMine ? "justify-end" : "justify-start")}>
-                                    <div className={cn("max-w-[75%] min-w-0 overflow-hidden px-3.5 py-3 text-sm leading-relaxed", isMine ? "rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm" : "rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900")}>
-                                      <p className="whitespace-pre-wrap wrap-anywhere">{message.body}</p>
+                                  <div key={message.id} className="flex w-full min-w-0">
+                                    <div
+                                      className={cn(
+                                        "min-w-0 overflow-hidden px-3.5 py-3 text-sm leading-relaxed wrap-anywhere",
+                                        "max-w-[calc(100vw-96px)] lg:max-w-[75%]",
+                                        isMine
+                                          ? "ml-auto mr-4 rounded-[18px_18px_4px_18px] bg-[#34579B] text-white shadow-sm"
+                                          : "ml-4 rounded-[18px_18px_18px_4px] border border-[#E5E7EB] bg-white text-slate-900"
+                                      )}
+                                    >
+                                      <p className="whitespace-pre-wrap">{message.body}</p>
                                     </div>
                                   </div>
                                 );
