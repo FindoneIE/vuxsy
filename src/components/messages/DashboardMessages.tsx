@@ -115,6 +115,10 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const typingTimeoutRef = React.useRef<number | null>(null);
   const threadSectionRef = React.useRef<HTMLElement | null>(null);
+  // DIAGNOSTIC: tracks pending burst timers/rafs for the keyboard-open overflow
+  // capture so they can be cancelled on cleanup. Remove with the diagnostics.
+  const diagBurstRafRef = React.useRef<number[]>([]);
+  const diagBurstTimerRef = React.useRef<number[]>([]);
   const selectAllRef = React.useRef<HTMLInputElement | null>(null);
   const routerRef = React.useRef(router);
   const bootstrapKeyRef = React.useRef<string | null>(null);
@@ -751,6 +755,95 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, []);
 
+  // TEMP DIAGNOSTIC capture — gathers the visual-viewport + key rects for the
+  // mobile keyboard-open overflow bug. Dev-only (compiles out via DIAG). It both
+  // console.logs AND POSTs to /api/diagnostics/runtime-logs so the sample is
+  // retrievable server-side even if browser console forwarding drops late
+  // runtime logs on a real device. Called from the proven keyboard `update()`
+  // handler below (which fires on every visualViewport resize/scroll), so it
+  // always captures the keyboard-open layout. Remove with the diagnostics.
+  const captureOverflowDiag = React.useCallback((event: string, phase: string) => {
+    if (!DIAG) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+
+    const rect = (el: Element | null) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        top: Math.round(r.top),
+        bottom: Math.round(r.bottom),
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+      };
+    };
+
+    const iw = window.innerWidth;
+    const vvNow = window.visualViewport;
+    const composer = document.querySelector<HTMLElement>("[data-mobile-composer]");
+    const sendBtn = document.querySelector<HTMLElement>("[data-msg-send]");
+    const bubbles = document.querySelectorAll<HTMLElement>('[data-msg-bubble="mine"]');
+    const lastBubble = bubbles[bubbles.length - 1] ?? null;
+    const panel = threadSectionRef.current;
+
+    const offenders: Array<{ el: string; right: number; width: number }> = [];
+    if (panel) {
+      panel.querySelectorAll<HTMLElement>("*").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > iw + 0.5) {
+          offenders.push({
+            el: `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")}`,
+            right: Math.round(r.right),
+            width: Math.round(r.width),
+          });
+        }
+      });
+    }
+
+    const vvHeight = vvNow ? Math.round(vvNow.height) : null;
+    const composerRect = rect(composer);
+    const sendRect = rect(sendBtn);
+    const bubbleRect = rect(lastBubble);
+    const panelRect = rect(panel);
+    const limit = iw - 12;
+    const keyboardOpen =
+      vvHeight !== null ? vvHeight < window.innerHeight - 120 : null;
+
+    const payload = {
+      event,
+      phase,
+      keyboardOpen,
+      visualViewportWidth: vvNow ? Math.round(vvNow.width) : null,
+      visualViewportHeight: vvHeight,
+      visualViewportOffsetLeft: vvNow ? Math.round(vvNow.offsetLeft) : null,
+      visualViewportOffsetTop: vvNow ? Math.round(vvNow.offsetTop) : null,
+      visualViewportScale: vvNow ? Number(vvNow.scale.toFixed(3)) : null,
+      windowInnerWidth: iw,
+      windowInnerHeight: window.innerHeight,
+      panelRect,
+      messagesRect: rect(scrollRef.current),
+      composerRect,
+      sendButtonRect: sendRect,
+      lastOutgoingBubbleRect: bubbleRect,
+      FLAG_bubbleRightOverflow: bubbleRect ? bubbleRect.right > limit : null,
+      FLAG_composerBelowViewport:
+        composerRect && vvHeight !== null ? composerRect.bottom > vvHeight + 1 : null,
+      offendersBeyondViewport: offenders.slice(0, 12),
+    };
+
+    console.log(`[DIAG:overflow] (${event} @ ${phase})`, payload);
+    // Fire-and-forget: persist to the server buffer so it survives flaky
+    // browser-console forwarding. Read back via GET /api/diagnostics/runtime-logs.
+    void fetch("/api/diagnostics/runtime-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "diag-overflow", payload, at: new Date().toISOString() }),
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
   // Mobile chat panel sizing.
   //
   // Resting state (keyboard CLOSED): the panel relies purely on CSS — it is
@@ -825,6 +918,24 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // Re-pin to the latest message AFTER the new height has been applied and
       // painted, so the composer + last bubble are in view once layout settles.
       requestAnimationFrame(() => scrollToBottom());
+
+      // DIAGNOSTIC: capture this exact visualViewport state. This runs inside the
+      // proven keyboard handler (fires on every vv resize/scroll), so it reliably
+      // records keyboardOpen=true samples — unlike the old standalone listeners
+      // whose attachment depended on the textarea being mounted. Burst at
+      // immediate/RAF/+100/+300/+700ms to catch iOS's async reflow.
+      if (DIAG) {
+        const ev = keyboardUp ? "vv-keyboard-open" : "vv-keyboard-close";
+        captureOverflowDiag(ev, "immediate");
+        diagBurstRafRef.current.push(
+          requestAnimationFrame(() => captureOverflowDiag(ev, "raf"))
+        );
+        [100, 300, 700].forEach((ms) =>
+          diagBurstTimerRef.current.push(
+            window.setTimeout(() => captureOverflowDiag(ev, `+${ms}ms`), ms)
+          )
+        );
+      }
     };
 
     // Apply immediately on mount (before any keyboard event fires).
@@ -832,151 +943,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    const rafs = diagBurstRafRef.current;
+    const timers = diagBurstTimerRef.current;
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
-    };
-  }, [scrollToBottom]);
-
-  // TEMP DIAGNOSTIC — mobile chat horizontal overflow WHILE THE KEYBOARD IS OPEN.
-  // Dev-only (compiles out in production via DIAG). The previous version only
-  // sampled on mount/RAF/+500ms, so it never captured the visual viewport while
-  // the iPhone keyboard was open. This version subscribes to the events that
-  // actually fire when the keyboard opens/closes and the textarea is focused/typed
-  // into, then samples at immediate/RAF/+100ms/+300ms/+700ms after each event so
-  // we catch the transient keyboard-open layout. Remove once a keyboardOpen=true
-  // sample is captured and the layout is confirmed on iPhone Safari.
-  React.useEffect(() => {
-    if (!DIAG) return;
-    if (!showThread) return;
-    if (typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 1023px)").matches) return;
-
-    const rect = (el: Element | null) => {
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return {
-        top: Math.round(r.top),
-        bottom: Math.round(r.bottom),
-        left: Math.round(r.left),
-        right: Math.round(r.right),
-        width: Math.round(r.width),
-        height: Math.round(r.height),
-      };
-    };
-
-    const sample = (event: string, phase: string) => {
-      const iw = window.innerWidth;
-      const vvNow = window.visualViewport;
-      const composer = document.querySelector<HTMLElement>('[data-mobile-composer]');
-      const sendBtn = document.querySelector<HTMLElement>('[data-msg-send]');
-      const messagesArea = scrollRef.current;
-      const bubbles = document.querySelectorAll<HTMLElement>('[data-msg-bubble="mine"]');
-      const lastBubble = bubbles[bubbles.length - 1] ?? null;
-      const panel = threadSectionRef.current;
-
-      const offenders: Array<{ el: string; right: number; width: number }> = [];
-      if (panel) {
-        panel.querySelectorAll<HTMLElement>("*").forEach((el) => {
-          const r = el.getBoundingClientRect();
-          if (r.width > 0 && r.right > iw + 0.5) {
-            offenders.push({
-              el: `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")}`,
-              right: Math.round(r.right),
-              width: Math.round(r.width),
-            });
-          }
-        });
-      }
-
-      // Verification flags the brief explicitly asks for: composer must stay
-      // inside the visual viewport bottom, and the send button + last outgoing
-      // bubble right edges must be <= innerWidth - 12px.
-      const vvHeight = vvNow ? Math.round(vvNow.height) : null;
-      const visualBottom = vvNow ? Math.round(vvNow.offsetTop + vvNow.height) : null;
-      const composerRect = rect(composer);
-      const sendRect = rect(sendBtn);
-      const bubbleRect = rect(lastBubble);
-      const panelRect = rect(panel);
-      const limit = iw - 12;
-
-      // The keyboard-open detector the brief asks for: when the soft keyboard
-      // is up, the visual viewport height drops well below the layout height.
-      const keyboardOpen =
-        vvHeight !== null ? vvHeight < window.innerHeight - 120 : null;
-
-      console.log(`[DIAG:overflow] (${event} @ ${phase})`, {
-        event,
-        phase,
-        keyboardOpen,
-        innerWidth: iw,
-        windowInnerHeight: window.innerHeight,
-        // Horizontal divergence between layout and visual viewport is the cause
-        // of right-edge clipping while the keyboard is open: if vvWidth < iw or
-        // vvOffsetLeft > 0 or vvScale != 1, a full-layout-width fixed panel
-        // spills past the visible right edge.
-        visualViewportWidth: vvNow ? Math.round(vvNow.width) : null,
-        visualViewportOffsetLeft: vvNow ? Math.round(vvNow.offsetLeft) : null,
-        visualViewportScale: vvNow ? Number(vvNow.scale.toFixed(3)) : null,
-        visualViewportHeight: vvHeight,
-        visualViewportOffsetTop: vvNow ? Math.round(vvNow.offsetTop) : null,
-        visualViewportBottom: visualBottom,
-        docScrollWidth: document.documentElement.scrollWidth,
-        bodyScrollWidth: document.body.scrollWidth,
-        panelRect,
-        messagesRect: rect(messagesArea),
-        composerRect,
-        sendButtonRect: sendRect,
-        lastOutgoingBubbleRect: bubbleRect,
-        // Success conditions from the brief: every bottom must sit at/above the
-        // visible viewport bottom (vv.height), and nothing may overflow right.
-        FLAG_composerBelowViewport:
-          composerRect && vvHeight !== null ? composerRect.bottom > vvHeight + 1 : null,
-        FLAG_panelBelowViewport:
-          panelRect && vvHeight !== null ? panelRect.bottom > vvHeight + 1 : null,
-        FLAG_sendButtonRightOverflow: sendRect ? sendRect.right > limit : null,
-        FLAG_bubbleRightOverflow: bubbleRect ? bubbleRect.right > limit : null,
-        offendersBeyondViewport: offenders.slice(0, 12),
-      });
-    };
-
-    // For each event, sample immediately then again after a RAF and at
-    // +100ms / +300ms / +700ms to catch the transient keyboard-open layout
-    // (iOS reflows the visual viewport asynchronously over several hundred ms).
-    const rafs: number[] = [];
-    const timers: number[] = [];
-    const burst = (event: string) => {
-      sample(event, "immediate");
-      rafs.push(requestAnimationFrame(() => sample(event, "raf")));
-      timers.push(window.setTimeout(() => sample(event, "+100ms"), 100));
-      timers.push(window.setTimeout(() => sample(event, "+300ms"), 300));
-      timers.push(window.setTimeout(() => sample(event, "+700ms"), 700));
-    };
-
-    // Baseline sample on mount so we always have a keyboard-closed reference.
-    burst("mount");
-
-    const vv = window.visualViewport;
-    const onVvResize = () => burst("vv-resize");
-    const onVvScroll = () => burst("vv-scroll");
-    const textarea = textareaRef.current;
-    const onFocus = () => burst("textarea-focus");
-    const onInput = () => burst("textarea-input");
-
-    vv?.addEventListener("resize", onVvResize);
-    vv?.addEventListener("scroll", onVvScroll);
-    textarea?.addEventListener("focus", onFocus);
-    textarea?.addEventListener("input", onInput);
-
-    return () => {
       rafs.forEach((r) => cancelAnimationFrame(r));
       timers.forEach((t) => window.clearTimeout(t));
-      vv?.removeEventListener("resize", onVvResize);
-      vv?.removeEventListener("scroll", onVvScroll);
-      textarea?.removeEventListener("focus", onFocus);
-      textarea?.removeEventListener("input", onInput);
     };
-  }, [showThread, activeThreadStatus, messages.length]);
+  }, [scrollToBottom, captureOverflowDiag]);
 
   const handleSelectConversation = (conversation: ConversationSummary) => {
     // Fire-and-forget: don't block navigation on the server round-trip.
