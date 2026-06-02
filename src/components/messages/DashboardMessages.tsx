@@ -751,11 +751,21 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, []);
 
-  // Drive the mobile chat panel height directly from the visual viewport so
-  // it always fits exactly between the site header and the top of the keyboard
-  // (or Safari chrome). Adjusting only `bottom` is unreliable on iOS Safari
-  // because the fixed element's flex children do not always recompute when
-  // `bottom` changes; setting `height` explicitly forces a clean relayout.
+  // Mobile chat panel sizing.
+  //
+  // Resting state (keyboard CLOSED): the panel relies purely on CSS — it is
+  // `position: fixed; top: var(--site-header-height); bottom: 0`, so it fills the
+  // whole fixed viewport beneath the header with no empty strip. We do NOT use
+  // `vv.height` here: on iOS Safari `vv.height` is smaller than the fixed-viewport
+  // height, so sizing the panel to it left a blank area below the composer and
+  // pushed the composer up — the exact bug we are fixing.
+  //
+  // Keyboard OPEN: the visual viewport shrinks (vv.height drops) while the fixed
+  // panel stays anchored to the unchanged layout viewport, hiding the composer
+  // behind the keyboard. Only then do we override the panel `height` to
+  // `vv.height - headerHeight` so its bottom lands exactly on top of the keyboard
+  // and the composer sits directly above it. We only ever set `height`, never
+  // `top` (top stays pinned to the header via the inline `style` prop).
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const vv = window.visualViewport;
@@ -767,21 +777,15 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const update = () => {
       const el = threadSectionRef.current;
       if (!el || window.innerWidth >= 1024) return;
-      // The body is locked (`position: fixed; overflow: hidden`) while a mobile
-      // chat is open, so the page cannot scroll and `vv.offsetTop` stays ~0 even
-      // when the keyboard opens — only `vv.height` shrinks. The global header is
-      // pinned at layout `top: 0` (globals.css `.mobile-chat-open .site-header`),
-      // so the panel must start at exactly `headerHeight` to sit flush beneath it
-      // (adding offsetTop here would make the panel drift away from the header).
-      // Sizing `height` to `vv.height - headerHeight` makes the panel bottom land
-      // exactly on the top of the keyboard / Safari toolbar — composer above it.
-      const panelHeight = Math.max(0, vv.height - headerHeight);
-      el.style.top = `${headerHeight}px`;
-      el.style.height = `${panelHeight}px`;
       // Keyboard heuristic: the layout viewport (window.innerHeight) does not
-      // shrink for the keyboard, but the visual viewport does. A large gap means
-      // the keyboard (or another large overlay) is open.
-      setKeyboardOpen(window.innerHeight - vv.height > 120);
+      // shrink for the iOS keyboard, but the visual viewport (vv.height) does. A
+      // large gap means the keyboard (or another large overlay) is open.
+      const keyboardUp = window.innerHeight - vv.height > 120;
+      setKeyboardOpen(keyboardUp);
+      // CLOSED: clear the inline height so the panel falls back to its CSS box
+      // (top: header-height + bottom: 0) and fills the whole fixed viewport.
+      // OPEN: pin the panel bottom to the top of the keyboard. Never touch `top`.
+      el.style.height = keyboardUp ? `${Math.max(0, vv.height - headerHeight)}px` : "";
       scrollToBottom();
     };
 
@@ -1428,7 +1432,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
             <section
               ref={threadSectionRef}
               style={{ top: "var(--site-header-height, 64px)" }}
-              className="fixed inset-x-0 z-50 box-border h-[calc(100dvh-var(--site-header-height))] overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:overflow-hidden lg:bg-transparent"
+              className="fixed inset-x-0 bottom-0 z-50 box-border overflow-hidden bg-[#F5F7FA] lg:static lg:inset-auto lg:top-auto lg:bottom-auto lg:z-auto lg:h-[calc(100vh-180px)] lg:w-auto lg:overflow-hidden lg:bg-transparent"
             >
               <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden box-border lg:flex-row lg:gap-4">
                 {/* Back button — always visible on mobile when in a conversation, even during loading */}
