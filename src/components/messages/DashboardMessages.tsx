@@ -132,7 +132,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   }, [activeId]);
 
   const selectedConversation = React.useMemo(
-    () => conversations.find((conversation) => conversation.id === activeId) ?? null,
+    () => conversations.find((c) => c.id === activeId) ?? null,
     [conversations, activeId]
   );
 
@@ -185,11 +185,9 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     // duplicate getUserConversations calls when multiple code paths trigger
     // a refresh simultaneously (e.g. bootstrap + realtime event on mount).
     if (loadConversationsInFlightRef.current) {
-      console.log("[chat:loadConversations] deduped — returning in-flight promise");
       return loadConversationsInFlightRef.current;
     }
 
-    console.log("[chat:loadConversations] start");
     setLoadingConversations(true);
     setError(null);
 
@@ -197,8 +195,17 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       try {
         const data = await getUserConversations();
         const sorted = sortConversations(data);
-        setConversations(sorted);
-        console.log("[chat:loadConversations] done", { count: sorted.length });
+        // If the refreshed list omits the currently open conversation (e.g. a
+        // transient DB race after revalidatePath), keep it from the previous
+        // state so the open thread never disappears mid-session.
+        const currentActiveId = activeIdRef.current;
+        setConversations((prev) => {
+          if (currentActiveId && !sorted.some((c) => c.id === currentActiveId)) {
+            const activePrev = prev.find((c) => c.id === currentActiveId);
+            if (activePrev) return sortConversations([activePrev, ...sorted]);
+          }
+          return sorted;
+        });
         return sorted;
       } catch (err) {
         console.error("[chat:loadConversations] error", err);
@@ -218,19 +225,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const requestId = latestThreadRequestRef.current + 1;
     latestThreadRequestRef.current = requestId;
 
-    console.log("[chat:loadMessages] start", { conversation, requestId });
     setLoadingMessages(true);
     setError(null);
     try {
       const result = await getConversationMessages(conversation);
       if (latestThreadRequestRef.current !== requestId) {
-        console.log("[chat:loadMessages] stale — superseded by newer request", { requestId });
         return;
       }
 
       setMessages(result.items);
       setHasMoreMessages(result.hasMore);
-      console.log("[chat:loadMessages] done", { conversation, itemCount: result.items.length });
       return true;
     } catch (err) {
       console.error("[chat:loadMessages] error", { conversation, err });
@@ -296,8 +300,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     if (bootstrapKeyRef.current === key) return;
     bootstrapKeyRef.current = key;
 
-    console.log("[chat:bootstrap] start", { routeConversationId, userId: user.id, key });
-
     void (async () => {
       // Conversations are loaded once per user. On subsequent conversation
       // switches the cached list is reused — no extra getUserConversations call.
@@ -321,7 +323,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       let conversationRows: ConversationSummary[];
       if (conversationsAlreadyLoaded) {
         conversationRows = conversationsRef.current;
-        console.log("[chat:bootstrap] conversations from cache", { count: conversationRows.length });
       } else {
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
@@ -331,26 +332,14 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         (conversation) => conversation.id === routeConversationId
       );
 
-      console.log("[chat:bootstrap] conversation lookup", {
-        routeConversationId,
-        found: Boolean(resolvedConversation),
-        totalConversations: conversationRows.length,
-      });
-
       // Conversation not found — retry once to cover auth/DB race conditions
       // on mobile (first load can complete before Supabase session is ready).
       if (!resolvedConversation) {
-        console.log("[chat:bootstrap] retrying loadConversations — conversation not found on first pass");
         conversationRows = await loadConversations();
         conversationsLoadedUserRef.current = user.id;
         resolvedConversation = conversationRows.find(
           (conversation) => conversation.id === routeConversationId
         );
-        console.log("[chat:bootstrap] retry result", {
-          routeConversationId,
-          found: Boolean(resolvedConversation),
-          totalConversations: conversationRows.length,
-        });
       }
 
       if (!resolvedConversation) {
@@ -359,20 +348,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         setConversationBlocked(false);
         setBlockedByMe(false);
         setActiveThreadStatus("not_found");
-        // Only redirect when we have confirmed other conversations exist.
-        // An empty list means auth likely wasn't ready — redirecting would be
-        // a false negative that sends the user away from a valid conversation.
-        if (conversationRows.length > 0) {
-          console.log("[chat:bootstrap] REDIRECT — conversation not found after retry", {
-            routeConversationId,
-            otherConversations: conversationRows.length,
-          });
-          routerRef.current.replace("/dashboard/messages");
-        } else {
-          console.log("[chat:bootstrap] conversation not found but list empty — skipping redirect", {
-            routeConversationId,
-          });
-        }
+        // Do NOT auto-redirect — let the user see "Conversation not found" and
+        // navigate back manually via the Back button or the link in the error state.
         return;
       }
 
@@ -385,15 +362,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       // false (load error) must NOT redirect — the conversation exists, it was a
       // transient fetch failure; show an error in the UI instead so the user can retry.
       if (loaded === false) {
-        console.log("[chat:bootstrap] loadMessages failed — showing error, NOT redirecting", {
-          routeConversationId,
-        });
         setActiveThreadStatus("message_error");
         return;
       }
 
       setActiveThreadStatus("ready");
-      console.log("[chat:bootstrap] ready", { routeConversationId });
     })();
   }, [conversationId, loadConversations, loadMessages, syncConversationReadState, user]);
 
@@ -978,10 +951,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       );
       setDraft("");
       setBlockModalOpen(false);
-      router.refresh();
-      queueMicrotask(() => {
-        void loadConversations();
-      });
       addToast({
         title: "Conversation blocked",
         message: "Messaging has been disabled for this chat.",
@@ -998,7 +967,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     } finally {
       setActionLoading(null);
     }
-  }, [activeId, actionLoading, addToast, loadConversations, router]);
+  }, [activeId, actionLoading, addToast]);
 
   const handleDeleteConversation = React.useCallback(async () => {
     if (!activeId || actionLoading) return;
@@ -1024,10 +993,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       setMessages([]);
       router.push("/dashboard/messages");
       notifyUnreadCounterUpdated();
-      router.refresh();
-      queueMicrotask(() => {
-        void loadConversations();
-      });
       addToast({
         title: "Conversation removed",
         message: "The conversation was removed from your inbox.",
@@ -1044,7 +1009,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     } finally {
       setActionLoading(null);
     }
-  }, [activeId, actionLoading, addToast, loadConversations, notifyUnreadCounterUpdated, router]);
+  }, [activeId, actionLoading, addToast, notifyUnreadCounterUpdated, router]);
 
   const handleUnblockConversation = React.useCallback(async () => {
     if (!activeId || actionLoading) return;
@@ -1074,10 +1039,6 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
         )
       );
       setUnblockModalOpen(false);
-      router.refresh();
-      queueMicrotask(() => {
-        void loadConversations();
-      });
       addToast({
         title: "Conversation unblocked",
         message: "You can send messages again in this chat.",
@@ -1094,7 +1055,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     } finally {
       setActionLoading(null);
     }
-  }, [activeId, actionLoading, addToast, loadConversations, router]);
+  }, [activeId, actionLoading, addToast]);
 
   return (
     <main className="w-full overflow-x-hidden text-[#111827]">
@@ -1214,7 +1175,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
           {isThreadReady || isMessageLoadError ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col h-full overflow-hidden">
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 lg:flex-3 flex-col overflow-hidden">
                       <div className="shrink-0 mb-0 flex items-center border-b border-slate-200 px-4 py-3 lg:flex-wrap lg:items-center lg:gap-1.5 lg:px-4 lg:pt-1 lg:pb-1.5">
                         <div className="flex w-full min-w-0 items-center gap-3 md:gap-2.5">
                           <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
@@ -1477,10 +1438,16 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                   </>
                 ) : isThreadLoading ? null : isThreadUnavailable ? (
                   <div className="flex h-full flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-slate-500">
-                    <p>Conversation unavailable.</p>
+                    <p>Conversation not found.</p>
                     <p className="text-xs text-slate-400">
-                      This conversation could not be found.
+                      This conversation may have been removed or is no longer available.
                     </p>
+                    <Link
+                      href="/dashboard/messages"
+                      className="mt-2 text-xs text-[#34579B] hover:underline"
+                    >
+                      Go to messages
+                    </Link>
                   </div>
                 ) : showEmptyInboxState ? (
                   <div className="flex h-full flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-slate-500">

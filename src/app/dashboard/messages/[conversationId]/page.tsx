@@ -1,5 +1,7 @@
 import DashboardMessages from "@/components/messages/DashboardMessages";
 
+export const dynamic = "force-dynamic";
+
 type DashboardMessagesConversationPageProps = {
   params: Promise<{ conversationId: string }>;
 };

@@ -366,26 +366,9 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
     });
   }
 
-  const visibleConversations = conversations.filter(
+  const conversationsForInbox = conversations.filter(
     (conversation) => !hiddenConversationIds.has(conversation.id)
   );
-
-  const shouldBypassHiddenFilter =
-    conversations.length > 0 && hiddenConversationIds.size === conversations.length;
-  if (shouldBypassHiddenFilter && process.env.NODE_ENV !== "production") {
-    console.warn(
-      "CONVERSATION HIDDEN SAFETY TRIGGER: all conversations are hidden; returning fallback visible list",
-      {
-        authUserId: user.id,
-        totalConversations: conversations.length,
-        hiddenConversations: hiddenConversationIds.size,
-      }
-    );
-  }
-
-  const conversationsForInbox = shouldBypassHiddenFilter
-    ? conversations
-    : visibleConversations;
 
   if (conversationsForInbox.length === 0) {
     return [];
