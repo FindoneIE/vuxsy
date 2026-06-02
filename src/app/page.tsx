@@ -43,7 +43,7 @@ export default async function HomePage() {
           <div className="max-w-xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
               <Sparkles weight="regular" className="h-3.5 w-3.5 text-(--color-primary)" />
-              Ireland's friendly local marketplace
+              Ireland&apos;s friendly local marketplace
             </span>
 
             <h1 className="mt-4 text-[34px] leading-[1.05] font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-[56px]">
@@ -241,7 +241,7 @@ export default async function HomePage() {
                 Have something to offer?
               </h3>
               <p className="mt-2 text-sm text-white/70 sm:text-base">
-                Post a service, list a product, or share a request. It's free and takes a minute.
+                Post a service, list a product, or share a request. It&apos;s free and takes a minute.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">

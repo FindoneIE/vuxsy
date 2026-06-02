@@ -79,6 +79,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const [isTyping, setIsTyping] = React.useState(false);
   const [loadingConversations, setLoadingConversations] = React.useState(true);
   const [loadingMessages, setLoadingMessages] = React.useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = React.useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [reportModalOpen, setReportModalOpen] = React.useState(false);
@@ -106,10 +108,24 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
   const bootstrapKeyRef = React.useRef<string | null>(null);
   const latestThreadRequestRef = React.useRef(0);
   const activeIdRef = React.useRef(activeId);
+  const messagesRef = React.useRef<MessageItem[]>([]);
+  const conversationsRef = React.useRef<ConversationSummary[]>([]);
+  // Tracks which user's conversations are currently in state so switches can skip reloading.
+  const conversationsLoadedUserRef = React.useRef<string | null>(null);
+  // In-flight deduplication: concurrent callers share the same promise.
+  const loadConversationsInFlightRef = React.useRef<Promise<ConversationSummary[]> | null>(null);
 
   React.useEffect(() => {
     routerRef.current = router;
   }, [router]);
+
+  React.useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  React.useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   React.useEffect(() => {
     activeIdRef.current = activeId;
@@ -164,21 +180,35 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     });
   }, []);
 
-  const loadConversations = React.useCallback(async () => {
+  const loadConversations = React.useCallback(async (): Promise<ConversationSummary[]> => {
+    // Return the in-flight promise if a fetch is already running — prevents
+    // duplicate getUserConversations calls when multiple code paths trigger
+    // a refresh simultaneously (e.g. bootstrap + realtime event on mount).
+    if (loadConversationsInFlightRef.current) {
+      return loadConversationsInFlightRef.current;
+    }
+
     setLoadingConversations(true);
     setError(null);
-    try {
-      const data = await getUserConversations();
-      const sorted = sortConversations(data);
-      setConversations(sorted);
-      return sorted;
-    } catch (err) {
-      console.error("Failed to load conversations", err);
-      setError("We couldn’t load your conversations.");
-      return [];
-    } finally {
-      setLoadingConversations(false);
-    }
+
+    const promise = (async (): Promise<ConversationSummary[]> => {
+      try {
+        const data = await getUserConversations();
+        const sorted = sortConversations(data);
+        setConversations(sorted);
+        return sorted;
+      } catch (err) {
+        console.error("Failed to load conversations", err);
+        setError("We couldn’t load your conversations.");
+        return [];
+      } finally {
+        setLoadingConversations(false);
+        loadConversationsInFlightRef.current = null;
+      }
+    })();
+
+    loadConversationsInFlightRef.current = promise;
+    return promise;
   }, []);
 
   const loadMessages = React.useCallback(async (conversation: string) => {
@@ -188,10 +218,11 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     setLoadingMessages(true);
     setError(null);
     try {
-      const data = await getConversationMessages(conversation);
+      const result = await getConversationMessages(conversation);
       if (latestThreadRequestRef.current !== requestId) return;
 
-      setMessages(data);
+      setMessages(result.items);
+      setHasMoreMessages(result.hasMore);
       return true;
     } catch (err) {
       console.error("Failed to load messages", err);
@@ -203,6 +234,31 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       }
     }
   }, []);
+
+  const loadOlderMessages = React.useCallback(async () => {
+    const conversationId = activeIdRef.current;
+    const oldest = messagesRef.current[0]?.createdAt;
+    if (!conversationId || !oldest || loadingOlderMessages) return;
+
+    const container = scrollRef.current;
+    const prevScrollHeight = container?.scrollHeight ?? 0;
+    setLoadingOlderMessages(true);
+    try {
+      const result = await getConversationMessages(conversationId, oldest);
+      setMessages((cur) => [...result.items, ...cur]);
+      setHasMoreMessages(result.hasMore);
+      // Restore scroll position so the viewport stays on the same message.
+      if (container) {
+        requestAnimationFrame(() => {
+          container.scrollTop = container.scrollHeight - prevScrollHeight;
+        });
+      }
+    } catch {
+      // silently ignore — user can retry by pressing the button again
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [loadingOlderMessages]);
 
   const syncConversationReadState = React.useCallback(
     async (conversationId: string) => {
@@ -233,22 +289,46 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     bootstrapKeyRef.current = key;
 
     void (async () => {
+      // Conversations are loaded once per user. On subsequent conversation
+      // switches the cached list is reused — no extra getUserConversations call.
+      const conversationsAlreadyLoaded = conversationsLoadedUserRef.current === user.id;
+
       if (!routeConversationId) {
         setActiveThreadStatus("idle");
         setActiveId(null);
         setMessages([]);
         setConversationBlocked(false);
         setBlockedByMe(false);
-        await loadConversations();
+        if (!conversationsAlreadyLoaded) {
+          await loadConversations();
+          conversationsLoadedUserRef.current = user.id;
+        }
         return;
       }
 
       setActiveThreadStatus((prev) => (prev === "ready" ? "ready" : "loading"));
 
-      const conversationRows = await loadConversations();
-      const resolvedConversation = conversationRows.find(
+      let conversationRows: ConversationSummary[];
+      if (conversationsAlreadyLoaded) {
+        conversationRows = conversationsRef.current;
+      } else {
+        conversationRows = await loadConversations();
+        conversationsLoadedUserRef.current = user.id;
+      }
+
+      let resolvedConversation = conversationRows.find(
         (conversation) => conversation.id === routeConversationId
       );
+
+      // Conversation not in cached list — could be a new one the user followed
+      // from an external link. Do a single fresh load before giving up.
+      if (!resolvedConversation && conversationsAlreadyLoaded) {
+        conversationRows = await loadConversations();
+        conversationsLoadedUserRef.current = user.id;
+        resolvedConversation = conversationRows.find(
+          (conversation) => conversation.id === routeConversationId
+        );
+      }
 
       if (!resolvedConversation) {
         setActiveId(null);
@@ -513,21 +593,37 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const next = draft.trim();
     if (!next) return;
 
+    // --- Optimistic update: show the message immediately ---
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: MessageItem = {
+      id: tempId,
+      conversationId: activeId,
+      senderId: user?.id ?? "",
+      recipientId: selectedConversation?.otherParticipant?.id ?? "",
+      body: next,
+      readAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempMessage]);
+
+    // Clear the composer immediately so the UI feels instant.
+    setDraft("");
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.style.height = "40px";
+      textarea.style.overflowY = "hidden";
+      textarea.scrollTop = 0;
+    });
+
     setSending(true);
     setError(null);
     try {
       const inserted = await sendMessage(activeId, next);
-      setMessages((prev) => [...prev, inserted]);
-      setDraft("");
-      if (typeof window !== "undefined") {
-        window.requestAnimationFrame(() => {
-          const textarea = textareaRef.current;
-          if (!textarea) return;
-          textarea.style.height = "40px";
-          textarea.style.overflowY = "hidden";
-          textarea.scrollTop = 0;
-        });
-      }
+      // Replace the temp message with the confirmed server message.
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? inserted : m))
+      );
       setConversations((prev) =>
         sortConversations(
           prev.map((item) =>
@@ -545,6 +641,8 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       await syncConversationReadState(activeId);
     } catch (err) {
       console.error("Failed to send message", err);
+      // Remove the optimistic message and surface the error.
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setError("Message could not be sent. Please try again.");
     } finally {
       setSending(false);
@@ -1152,6 +1250,18 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
                         ref={scrollRef}
                         className="min-h-0 flex-1 overflow-y-auto space-y-2 px-2 pt-0 pb-4 md:px-4"
                       >
+                        {hasMoreMessages && !loadingMessages ? (
+                          <div className="flex justify-center py-2">
+                            <button
+                              type="button"
+                              onClick={loadOlderMessages}
+                              disabled={loadingOlderMessages}
+                              className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-50 transition-colors"
+                            >
+                              {loadingOlderMessages ? "Loading…" : "Load earlier messages"}
+                            </button>
+                          </div>
+                        ) : null}
                         {loadingMessages ? (
                           <div className="space-y-3 p-2">
                             <div className="h-3 w-3/4 rounded bg-slate-100 animate-pulse" />

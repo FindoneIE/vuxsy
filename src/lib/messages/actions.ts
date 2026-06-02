@@ -71,11 +71,6 @@ const resolveParticipantDisplayName = (
   return "User";
 };
 
-const escapePostgrestInValue = (value: string) =>
-  value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-
-const serializePostgrestInFilter = (values: string[]) =>
-  `(${values.map((value) => `"${escapePostgrestInValue(value)}"`).join(",")})`;
 
 const truncateMessagePreview = (message: string, maxLength = MESSAGE_EMAIL_PREVIEW_MAX_LENGTH) => {
   const normalized = message.trim().replace(/\s+/g, " ");
@@ -431,11 +426,21 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
         .in("conversation_id", conversationIds)
     : Promise.resolve({ data: [] });
 
-  const [{ data: profiles }, { data: imageRows }, { data: unreadRows }] = await Promise.all([
-    profilesPromise,
-    imageRowsPromise,
-    unreadRowsPromise,
-  ]);
+  // Moved into the same Promise.all — was a sequential hop after profiles/images/unread.
+  const blockedRowsPromise = conversationIds.length
+    ? supabase
+        .from("blocked_conversations")
+        .select("conversation_id, blocker_user_id")
+        .in("conversation_id", conversationIds)
+    : Promise.resolve({ data: [] });
+
+  const [{ data: profiles }, { data: imageRows }, { data: unreadRows }, { data: blockedRows }] =
+    await Promise.all([
+      profilesPromise,
+      imageRowsPromise,
+      unreadRowsPromise,
+      blockedRowsPromise,
+    ]);
 
   const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
 
@@ -457,21 +462,15 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
 
   const blockedConversationIds = new Set<string>();
   const blockedByMeConversationIds = new Set<string>();
-  if (conversationIds.length > 0) {
-    const { data: blockedRows } = await supabase
-      .from("blocked_conversations")
-      .select("conversation_id, blocker_user_id")
-      .in("conversation_id", conversationIds);
+  (blockedRows ?? []).forEach((row) => {
+    if (!row.conversation_id) return;
+    blockedConversationIds.add(row.conversation_id);
+    if (row.blocker_user_id === user.id) {
+      blockedByMeConversationIds.add(row.conversation_id);
+    }
+  });
 
-    (blockedRows ?? []).forEach((row) => {
-      if (!row.conversation_id) return;
-      blockedConversationIds.add(row.conversation_id);
-      if (row.blocker_user_id === user.id) {
-        blockedByMeConversationIds.add(row.conversation_id);
-      }
-    });
-  }
-
+  // DB already orders by last_message_at DESC — no need to re-sort in JS.
   return conversationsForInbox
     .map((conversation) => {
       const otherId =
@@ -521,11 +520,6 @@ export async function getUserConversations(): Promise<ConversationSummary[]> {
         isBlocked: blockedConversationIds.has(conversation.id),
         blockedByMe: blockedByMeConversationIds.has(conversation.id),
       } satisfies ConversationSummary;
-    })
-    .sort((a, b) => {
-      const aTime = a.lastMessageAt ?? a.createdAt ?? "";
-      const bTime = b.lastMessageAt ?? b.createdAt ?? "";
-      return aTime < bTime ? 1 : -1;
     });
 }
 
@@ -540,118 +534,83 @@ export async function getVisibleUnreadMessageCountForCurrentUser(
     return 0;
   }
 
-  const { data: hiddenRows, error: hiddenError } = await supabase
-    .from("conversation_hidden")
-    .select("conversation_id")
-    .eq("user_id", user.id);
+  // Single RPC call replaces two round-trips (hidden lookup + unread rows fetch)
+  // and the JS deduplication. The DB function returns COUNT(DISTINCT conversation_id).
+  const { data, error } = await supabase.rpc("get_unread_conversation_count", {
+    p_recipient_id: user.id,
+    p_active_conversation_id: activeConversationId ?? null,
+  });
 
-  if (hiddenError) {
-    console.error("Failed to load hidden conversations for unread count", hiddenError);
+  if (error) {
+    console.error("Failed to load visible unread conversation count", error);
     return 0;
   }
 
-  const hiddenConversationIds = (hiddenRows ?? [])
-    .map((row) => row.conversation_id)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
-
-  const excludedConversationIds = activeConversationId
-    ? Array.from(new Set([...hiddenConversationIds, activeConversationId]))
-    : hiddenConversationIds;
-
-  const excludedConversationFilter =
-    excludedConversationIds.length > 0
-      ? serializePostgrestInFilter(excludedConversationIds)
-      : null;
-
-  let unreadQuery = supabase
-    .from("messages")
-    .select("conversation_id")
-    .eq("recipient_id", user.id)
-    .neq("sender_id", user.id)
-    .is("read_at", null);
-
-  if (excludedConversationFilter) {
-    unreadQuery = unreadQuery.not("conversation_id", "in", excludedConversationFilter);
-  }
-
-  const { data: unreadRows, error: unreadError } = await unreadQuery;
-
-  if (unreadError) {
-    console.error("Failed to load visible unread conversation count", unreadError);
-    return 0;
-  }
-
-  const unreadConversationIds = new Set(
-    (unreadRows ?? [])
-      .map((row) => row.conversation_id)
-      .filter((id): id is string => typeof id === "string" && id.length > 0)
-  );
-
-  return unreadConversationIds.size;
+  return (data as number) ?? 0;
 }
 
 export async function getConversationMessages(
-  conversationId: string
-): Promise<MessageItem[]> {
-  if (!conversationId) return [];
+  conversationId: string,
+  before?: string,
+): Promise<{ items: MessageItem[]; hasMore: boolean }> {
+  if (!conversationId) return { items: [], hasMore: false };
 
   const supabase = await createSupabaseServerClient();
   const { data: authData } = await supabase.auth.getUser();
   const user = authData.user;
 
   if (!user) {
-    return [];
+    return { items: [], hasMore: false };
   }
 
-  const { data: conversation, error: conversationError } = await supabase
-    .from("conversations")
-    .select(
-      "id, buyer_id, seller_id, listing_id, listing:listings!conversations_listing_id_fkey (id, title, price, county, area, city, listing_type, seller)"
-    )
-    .eq("id", conversationId)
-    .maybeSingle();
-
-  if (conversationError || !conversation) {
-    return [];
-  }
-
-  const isParticipant =
-    conversation.buyer_id === user.id || conversation.seller_id === user.id;
-
-  if (!isParticipant) {
-    return [];
-  }
-
-  const { error: unhideOpenError } = await supabase
+  // Fire-and-forget: unhide on open is a side-effect, not on the critical path.
+  // Safe without an explicit participant check: the DELETE filter includes
+  // user_id = auth user, so it only affects their own rows; a non-participant
+  // call simply deletes nothing.
+  void supabase
     .from("conversation_hidden")
     .delete()
     .eq("conversation_id", conversationId)
     .eq("user_id", user.id);
 
-  if (unhideOpenError) {
-    console.warn("CONVERSATION UNHIDE ON OPEN ERROR", unhideOpenError);
-  }
-
-  const { data: messages, error } = await supabase
+  // The explicit conversations SELECT + participant check has been removed.
+  // Access is now enforced entirely by the RLS policy on messages
+  // (sender_id = auth.uid() OR recipient_id = auth.uid() — see migration
+  // 20260602_optimise_messages_rls.sql).  Non-participants get 0 rows.
+  let query = supabase
     .from("messages")
     .select("id, conversation_id, sender_id, recipient_id, content, read_at, created_at")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(51);
+
+  if (before) {
+    query = query.lt("created_at", before);
+  }
+
+  const { data: messages, error } = await query;
 
   if (error || !messages) {
     console.warn("Failed to load messages", error);
-    return [];
+    return { items: [], hasMore: false };
   }
 
-  return messages.map((message) => ({
-    id: message.id,
-    conversationId: message.conversation_id,
-    senderId: message.sender_id,
-    recipientId: message.recipient_id,
-    body: message.content,
-    readAt: message.read_at ?? null,
-    createdAt: message.created_at,
-  }));
+  const hasMore = messages.length === 51;
+  // Take at most 50 and reverse to chronological order for the UI.
+  const page = (hasMore ? messages.slice(0, 50) : messages).reverse();
+
+  return {
+    items: page.map((message) => ({
+      id: message.id,
+      conversationId: message.conversation_id,
+      senderId: message.sender_id,
+      recipientId: message.recipient_id,
+      body: message.content,
+      readAt: message.read_at ?? null,
+      createdAt: message.created_at,
+    })),
+    hasMore,
+  };
 }
 
 export async function restoreConversationVisibilityForCurrentUser(conversationId: string) {
@@ -826,7 +785,9 @@ export async function sendMessage(conversationId: string, body: string) {
     created_at: inserted.created_at,
   });
 
-  await supabase
+  // Preview cache update is cosmetic — the client already updates optimistically.
+  // Fire-and-forget so the INSERT response returns immediately.
+  void supabase
     .from("conversations")
     .update({
       last_message: trimmed,
@@ -890,12 +851,23 @@ export async function sendMessage(conversationId: string, body: string) {
             : Promise.resolve({ data: [] }),
         ]);
 
-        const listingRawFromConversation = (conversation as any).listing;
+        type ConversationListing = {
+          id?: string | null;
+          title?: string | null;
+          price?: number | null;
+          county?: string | null;
+          area?: string | null;
+          city?: string | null;
+          listing_type?: string | null;
+          category_id?: string | null;
+          seller?: { displayName?: string | null; display_name?: string | null; fullName?: string | null; full_name?: string | null; name?: string | null; username?: string | null } | null;
+        };
+        const listingRawFromConversation = (conversation as { listing?: ConversationListing | ConversationListing[] | null }).listing;
         const listingRaw = Array.isArray(listingRawFromConversation)
           ? listingRawFromConversation[0] ?? null
           : listingRawFromConversation ?? null;
 
-        const listingSeller = (listingRaw as any)?.seller;
+        const listingSeller = listingRaw?.seller;
 
         const senderDisplayName =
           resolveDisplayNameValue(
@@ -944,7 +916,7 @@ export async function sendMessage(conversationId: string, body: string) {
         const listingPath = listingRaw?.id
           ? getListingHref({
               id: listingRaw.id,
-              type: (listingRaw.listing_type as any) ?? undefined,
+              type: (listingRaw?.listing_type as "service" | "request" | "marketplace" | null | undefined) ?? undefined,
               category: listingRaw.category_id ?? undefined,
             })
           : null;
@@ -979,106 +951,25 @@ export async function sendMessage(conversationId: string, body: string) {
   } satisfies MessageItem;
 }
 
-export async function markConversationRead(conversationId: string): Promise<number> {
-  if (!conversationId) return 0;
+export async function markConversationRead(conversationId: string): Promise<void> {
+  if (!conversationId) return;
 
   const supabase = await createSupabaseServerClient();
   const { data: authData } = await supabase.auth.getUser();
-  const user = authData.user;
+  const userId = authData.user?.id;
 
-  if (!user) return 0;
+  if (!userId) return;
 
-  const { data: authDataVerification } = await supabase.auth.getUser();
-  const authUid = authDataVerification.user?.id ?? null;
-  const userId = user.id;
-
-  const filterValues = {
-    conversation_id: conversationId,
-    recipient_id: userId,
-    read_at_is_null: true,
-  };
-
-  console.log("markConversationRead diagnostic auth", {
-    authUid,
-    userId,
-    authUidMatchesUserId: authUid === userId,
-    conversationId,
-  });
-
-  const { data: beforeRows, error: beforeError } = await supabase
+  const { error } = await supabase
     .from("messages")
-    .select("id, sender_id, recipient_id, read_at")
-    .eq("conversation_id", conversationId)
-    .eq("recipient_id", userId)
-    .is("read_at", null)
-    .order("id", { ascending: true });
-
-  console.log("markConversationRead diagnostic before", {
-    filterValues,
-    beforeRowsCount: beforeRows?.length ?? 0,
-    beforeRows: beforeRows ?? [],
-    beforeError,
-  });
-
-  if (beforeError) {
-    throw new Error("Failed to load pre-update unread rows");
-  }
-
-  const updatePayload = { read_at: new Date().toISOString() };
-
-  const updateResponse = await supabase
-    .from("messages")
-    .update(updatePayload)
+    .update({ read_at: new Date().toISOString() })
     .eq("conversation_id", conversationId)
     .eq("recipient_id", userId)
     .is("read_at", null);
 
-  console.log("markConversationRead diagnostic update", {
-    filterValues,
-    updatePayload,
-    rawUpdateResponse: updateResponse,
-    rawUpdateError: updateResponse.error,
-  });
-
-  if (updateResponse.error) {
-    console.error("Failed to mark conversation as read", updateResponse.error);
+  if (error) {
     throw new Error("Failed to mark conversation as read");
   }
-
-  const { data: afterRows, error: afterError } = await supabase
-    .from("messages")
-    .select("id, sender_id, recipient_id, read_at")
-    .eq("conversation_id", conversationId)
-    .eq("recipient_id", userId)
-    .is("read_at", null)
-    .order("id", { ascending: true });
-
-  console.log("markConversationRead diagnostic after", {
-    filterValues,
-    afterRowsCount: afterRows?.length ?? 0,
-    afterRows: afterRows ?? [],
-    afterError,
-  });
-
-  if (afterError) {
-    throw new Error("Failed to load post-update unread rows");
-  }
-
-  const beforeCount = beforeRows?.length ?? 0;
-  const afterCount = afterRows?.length ?? 0;
-  const affectedRows = Math.max(beforeCount - afterCount, 0);
-
-  console.log("markConversationRead diagnostic summary", {
-    conversationId,
-    authUid,
-    userId,
-    authUidMatchesUserId: authUid === userId,
-    beforeRowsCount: beforeCount,
-    afterRowsCount: afterCount,
-    affectedRows,
-  });
-
-  return affectedRows;
 }
 
 export async function getConversationStatus(conversationId: string) {
