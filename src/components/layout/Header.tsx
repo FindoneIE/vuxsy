@@ -28,6 +28,7 @@ import {
   markConversationRead,
   restoreConversationVisibilityForCurrentUser,
 } from "@/lib/messages/actions";
+import { isMessagesPageRealtimeActive } from "@/lib/messages/realtimePresence";
 
 const MESSAGES_UNREAD_UPDATED_EVENT = "messages:unread-updated";
 const ADMIN_EMAIL = "info@vuxsy.com";
@@ -233,6 +234,13 @@ export default function Header() {
           if (!conversationId) return;
           if (recipientId !== currentUserId) return;
           if (senderId === currentUserId) return;
+
+          // When the messages page is open, DashboardMessages already handles
+          // this INSERT (mark read / restore visibility) and dispatches
+          // MESSAGES_UNREAD_UPDATED_EVENT, which refreshes this badge below.
+          // Skip here to avoid the duplicate DB writes/reads. The UPDATE
+          // handler below is unaffected (DashboardMessages doesn't cover it).
+          if (isMessagesPageRealtimeActive()) return;
 
           void (async () => {
             const activeId = activeConversationIdRef.current;

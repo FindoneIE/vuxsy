@@ -34,6 +34,7 @@ import {
   deleteConversationForCurrentUser,
 } from "@/lib/messages/actions";
 import type { ConversationSummary, MessageItem } from "@/lib/messages/types";
+import { registerMessagesPageRealtime } from "@/lib/messages/realtimePresence";
 import ReportListingModal from "@/components/listings/ReportListingModal";
 import {
   Dialog,
@@ -551,6 +552,12 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const userId = user?.id;
     if (!userId) return;
 
+    // While this channel is live, DashboardMessages owns the incoming-message
+    // realtime work (mark read / restore visibility + the unread-updated event).
+    // Signal the Header so it can skip its duplicate INSERT handling. See
+    // realtimePresence.ts.
+    const releaseRealtimePresence = registerMessagesPageRealtime();
+
     const channel = supabase
       .channel(`messages-${userId}`)
       .on(
@@ -594,6 +601,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       .subscribe();
 
     return () => {
+      releaseRealtimePresence();
       void supabase.removeChannel(channel);
     };
   }, [handleIncomingMessage, supabase, user?.id]);
