@@ -483,7 +483,13 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 		setIsPreview(true);
 	};
 
-	const submitListing = async (mode: "draft" | "publish") => {
+	// Re-entrancy lock: the buttons are disabled while submitting, but a rapid
+	// double Enter keypress (form onSubmit) can fire two submissions before the
+	// async isSubmitting/draftListingId state settles — which would create two
+	// listings. A synchronous ref guard blocks the second call immediately.
+	const submitLockRef = React.useRef(false);
+
+	const runSubmitListing = async (mode: "draft" | "publish") => {
 		setIsSubmitting(true);
 		setSubmitMode(mode);
 		setStatusMessage(null);
@@ -758,6 +764,16 @@ export const useListingForm = (type: ListingType): UseListingFormReturn => {
 			setStatusMessage(
 				(error as { message?: string })?.message || "Upload failed. Please try again."
 			);
+		}
+	};
+
+	const submitListing = async (mode: "draft" | "publish") => {
+		if (submitLockRef.current) return;
+		submitLockRef.current = true;
+		try {
+			await runSubmitListing(mode);
+		} finally {
+			submitLockRef.current = false;
 		}
 	};
 

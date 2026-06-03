@@ -55,6 +55,9 @@ const DIAG = process.env.NODE_ENV === "development";
 let _diagMountSeq = 0;
 let _diagLoadConvSeq = 0;
 let _diagLoadMsgSeq = 0;
+// TEMP PERF: counts realtime message INSERT events received by this component's
+// channel, to detect duplicate refreshes (e.g. paired with the Header channel).
+let _diagRealtimeMsgSeq = 0;
 
 const sortConversations = (items: ConversationSummary[]) =>
   [...items].sort((a, b) => {
@@ -570,6 +573,13 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
           if (!row?.id || !row.conversation_id || !row.created_at) return;
 
+          if (DIAG) console.log(`[DIAG:realtime] message INSERT #${++_diagRealtimeMsgSeq}`, {
+            messageId: row.id,
+            conversationId: row.conversation_id,
+            activeId: activeIdRef.current,
+            mount: diagMountIdRef.current,
+          });
+
           void handleIncomingMessage({
             id: row.id,
             conversationId: row.conversation_id,
@@ -1032,15 +1042,19 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     };
   }, [captureOverflowDiag]);
 
-  const handleSelectConversation = (conversation: ConversationSummary) => {
+  // Memoized so ConversationRow's React.memo is actually effective — a plain
+  // function here would change identity every render and re-render every row.
+  // Reads activeId/pathname via refs to keep a stable identity (only showThread
+  // toggling — a full layout change anyway — recreates it).
+  const handleSelectConversation = React.useCallback((conversation: ConversationSummary) => {
     // Fire-and-forget: don't block navigation on the server round-trip.
     void syncConversationReadState(conversation.id);
     if (showThread) {
       setActiveId(conversation.id);
     }
-    if (DIAG) console.log(`[DIAG:router.push] /dashboard/messages/${conversation.id}`, { reason: "handleSelectConversation", mount: diagMountIdRef.current, showThread, activeId, pathname });
+    if (DIAG) console.log(`[DIAG:router.push] /dashboard/messages/${conversation.id}`, { reason: "handleSelectConversation", mount: diagMountIdRef.current, showThread, activeId: activeIdRef.current });
     router.push(`/dashboard/messages/${conversation.id}`);
-  };
+  }, [showThread, syncConversationReadState, router]);
 
   const handleSend = async () => {
     if (!activeId || sending || conversationBlocked) return;
@@ -1072,8 +1086,17 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
 
     setSending(true);
     setError(null);
+    // TEMP PERF: measure sendMessage server round-trip. Dev-only (DIAG).
+    const sendStartedAt = DIAG ? performance.now() : 0;
     try {
       const inserted = await sendMessage(activeId, next);
+      if (DIAG) {
+        console.log(`[DIAG:perf] sendMessage duration`, {
+          ms: Math.round(performance.now() - sendStartedAt),
+          conversationId: activeId,
+          mount: diagMountIdRef.current,
+        });
+      }
       // Replace the temp message with the confirmed server message.
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? inserted : m))
