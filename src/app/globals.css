@@ -228,19 +228,49 @@ body {
   background: var(--bg-page);
 }
 
-/* Prevent iOS Safari zoom-on-focus: any focusable control under 16px makes
-   iOS zoom in, which shifts the page horizontally and clips the right edge. */
+/* Prevent iOS Safari zoom-on-focus: any focusable control whose COMPUTED
+   font-size is under 16px makes iOS zoom in on focus, which shifts the page
+   horizontally and clips the right edge.
+
+   `!important` is required: Tailwind text-size utilities (e.g. `text-sm` =
+   14px, specificity 0,1,0) sit on many fields and out-rank a bare element
+   selector (0,0,1). Without `!important` those fields — e.g. the HeroSearch
+   category/county selects, which carry `text-sm` — stay at 14px on mobile and
+   still trigger the zoom. Forcing 16px here is the single robust guard. */
 @media (max-width: 767px) {
   input,
   textarea,
   select,
+  [contenteditable]:not([contenteditable="false"]),
   .input,
   .textarea,
   .select,
   .search-input,
   .field-input {
-    font-size: 16px;
+    font-size: 16px !important;
   }
+}
+
+/* Global overflow protection. `html, body { overflow-x: hidden }` is set
+   above; this additionally caps the main content column so a single wide
+   child (full-bleed banner, 100vw element, long unbroken string) cannot make
+   the page horizontally scrollable / shift on iOS. `overflow-x: clip` is used
+   on `main` instead of `hidden` because `clip` does not establish a scroll
+   container, so it never breaks `position: sticky` descendants. (#__next is a
+   no-op in the App Router but kept for parity with the brief.) */
+#__next,
+main {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* Media never overflows its container — guards against a single oversized
+   image/video/svg forcing horizontal scroll on mobile. */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 .page-shell__root {
