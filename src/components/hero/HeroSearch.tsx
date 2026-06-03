@@ -102,7 +102,7 @@ export default function HeroSearch() {
       {/* Main search row — flex row: input + separate 48x48 button, 8px gap */}
       <div className="mt-3 flex h-12 w-full items-center gap-2">
         <input
-          className="box-border block h-12 min-w-0 flex-1 appearance-none rounded-2xl border-0 bg-slate-50 px-3 py-0 text-[15px] leading-none text-slate-900 placeholder:text-slate-400 transition focus:bg-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[rgba(52,87,155,0.2)] sm:text-base"
+          className="box-border block h-12 min-w-0 flex-1 appearance-none rounded-2xl border-0 bg-slate-50 px-3 py-0 text-base leading-none text-slate-900 placeholder:text-slate-400 transition focus:bg-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[rgba(52,87,155,0.2)] sm:text-base"
           name="q"
           placeholder={placeholder}
           value={q}

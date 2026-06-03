@@ -208,6 +208,13 @@ select {
   font-family: var(--font-ui);
 }
 
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
 html {
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
@@ -219,6 +226,21 @@ body {
   -webkit-font-smoothing: antialiased;
   color: var(--text-primary);
   background: var(--bg-page);
+}
+
+/* Prevent iOS Safari zoom-on-focus: any focusable control under 16px makes
+   iOS zoom in, which shifts the page horizontally and clips the right edge. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select,
+  .input,
+  .textarea,
+  .select,
+  .search-input,
+  .field-input {
+    font-size: 16px;
+  }
 }
 
 .page-shell__root {

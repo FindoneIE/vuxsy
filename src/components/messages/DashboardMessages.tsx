@@ -808,13 +808,33 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
     const bubbleRect = rect(lastBubble);
     const panelRect = rect(panel);
     const limit = iw - 12;
-    const keyboardOpen =
-      vvHeight !== null ? vvHeight < window.innerHeight - 120 : null;
+
+    // This iPhone does NOT shrink visualViewport.height when the keyboard opens
+    // (confirmed: vv.height stays == innerHeight, offset 0, scale 1). So the old
+    // vv-height heuristic can never detect the keyboard. The reliable signal is
+    // whether the message textarea is the focused element — that is true exactly
+    // while the soft keyboard is up. keyboardOpen now reflects either condition.
+    const active = (document.activeElement as HTMLElement | null) ?? null;
+    const textareaFocused = active === textareaRef.current && active !== null;
+    const vvShrunk =
+      vvHeight !== null ? vvHeight < window.innerHeight - 120 : false;
+    const keyboardOpen = textareaFocused || vvShrunk;
+
+    // Horizontal-shift instrumentation: getBoundingClientRect is layout-viewport
+    // relative, so it can't reveal a document/element horizontal SCROLL or a CSS
+    // transform — the most likely cause of "content shifted right / clipped" when
+    // vv reports no change. Capture those explicitly.
+    const doc = document.documentElement;
+    const panelStyle = panel ? getComputedStyle(panel) : null;
 
     const payload = {
       event,
       phase,
       keyboardOpen,
+      textareaFocused,
+      activeElement: active
+        ? `${active.tagName.toLowerCase()}${active.getAttribute("data-mobile-composer") !== null ? "[composer]" : ""}`
+        : null,
       visualViewportWidth: vvNow ? Math.round(vvNow.width) : null,
       visualViewportHeight: vvHeight,
       visualViewportOffsetLeft: vvNow ? Math.round(vvNow.offsetLeft) : null,
@@ -822,6 +842,19 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       visualViewportScale: vvNow ? Number(vvNow.scale.toFixed(3)) : null,
       windowInnerWidth: iw,
       windowInnerHeight: window.innerHeight,
+      // Horizontal scroll / transform suspects:
+      windowScrollX: Math.round(window.scrollX),
+      windowScrollY: Math.round(window.scrollY),
+      docScrollLeft: doc.scrollLeft,
+      docScrollWidth: doc.scrollWidth,
+      docClientWidth: doc.clientWidth,
+      bodyScrollLeft: document.body.scrollLeft,
+      bodyScrollWidth: document.body.scrollWidth,
+      panelScrollLeft: panel ? panel.scrollLeft : null,
+      panelTransform:
+        panelStyle && panelStyle.transform !== "none" ? panelStyle.transform : "none",
+      panelInlineLeft: panel ? panel.style.left || null : null,
+      panelInlineWidth: panel ? panel.style.width || null : null,
       panelRect,
       messagesRect: rect(scrollRef.current),
       composerRect,
@@ -830,6 +863,7 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       FLAG_bubbleRightOverflow: bubbleRect ? bubbleRect.right > limit : null,
       FLAG_composerBelowViewport:
         composerRect && vvHeight !== null ? composerRect.bottom > vvHeight + 1 : null,
+      FLAG_docHorizontalScroll: doc.scrollWidth > doc.clientWidth || window.scrollX > 0,
       offendersBeyondViewport: offenders.slice(0, 12),
     };
 
@@ -952,6 +986,51 @@ export default function DashboardMessages({ conversationId }: DashboardMessagesP
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, [scrollToBottom, captureOverflowDiag]);
+
+  // TEMP DIAGNOSTIC — keyboard-open capture driven by TEXTAREA FOCUS, the only
+  // reliable keyboard signal on this iPhone (visualViewport.height never shrinks
+  // here). Document-level focusin/focusout (capture) so it fires regardless of
+  // when the textarea mounts. Each event bursts at immediate/RAF/+100/+300/+700ms
+  // to catch iOS's async reflow. Dev-only; remove with the diagnostics.
+  React.useEffect(() => {
+    if (!DIAG) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+
+    const rafs: number[] = [];
+    const timers: number[] = [];
+    const burst = (event: string) => {
+      captureOverflowDiag(event, "immediate");
+      rafs.push(requestAnimationFrame(() => captureOverflowDiag(event, "raf")));
+      [100, 300, 700].forEach((ms) =>
+        timers.push(window.setTimeout(() => captureOverflowDiag(event, `+${ms}ms`), ms))
+      );
+    };
+
+    const isComposerTextarea = (t: EventTarget | null) =>
+      t instanceof HTMLElement && t.closest("[data-mobile-composer]") !== null;
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (isComposerTextarea(e.target)) burst("textarea-focus");
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      if (isComposerTextarea(e.target)) burst("textarea-blur");
+    };
+    const onInput = (e: Event) => {
+      if (isComposerTextarea(e.target)) burst("textarea-input");
+    };
+
+    document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("focusout", onFocusOut, true);
+    document.addEventListener("input", onInput, true);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+      document.removeEventListener("input", onInput, true);
+      rafs.forEach((r) => cancelAnimationFrame(r));
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [captureOverflowDiag]);
 
   const handleSelectConversation = (conversation: ConversationSummary) => {
     // Fire-and-forget: don't block navigation on the server round-trip.
